@@ -1,8 +1,8 @@
 <div align="center">
 
-# Notification Card
+# ◪ Origami Notifications
 
-A clean card for notifications, alerts, and updates.
+A clean Home Assistant card for notifications, alerts, updates and more.
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?style=flat-square)](https://hacs.xyz)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Dashboard%20card-41BDF5?style=flat-square&logo=home-assistant&logoColor=white)](https://www.home-assistant.io)
