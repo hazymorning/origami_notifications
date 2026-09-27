@@ -38,9 +38,9 @@ type: custom:origami-notifications
 ```
 
 > [!TIP]
-> That is already a working card. System notifications, repairs and pending
+> System notifications, repairs and pending
 > updates are picked up on their own, and everything below can be clicked
-> together in the visual editor instead of written by hand.
+> together in the visual editor.
 
 | Option | Default | |
 | --- | --- | --- |
