@@ -5,7 +5,7 @@
 const CARD = "origami-notifications";
 const EDITOR = CARD + "-editor";
 const REPO = "https://github.com/hazymorning/origami_notifications";
-const VERSION = "0.1.2";
+const VERSION = "0.2.0";
 
 /* ── configuration ──────────────────────────────────────────────────── */
 
