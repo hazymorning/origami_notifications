@@ -9,7 +9,7 @@ body:
 
         This form is only for **bugs**: something in the card is broken or behaves differently than the readme
         describes. Questions, help with a setup, ideas and feature requests are just as welcome, they simply live in
-        [Discussions](https://github.com/hazymorning/Notification-Card/discussions). There they reach more people,
+        [Discussions](https://github.com/hazymorning/origami_notifications/discussions). There they reach more people,
         and the answer stays easy to find for the next person who wonders the same.
 
         Not sure whether it is a bug? Start a discussion. If it turns out to be one, it becomes an issue from there,
@@ -74,7 +74,7 @@ body:
     id: card-version
     attributes:
       label: Card version
-      description: Shown in HACS next to *Notification Card*, and in the browser console as *Notification Card v...*.
+      description: Shown in HACS next to *Origami Notifications*, and in the browser console as *Origami Notifications v...*.
       placeholder: e.g. v0.1.0
     validations:
       required: true

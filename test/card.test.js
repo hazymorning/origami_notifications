@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
 
-const SRC = process.argv[2] || path.join(__dirname, "..", "dist", "notification-card.js");
+const SRC = process.argv[2] || path.join(__dirname, "..", "dist", "origami-notifications.js");
 
 function makeWindow() {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -76,7 +76,7 @@ function makeHass(states = {}, opts = {}) {
 }
 
 function mount(w, config, hass) {
-  const el = w.document.createElement("notification-card");
+  const el = w.document.createElement("origami-notifications");
   el.setConfig(config);
   w.document.body.appendChild(el);
   el.hass = hass;
@@ -119,6 +119,13 @@ console.log("\n# empty");
   check("hidden when empty", el.classList.contains("gone"), true);
   const el2 = mount(w, { type: "x", hide_when_empty: false }, makeHass({}));
   check("idle title", el2.shadowRoot.querySelector(".head .title").textContent, "All quiet");
+}
+
+console.log("\n# registration");
+{
+  const w = makeWindow();
+  check("picker entry", w.customCards.map((c) => [c.type, c.name]), [["origami-notifications", "Origami Notifications"]]);
+  check("editor", Boolean(w.customElements.get("origami-notifications-editor")), true);
 }
 
 console.log("\n# persistent notification");
@@ -288,7 +295,7 @@ console.log("\n# local ack");
 console.log("\n# editor");
 {
   const w = makeWindow();
-  const ed = w.document.createElement("notification-card-editor");
+  const ed = w.document.createElement("origami-notifications-editor");
   ed.setConfig({ type: "x", entities: ["calendar.family"] });
   ed.hass = makeHass({ "calendar.family": st("calendar.family", "off", { friendly_name: "Family" }) });
   const form = ed.querySelector("ha-form");
@@ -318,7 +325,7 @@ console.log("\n# hidden the way Home Assistant expects");
 {
   const w = makeWindow();
   const events = [];
-  const el = w.document.createElement("notification-card");
+  const el = w.document.createElement("origami-notifications");
   el.addEventListener("card-visibility-changed", (e) => events.push(e.detail.value));
   el.setConfig({ type: "x", entities: ["binary_sensor.door"] });
   w.document.body.appendChild(el);
@@ -469,9 +476,9 @@ console.log("\n# calendar");
 console.log("\n# editor writes only what differs");
 {
   const w = makeWindow();
-  const ed = w.document.createElement("notification-card-editor");
+  const ed = w.document.createElement("origami-notifications-editor");
   const hass = makeHass({ "sensor.dinner": st("sensor.dinner", "Lasagne", { friendly_name: "Dinner", recipe: { name: "Lasagne" } }) });
-  ed.setConfig({ type: "custom:notification-card", entities: [{ entity: "sensor.dinner", actions: [{ label: "Cook" }] }] });
+  ed.setConfig({ type: "custom:origami-notifications", entities: [{ entity: "sensor.dinner", actions: [{ label: "Cook" }] }] });
   ed.hass = hass;
   const form = ed.querySelector("ha-form");
   const schemaBefore = form.schema;
@@ -484,7 +491,7 @@ console.log("\n# editor writes only what differs");
   value.options["sensor.dinner"].name = "";
   form.dispatchEvent(new w.CustomEvent("value-changed", { detail: { value } }));
   check("options merged, defaults left out, YAML only keys kept", written, {
-    type: "custom:notification-card",
+    type: "custom:origami-notifications",
     entities: [{ entity: "sensor.dinner", background: true, actions: [{ label: "Cook" }] }],
   });
 }

@@ -9,21 +9,21 @@ A clean Home Assistant card for notifications, alerts, updates and more.
 
 </div>
 
-![The card collapsed on a dashboard and expanded with two notifications](https://raw.githubusercontent.com/hazymorning/Notification-Card/main/images/dark-and-light-preview.png)
+![The card collapsed on a dashboard and expanded with two notifications](https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/dark-and-light-preview.png)
 
 ## Install
 
 In HACS: three dot menu > *Custom repositories* > add
-`https://github.com/hazymorning/Notification-Card` as type **Dashboard**, then
-install *Notification Card*.
+`https://github.com/hazymorning/origami_notifications` as type **Dashboard**, then
+install *Origami Notifications*.
 
 <details>
 <summary>Manual install</summary>
 
-Copy `dist/notification-card.js` to `config/www/` and add the resource:
+Copy `dist/origami-notifications.js` to `config/www/` and add the resource:
 
 ```yaml
-url: /local/notification-card.js
+url: /local/origami-notifications.js
 type: module
 ```
 
@@ -31,10 +31,10 @@ type: module
 
 ## Use
 
-Add a card to your dashboard, pick **Notification Card**, done. In YAML:
+Add a card to your dashboard, pick **Origami Notifications**, done. In YAML:
 
 ```yaml
-type: custom:notification-card
+type: custom:origami-notifications
 ```
 
 > [!TIP]
@@ -176,15 +176,16 @@ whatever else you want to change.
 
 ```yaml
 css: |
-  :host { --nc-radius: 20px; --nc-pad: 16px; }
+  :host { --origami-radius: 20px; --origami-pad: 16px; }
   .row { border: 1px solid var(--divider-color); }
 ```
 
-Variables: `--nc-pad`, `--nc-gap`, `--nc-gap-s`, `--nc-radius`,
-`--nc-radius-s`, `--nc-tile`, `--nc-tile-s`, `--nc-icon`,
-`--nc-muted`, `--nc-quiet`, `--nc-ease`, `--nc-time`, `--nc-focus`,
-`--nc-max-height`, and for the background `--nc-bg-opacity` and
-`--nc-bg-blur`. The last two also work in a theme.
+Variables: `--origami-pad`, `--origami-gap`, `--origami-gap-s`,
+`--origami-radius`, `--origami-radius-s`, `--origami-tile`, `--origami-tile-s`,
+`--origami-icon`, `--origami-muted`, `--origami-quiet`, `--origami-ease`,
+`--origami-time`, `--origami-focus`, `--origami-max-height`, and for the
+background `--origami-bg-opacity` and `--origami-bg-blur`. The last two also
+work in a theme.
 
 Classes: `.head`, `.tile`, `.badge`, `.title`, `.msg`, `.ebar`, `.count`,
 `.list`, `.row`, `.rtile`, `.body`, `.when`, `.x`, `.act`, `.foot`, `.clear`,
