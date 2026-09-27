@@ -1,10 +1,10 @@
-/* notification-card
+/* origami-notifications
  * Stateless notification card for Home Assistant.
  */
 
-const CARD = "notification-card";
+const CARD = "origami-notifications";
 const EDITOR = CARD + "-editor";
-const REPO = "https://github.com/hazymorning/Notification-Card";
+const REPO = "https://github.com/hazymorning/origami_notifications";
 const VERSION = "0.1.2";
 
 /* ── configuration ──────────────────────────────────────────────────── */
@@ -539,33 +539,33 @@ const setImage = (tile, url) => {
 const STYLES = `
   *, *::before, *::after { box-sizing: border-box; }
   :host {
-    --nc-pad: var(--card-padding, 12px);
-    --nc-gap: var(--ha-space-3, 12px);
-    --nc-gap-s: var(--ha-space-2, 8px);
-    --nc-radius: var(--radius-inner, var(--ha-border-radius-lg, 12px));
-    --nc-radius-s: var(--radius-small, var(--ha-border-radius-md, 8px));
-    --nc-tile: var(--control-height-icon, 40px);
-    --nc-tile-s: var(--control-height-mini, 32px);
-    --nc-muted: var(--opacity-muted, 0.6);
-    --nc-quiet: var(--opacity-quiet, 0.45);
-    --nc-ease: var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1));
-    --nc-time: var(--duration-normal, var(--ha-animation-duration-normal, 250ms));
-    --nc-icon: var(--icon-size-s, 20px);
-    --nc-focus: var(--fill-strong, var(--ha-color-focus, var(--primary-color)));
-    --nc-card-bg: var(--ha-card-background, var(--card-background-color, #fff));
-    --nc-row-bg: var(--card-item-background, var(--secondary-background-color));
-    --nc-hover: color-mix(in srgb, currentColor 7%, transparent);
-    --nc-bg-auto: 0.22;
+    --origami-pad: var(--card-padding, 12px);
+    --origami-gap: var(--ha-space-3, 12px);
+    --origami-gap-s: var(--ha-space-2, 8px);
+    --origami-radius: var(--radius-inner, var(--ha-border-radius-lg, 12px));
+    --origami-radius-s: var(--radius-small, var(--ha-border-radius-md, 8px));
+    --origami-tile: var(--control-height-icon, 40px);
+    --origami-tile-s: var(--control-height-mini, 32px);
+    --origami-muted: var(--opacity-muted, 0.6);
+    --origami-quiet: var(--opacity-quiet, 0.45);
+    --origami-ease: var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1));
+    --origami-time: var(--duration-normal, var(--ha-animation-duration-normal, 250ms));
+    --origami-icon: var(--icon-size-s, 20px);
+    --origami-focus: var(--fill-strong, var(--ha-color-focus, var(--primary-color)));
+    --origami-card-bg: var(--ha-card-background, var(--card-background-color, #fff));
+    --origami-row-bg: var(--card-item-background, var(--secondary-background-color));
+    --origami-hover: color-mix(in srgb, currentColor 7%, transparent);
+    --origami-bg-auto: 0.22;
     display: grid;
     grid-template-rows: 1fr;
     opacity: 1;
     -webkit-tap-highlight-color: transparent;
     transition:
-      grid-template-rows 450ms var(--nc-ease),
-      opacity 450ms var(--nc-ease),
+      grid-template-rows 450ms var(--origami-ease),
+      opacity 450ms var(--origami-ease),
       display 450ms allow-discrete;
   }
-  :host(.dark) { --nc-bg-auto: 0.32; }
+  :host(.dark) { --origami-bg-auto: 0.32; }
   /* Home Assistant drops the grid cell of a card that sets hidden, so the
    * section closes the gap. .gone plays the collapse before that. */
   :host([hidden]) { display: none !important; }
@@ -589,18 +589,18 @@ const STYLES = `
     display: flex;
     flex-direction: column;
     min-height: 0;
-    max-height: var(--nc-max-height, none);
+    max-height: var(--origami-max-height, none);
     overflow: hidden;
     isolation: isolate;
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
     touch-action: manipulation;
-    transition: transform 400ms var(--nc-ease);
+    transition: transform 400ms var(--origami-ease);
   }
   /* The sticky view footer of a sections dashboard caps a card at a quarter
    * of the screen; the list scrolls inside that instead of running off it. */
-  :host(.docked) ha-card { max-height: var(--nc-max-height, 25dvh); }
+  :host(.docked) ha-card { max-height: var(--origami-max-height, 25dvh); }
   /* Only with a fixed height from the layout tab does the card fill its cell:
    * the header centers in it, the open list scrolls inside it. With automatic
    * height nothing stretches. ha-card itself is stretched, not sized, so a
@@ -619,25 +619,25 @@ const STYLES = `
   }
   .backdrop img {
     position: absolute;
-    top: calc(var(--nc-bg-blur, 24px) * -2);
-    left: calc(var(--nc-bg-blur, 24px) * -2);
-    width: calc(100% + var(--nc-bg-blur, 24px) * 4);
-    height: calc(100% + var(--nc-bg-blur, 24px) * 4);
+    top: calc(var(--origami-bg-blur, 24px) * -2);
+    left: calc(var(--origami-bg-blur, 24px) * -2);
+    width: calc(100% + var(--origami-bg-blur, 24px) * 4);
+    height: calc(100% + var(--origami-bg-blur, 24px) * 4);
     max-width: none;
     object-fit: cover;
-    filter: blur(var(--nc-bg-blur, 24px)) saturate(1.3);
+    filter: blur(var(--origami-bg-blur, 24px)) saturate(1.3);
     opacity: 0;
-    transition: opacity 700ms var(--nc-ease);
+    transition: opacity 700ms var(--origami-ease);
   }
-  .backdrop img.on { opacity: var(--nc-bg-opacity, var(--nc-bg-auto)); }
+  .backdrop img.on { opacity: var(--origami-bg-opacity, var(--origami-bg-auto)); }
 
   .head {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas: "htl hti hsd" "htl hsub hsd";
     align-content: center;
-    column-gap: var(--nc-gap);
-    padding: var(--nc-pad);
+    column-gap: var(--origami-gap);
+    padding: var(--origami-pad);
     outline: none;
   }
   ha-card.has-items .head, .ebar { cursor: pointer; }
@@ -645,21 +645,21 @@ const STYLES = `
   .tilewrap { grid-area: htl; align-self: center; }
   .tile {
     position: relative;
-    width: var(--nc-tile);
-    height: var(--nc-tile);
+    width: var(--origami-tile);
+    height: var(--origami-tile);
     display: flex; align-items: center; justify-content: center;
     background: var(--accent-color);
     color: var(--text-color-active, var(--primary-background-color));
-    border-radius: var(--nc-radius);
+    border-radius: var(--origami-radius);
   }
   .tile.warn { background: var(--warning-color); }
   .tile.crit { background: var(--error-color); }
   .tile.idle {
-    background: var(--nc-row-bg);
+    background: var(--origami-row-bg);
     color: var(--primary-text-color);
-    opacity: var(--nc-muted);
+    opacity: var(--origami-muted);
   }
-  .tile ha-icon { --mdc-icon-size: var(--nc-icon); }
+  .tile ha-icon { --mdc-icon-size: var(--origami-icon); }
 
   .badge {
     position: absolute;
@@ -668,9 +668,9 @@ const STYLES = `
     min-width: 20px; height: 20px;
     padding: 0 4px;
     display: flex; align-items: center; justify-content: center;
-    background: var(--nc-card-bg);
+    background: var(--origami-card-bg);
     color: var(--primary-text-color);
-    border-radius: var(--nc-radius-s);
+    border-radius: var(--origami-radius-s);
     box-shadow: var(--ha-card-box-shadow, none);
     font-size: var(--font-size-compact, 11px);
     font-weight: var(--ha-font-weight-bold, 700);
@@ -698,7 +698,7 @@ const STYLES = `
   /* Header and drawer trade places through their grid row, nothing measures. */
   .hwrap, .drawer {
     display: grid;
-    transition: grid-template-rows 280ms var(--nc-ease);
+    transition: grid-template-rows 280ms var(--origami-ease);
   }
   .hwrap { flex: none; grid-template-rows: 1fr; }
   .drawer { flex: 0 1 auto; min-height: 0; grid-template-rows: 0fr; }
@@ -707,7 +707,7 @@ const STYLES = `
   .inner { min-height: 0; }
   .head, .inner {
     overflow: hidden;
-    transition: opacity 200ms var(--nc-ease), padding 280ms var(--nc-ease), visibility 0s 280ms;
+    transition: opacity 200ms var(--origami-ease), padding 280ms var(--origami-ease), visibility 0s 280ms;
   }
   .inner {
     display: flex; flex-direction: column;
@@ -715,30 +715,30 @@ const STYLES = `
   }
   ha-card.open .head { padding-block: 0; opacity: 0; visibility: hidden; }
   ha-card.open .inner {
-    padding-bottom: var(--nc-pad);
+    padding-bottom: var(--origami-pad);
     opacity: 1;
     visibility: visible;
-    transition: opacity 200ms 80ms var(--nc-ease), padding 280ms var(--nc-ease), visibility 0s;
+    transition: opacity 200ms 80ms var(--origami-ease), padding 280ms var(--origami-ease), visibility 0s;
   }
   ha-card:not(.open) .head {
-    transition: opacity 200ms 80ms var(--nc-ease), padding 280ms var(--nc-ease), visibility 0s;
+    transition: opacity 200ms 80ms var(--origami-ease), padding 280ms var(--origami-ease), visibility 0s;
   }
   .ebar {
     flex: none;
     display: flex; align-items: center;
-    gap: var(--nc-gap-s);
-    padding: var(--nc-pad);
+    gap: var(--origami-gap-s);
+    padding: var(--origami-pad);
     outline: none;
   }
   .head:focus-visible, .ebar:focus-visible {
-    outline: 2px solid var(--nc-focus);
+    outline: 2px solid var(--origami-focus);
     outline-offset: -2px;
-    border-radius: var(--nc-radius);
+    border-radius: var(--origami-radius);
   }
   .count {
     flex: 1 1 auto;
     color: var(--primary-text-color);
-    opacity: var(--nc-muted);
+    opacity: var(--origami-muted);
     font-size: var(--ha-font-size-s, 12px);
     font-weight: var(--ha-font-weight-medium, 500);
     font-variant-numeric: tabular-nums;
@@ -748,8 +748,8 @@ const STYLES = `
     flex: 0 1 auto;
     min-height: 0;
     display: flex; flex-direction: column;
-    gap: var(--nc-pad);
-    padding: 0 var(--nc-pad);
+    gap: var(--origami-pad);
+    padding: 0 var(--origami-pad);
   }
   :host(.docked) .list, :host(.bounded) .list {
     overflow-x: hidden;
@@ -762,25 +762,25 @@ const STYLES = `
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas: "rtile rtitle rmeta" "rtile rbody rbody";
     align-items: center;
-    column-gap: var(--nc-gap);
+    column-gap: var(--origami-gap);
     row-gap: 2px;
-    padding: var(--nc-pad);
-    background: var(--nc-row-bg);
-    border-radius: var(--nc-radius);
-    transition: box-shadow 150ms ease, background-color var(--nc-time) var(--nc-ease);
+    padding: var(--origami-pad);
+    background: var(--origami-row-bg);
+    border-radius: var(--origami-radius);
+    transition: box-shadow 150ms ease, background-color var(--origami-time) var(--origami-ease);
   }
   .row.link, .row.expandable, .row.open { cursor: pointer; }
-  :host(.has-bg) .row { background: color-mix(in srgb, var(--nc-row-bg) 72%, transparent); }
+  :host(.has-bg) .row { background: color-mix(in srgb, var(--origami-row-bg) 72%, transparent); }
   .rtile {
     grid-area: rtile;
     align-self: start;
     position: relative;
-    width: var(--nc-tile-s);
-    height: var(--nc-tile-s);
+    width: var(--origami-tile-s);
+    height: var(--origami-tile-s);
     display: flex; align-items: center; justify-content: center;
     background: var(--fill-active, var(--primary-text-color));
-    color: var(--text-color-active, var(--nc-card-bg));
-    border-radius: var(--nc-radius-s);
+    color: var(--text-color-active, var(--origami-card-bg));
+    border-radius: var(--origami-radius-s);
     outline: none;
   }
   .rtile[role="button"] { cursor: pointer; }
@@ -793,7 +793,7 @@ const STYLES = `
     object-fit: cover;
     border-radius: inherit;
     opacity: 0;
-    transition: opacity var(--nc-time) var(--nc-ease);
+    transition: opacity var(--origami-time) var(--origami-ease);
   }
   img { -webkit-user-drag: none; }
   img.ready { opacity: 1; }
@@ -814,11 +814,11 @@ const STYLES = `
     justify-self: end;
     min-height: calc(var(--ha-font-size-m, 14px) * var(--ha-line-height-normal, 1.3));
     display: flex; align-items: center;
-    gap: var(--nc-gap-s);
+    gap: var(--origami-gap-s);
   }
   .when {
     color: var(--primary-text-color);
-    opacity: var(--nc-quiet);
+    opacity: var(--origami-quiet);
     font-size: var(--font-size-compact, 11px);
     font-variant-numeric: tabular-nums;
     line-height: 1;
@@ -839,8 +839,8 @@ const STYLES = `
     border: none;
     background: transparent;
     color: var(--primary-text-color);
-    opacity: var(--nc-quiet);
-    border-radius: var(--nc-radius-s);
+    opacity: var(--origami-quiet);
+    border-radius: var(--origami-radius-s);
     cursor: pointer;
     transition: opacity 150ms ease, background-color 150ms ease, transform 150ms ease;
   }
@@ -851,7 +851,7 @@ const STYLES = `
     grid-area: rbody;
     margin-top: 0;
     color: var(--primary-text-color);
-    opacity: var(--nc-muted);
+    opacity: var(--origami-muted);
     font-size: var(--ha-font-size-s, 12px);
     line-height: var(--ha-line-height-normal, 1.3);
     overflow-wrap: anywhere;
@@ -879,16 +879,16 @@ const STYLES = `
     grid-column: 2 / -1;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--nc-gap-s);
-    margin-top: var(--nc-gap-s);
+    gap: var(--origami-gap-s);
+    margin-top: var(--origami-gap-s);
   }
   .act {
     border: none; cursor: pointer;
     height: 28px;
-    padding: 0 var(--nc-gap);
+    padding: 0 var(--origami-gap);
     background: var(--fill-strong, color-mix(in srgb, currentColor 10%, transparent));
     color: var(--primary-text-color);
-    border-radius: var(--nc-radius-s);
+    border-radius: var(--origami-radius-s);
     font-size: var(--font-size-compact, 11px);
     font-weight: var(--ha-font-weight-medium, 500);
     font-variant-numeric: tabular-nums;
@@ -904,7 +904,7 @@ const STYLES = `
   .msg {
     overflow: hidden;
     color: var(--primary-text-color);
-    opacity: var(--nc-muted);
+    opacity: var(--origami-muted);
     font-size: var(--ha-font-size-s, 12px);
     line-height: var(--ha-line-height-normal, 1.3);
     white-space: nowrap;
@@ -915,11 +915,11 @@ const STYLES = `
   .track .dup { display: none; }
   .track.scroll { max-width: none; animation: nc-scroll var(--scroll-s, 12s) linear infinite; }
   .track.scroll:dir(rtl) { animation-name: nc-scroll-rtl; }
-  .track.scroll .t { overflow: visible; max-width: none; padding-inline-end: var(--nc-gap); }
+  .track.scroll .t { overflow: visible; max-width: none; padding-inline-end: var(--origami-gap); }
   .track.scroll .t::after {
     content: "\\2022";
-    padding-inline-start: var(--nc-gap);
-    opacity: var(--nc-quiet);
+    padding-inline-start: var(--origami-gap);
+    opacity: var(--origami-quiet);
   }
   .track.scroll .dup { display: inline; }
   @keyframes nc-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
@@ -929,14 +929,14 @@ const STYLES = `
     grid-area: hsd;
     align-self: center;
     justify-self: end;
-    margin-inline-end: var(--nc-gap-s);
+    margin-inline-end: var(--origami-gap-s);
     display: flex; align-items: center;
-    gap: var(--nc-gap-s);
+    gap: var(--origami-gap-s);
   }
   .chev {
     flex: 0 0 auto;
     color: var(--primary-text-color);
-    opacity: var(--nc-muted);
+    opacity: var(--origami-muted);
     --mdc-icon-size: var(--icon-size-m, 24px);
     transition: opacity 150ms ease;
   }
@@ -944,26 +944,26 @@ const STYLES = `
 
   .foot {
     flex: none;
-    margin: var(--nc-pad) var(--nc-pad) 0;
+    margin: var(--origami-pad) var(--origami-pad) 0;
     border-top: var(--separator, 2px solid var(--divider-color, color-mix(in srgb, currentColor 10%, transparent)));
-    padding-top: var(--nc-gap-s);
+    padding-top: var(--origami-gap-s);
     text-align: end;
   }
   .foot[hidden] { display: none; }
   .clear {
     border: none; cursor: pointer;
-    height: var(--nc-tile-s);
-    padding: 0 var(--nc-gap);
+    height: var(--origami-tile-s);
+    padding: 0 var(--origami-gap);
     background: transparent;
     color: var(--primary-text-color);
-    opacity: var(--nc-muted);
-    border-radius: var(--nc-radius);
+    opacity: var(--origami-muted);
+    border-radius: var(--origami-radius);
     font-size: var(--ha-font-size-s, 12px);
     font-weight: var(--ha-font-weight-medium, 500);
     transition: opacity 150ms ease, background-color 150ms ease, transform 150ms ease;
   }
   .x:focus-visible, .act:focus-visible, .clear:focus-visible, .rtile:focus-visible {
-    outline: 2px solid var(--nc-focus);
+    outline: 2px solid var(--origami-focus);
     outline-offset: 2px;
   }
   .x:active, .clear:active { transform: scale(0.92); }
@@ -972,15 +972,15 @@ const STYLES = `
   @media (hover: hover) {
     .msg:hover .track.scroll { animation-play-state: paused; }
     .head:hover .chev, .ebar:hover .chev { opacity: 1; }
-    .row.link:hover, .row.expandable:hover, .row.open:hover { box-shadow: inset 0 0 0 100vmax var(--nc-hover); }
-    .x:hover, .clear:hover { opacity: 1; background-color: var(--nc-hover); }
-    .act:hover { box-shadow: inset 0 0 0 100vmax var(--nc-hover); }
+    .row.link:hover, .row.expandable:hover, .row.open:hover { box-shadow: inset 0 0 0 100vmax var(--origami-hover); }
+    .x:hover, .clear:hover { opacity: 1; background-color: var(--origami-hover); }
+    .act:hover { box-shadow: inset 0 0 0 100vmax var(--origami-hover); }
   }
 
   /* The picture behind the card is decoration; whoever asks for less of it gets none. */
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
     .backdrop { display: none; }
-    :host(.has-bg) .row { background: var(--nc-row-bg); }
+    :host(.has-bg) .row { background: var(--origami-row-bg); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1022,7 +1022,7 @@ const TEMPLATE = `
 
 /* ── card ───────────────────────────────────────────────────────────── */
 
-class NotificationCard extends HTMLElement {
+class OrigamiNotificationsCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -1088,9 +1088,6 @@ class NotificationCard extends HTMLElement {
       if (!sources.some((s) => s.entity === src.entity)) sources.push(src);
     }
     const audience = checkAudience(config.audience);
-    if (config.styles != null) {
-      console.warn(CARD + ": the styles option was replaced by css and --nc-* variables");
-    }
     if (config.css != null && typeof config.css !== "string") {
       throw new Error(CARD + ": css must be a string");
     }
@@ -1630,7 +1627,7 @@ class NotificationCard extends HTMLElement {
 
   _loadAcks() {
     try {
-      return JSON.parse(localStorage.getItem("notification-card-ack") || "{}");
+      return JSON.parse(localStorage.getItem("origami-notifications-ack") || "{}");
     } catch (e) {
       return {};
     }
@@ -1638,7 +1635,7 @@ class NotificationCard extends HTMLElement {
 
   _saveAcks() {
     try {
-      localStorage.setItem("notification-card-ack", JSON.stringify(this._acks));
+      localStorage.setItem("origami-notifications-ack", JSON.stringify(this._acks));
     } catch (e) {
       /* private mode etc. */
     }
@@ -1836,7 +1833,7 @@ class NotificationCard extends HTMLElement {
     this._rowCache = next;
     listEl.replaceChildren(...els);
     if (!animate) return;
-    const EASE = NotificationCard._EASE;
+    const EASE = OrigamiNotificationsCard._EASE;
     const scale = listEl.offsetWidth / listRect.width || 1;
     const out = getComputedStyle(this).direction === "rtl" ? -24 : 24;
     for (const [key, oldRect] of before) {
@@ -2113,7 +2110,7 @@ const EDITOR_HELPERS = Object.freeze({
 
 const OPTION_KEYS = ["type", "name", "icon", "image", "background", "tap_action"];
 
-class NotificationCardEditor extends HTMLElement {
+class OrigamiNotificationsEditor extends HTMLElement {
   setConfig(config) {
     checkAudience(config.audience);
     this._config = { ...config };
@@ -2394,15 +2391,15 @@ class NotificationCardEditor extends HTMLElement {
 /* Loading the file twice (HACS plus a manual resource) must not throw. The
  * version line is what a bug report asks for. */
 if (!customElements.get(CARD)) {
-  customElements.define(CARD, NotificationCard);
-  console.info("%c Notification Card %c v" + VERSION + " ", "font-weight:bold", "opacity:0.7");
+  customElements.define(CARD, OrigamiNotificationsCard);
+  console.info("%c Origami Notifications %c v" + VERSION + " ", "font-weight:bold", "opacity:0.7");
 }
-if (!customElements.get(EDITOR)) customElements.define(EDITOR, NotificationCardEditor);
+if (!customElements.get(EDITOR)) customElements.define(EDITOR, OrigamiNotificationsEditor);
 window.customCards = window.customCards || [];
 if (!window.customCards.some((c) => c.type === CARD)) {
   window.customCards.push({
     type: CARD,
-    name: "Notification Card",
+    name: "Origami Notifications",
     description:
       "System notifications, repairs, updates, warnings and any entity you add.",
     preview: true,
