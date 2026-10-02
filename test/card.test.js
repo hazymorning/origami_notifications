@@ -310,7 +310,7 @@ console.log("\n# editor");
   check(
     "entity options",
     form.schema.find((s) => s.name === "options").schema[0].schema.map((s) => s.name || s.type),
-    ["type", "grid", "image", "background", "tap_action"]
+    ["type", "attribute", "grid", "image", "background", "tap_action"]
   );
   check("audience sources", form.schema.find((s) => s.name === "audience").schema.map((s) => s.name), [
     "system",
@@ -340,7 +340,7 @@ console.log("\n# hidden the way Home Assistant expects");
   check("never hidden in the dashboard editor", el.hidden, false);
 }
 
-console.log("\n# pictures: recipe attribute, picture type, background");
+console.log("\n# pictures: attribute, picture type, background");
 {
   const w = makeWindow();
   const hass = makeHass({
@@ -385,6 +385,45 @@ console.log("\n# pictures: recipe attribute, picture type, background");
   el._items.sort((a, b) => (a.title === "Dune" ? -1 : b.title === "Dune" ? 1 : 0));
   el._render();
   check("no background for sources without it", el._bgUrl, null);
+}
+
+console.log("\n# any attribute can describe the notification");
+{
+  const w = makeWindow();
+  const hass = makeHass({
+    "sensor.library": st("sensor.library", "3", {
+      friendly_name: "Library",
+      due: { title: "Dune", summary: "Due back tomorrow", image: "/local/dune.jpg" },
+    }),
+    "sensor.bins": st("sensor.bins", "2026-10-03", { friendly_name: "Bin day", next: "Paper" }),
+    "sensor.parcel": st("sensor.parcel", "0", { friendly_name: "Parcel", item: null }),
+    "sensor.dinner": st("sensor.dinner", "Lasagne", { friendly_name: "Dinner", recipe: { name: "Lasagne" } }),
+  });
+  const el = mount(
+    w,
+    {
+      type: "x",
+      updates: false,
+      entities: [
+        "sensor.library",
+        { entity: "sensor.bins", attribute: "next" },
+        { entity: "sensor.parcel", attribute: "item" },
+        { entity: "sensor.dinner", type: "recipe" },
+      ],
+    },
+    hass
+  );
+  const byTitle = Object.fromEntries(rows(el).map((r) => [r.title, r]));
+  check("an object in any attribute is found on its own", [byTitle.Dune.body, byTitle.Dune.icon], ["Due back tomorrow", "mdi:card-text-outline"]);
+  check("a plain value becomes the title", byTitle.Paper.body, "Bin day");
+  check("an empty attribute shows nothing", Object.keys(byTitle).includes("Parcel"), false);
+  check("type: recipe from 0.2 still works", byTitle.Lasagne.body, "Dinner");
+
+  const ed = w.document.createElement("origami-notifications-editor");
+  ed.setConfig({ type: "x", entities: [{ entity: "sensor.dinner", type: "recipe" }] });
+  ed.hass = hass;
+  const opts = ed.querySelector("ha-form").data.options["sensor.dinner"];
+  check("the editor shows type: recipe as an attribute", [opts.type, opts.attribute], ["attribute", "recipe"]);
 }
 
 console.log("\n# persistent notification markdown");
@@ -454,6 +493,23 @@ console.log("\n# other languages borrow Home Assistant's strings");
   check("install in french", rows(el)[0].actions, ["Installer"]);
   const idle = mount(w, { type: "x", hide_when_empty: false, updates: false }, makeHass({}, { lang: "fr", localize: (k) => fr[k] || "" }));
   check("idle text in french", idle.shadowRoot.querySelector(".msg .t").textContent, "Aucune notification");
+}
+
+console.log("\n# the language follows the profile, English unless it is German");
+{
+  const w = makeWindow();
+  const texts = (lang) => {
+    const el = mount(w, { type: "x", hide_when_empty: false, updates: false }, makeHass({}, { lang }));
+    const ed = w.document.createElement("origami-notifications-editor");
+    ed.setConfig({ type: "x" });
+    ed.hass = makeHass({}, { lang });
+    const form = ed.querySelector("ha-form");
+    return [el.shadowRoot.querySelector(".head .title").textContent, form.computeLabel({ name: "hide_when_empty" })];
+  };
+  check("English", texts("en"), ["All quiet", "Hide when there is nothing to show"]);
+  check("British English", texts("en-GB"), ["All quiet", "Hide when there is nothing to show"]);
+  check("German", texts("de"), ["Alles ruhig", "Ausblenden, wenn nichts anliegt"]);
+  check("anything else is English, never German", texts("nl"), ["All quiet", "Hide when there is nothing to show"]);
 }
 
 console.log("\n# calendar");

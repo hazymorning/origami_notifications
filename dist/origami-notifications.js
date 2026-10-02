@@ -20,9 +20,9 @@ const DEFAULTS = Object.freeze({
 
 /* The order the editor writes keys in, so the YAML reads top to bottom. */
 const KEY_ORDER = ["entities", "label", "updates", "repairs", "hide_when_empty", "audience", "css"];
-const ENTITY_KEY_ORDER = ["entity", "type", "name", "icon", "image", "background", "tap_action", "actions"];
+const ENTITY_KEY_ORDER = ["entity", "type", "attribute", "name", "icon", "image", "background", "tap_action", "actions"];
 
-const TYPES = ["auto", "calendar", "update", "alarm", "alert", "dwd", "recipe", "picture", "generic"];
+const TYPES = ["auto", "calendar", "update", "alarm", "alert", "dwd", "attribute", "picture", "generic"];
 
 const ICONS = Object.freeze({
   system: "mdi:bell",
@@ -32,7 +32,7 @@ const ICONS = Object.freeze({
   alert: "mdi:alert",
   weather: "mdi:flash",
   calendar: "mdi:calendar-month",
-  recipe: "mdi:chef-hat",
+  attribute: "mdi:card-text-outline",
   picture: "mdi:image-outline",
   generic: "mdi:information-outline",
 });
@@ -367,30 +367,44 @@ const renderDwd = (id, st, items, ctx) => {
   }
 };
 
-/* One thing worth showing with its picture: a dish from a meal plan, a book,
- * a parcel, a film tonight. Either an attribute holds it as an object (a
- * recipe attribute is detected on its own) or, with type: picture, the state
- * names it. The picture itself is resolved in renderEntity like for any kind. */
-const renderPicture = (id, st, items, ctx) => {
+/* An attribute that describes one thing: a dish, a book, a parcel, a film
+ * tonight. It holds an object with a name or a title, and maybe a text and
+ * a picture. */
+const isThing = (v) =>
+  v != null && typeof v === "object" && !Array.isArray(v) &&
+  ["name", "title"].some((k) => (typeof v[k] === "string" && v[k] !== "") || typeof v[k] === "number");
+
+const findThing = (attrs) => Object.keys(attrs).find((k) => isThing(attrs[k]));
+
+/* type: attribute shows what an attribute holds: the object of isThing, or a
+ * plain value as the title. Set to an attribute that is empty, it shows
+ * nothing. type: picture puts the state itself in the title, for entities
+ * whose state is the thing, like the dish of the day. The picture is
+ * resolved in renderEntity like for any kind. */
+const renderThing = (id, st, items, ctx) => {
   const a = st.attributes;
   const ts = parseTs(st.last_changed, Date.now());
-  const obj = a.recipe && typeof a.recipe === "object" ? a.recipe : null;
-  if (obj) {
-    const title = pick(obj, ["name", "title"]);
-    if (!title) return;
+  const path = ctx.attribute || findThing(a);
+  const value = path ? attrPath(a, path) : undefined;
+  if (isThing(value)) {
     items.push({
       key: "r:" + id,
       kind: ctx.kind,
       source: id,
       entity: id,
-      title: String(title),
-      message: String(pick(obj, ["description", "summary"]) || ctx.name(st)),
-      image: pick(obj, ["image", "image_url", "picture", "thumbnail"]),
+      title: String(pick(value, ["name", "title"])),
+      message: String(pick(value, ["description", "summary"]) || ctx.name(st)),
+      image: pick(value, ["image", "image_url", "picture", "thumbnail"]),
       ts,
     });
     return;
   }
-  if (ctx.kind === "recipe" || INACTIVE.has(String(st.state).toLowerCase())) return;
+  if (ctx.kind === "attribute") {
+    if (!ctx.attribute || value == null || value === "" || typeof value === "object") return;
+    items.push({ key: "r:" + id, kind: ctx.kind, source: id, entity: id, title: String(value), message: ctx.name(st), ts });
+    return;
+  }
+  if (INACTIVE.has(String(st.state).toLowerCase())) return;
   items.push({
     key: "r:" + id,
     kind: ctx.kind,
@@ -501,24 +515,23 @@ const renderGeneric = (id, st, items, ctx) => {
   });
 };
 
-/* Detection order: attribute shapes first, then domain, then generic.
- * A present-but-empty shape key (e.g. recipe: null) still claims the entity,
- * so an empty source renders nothing instead of falling through to generic. */
+/* Detection order: the DWD attribute shape, the domain, an attribute that
+ * describes one thing, then generic. */
 const detectType = (id, st) => {
   const a = st.attributes;
   if (a.warning_count !== undefined) return "dwd";
-  if ("recipe" in a) return "recipe";
   if (id.startsWith("calendar.")) return "calendar";
   if (id.startsWith("update.")) return "update";
   if (id.startsWith("alarm_control_panel.")) return "alarm";
   if (id.startsWith("alert.")) return "alert";
+  if (findThing(a)) return "attribute";
   return "generic";
 };
 
 const RENDERERS = Object.freeze({
   dwd: renderDwd,
-  recipe: renderPicture,
-  picture: renderPicture,
+  attribute: renderThing,
+  picture: renderThing,
   calendar: renderCalendar,
   update: renderUpdate,
   alarm: renderAlarm,
@@ -582,12 +595,13 @@ const linkAction = (host, url) => () =>
 const renderEntity = (id, st, items, ctx, src) => {
   if (!st) return;
   const forced = Boolean(src && src.type && src.type !== "auto");
-  const kind = forced ? src.type : detectType(id, st);
+  const attribute = (src && src.attribute) || null;
+  const kind = forced ? src.type : attribute ? "attribute" : detectType(id, st);
   const renderer = RENDERERS[kind];
   if (!renderer) return;
   const before = items.length;
   try {
-    renderer(id, st, items, { ...ctx, forced, kind });
+    renderer(id, st, items, { ...ctx, forced, kind, attribute });
   } catch (e) {
     console.warn(CARD + ": renderer failed for " + id, e);
     items.length = before;
@@ -1176,6 +1190,7 @@ class OrigamiNotificationsCard extends HTMLElement {
           : {
               entity: entry && entry.entity,
               type: (entry && entry.type) || "auto",
+              attribute: entry ? entry.attribute : null,
               icon: entry ? entry.icon : null,
               name: entry ? entry.name : null,
               image: entry ? entry.image : null,
@@ -1186,8 +1201,16 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (typeof src.entity !== "string" || !src.entity.includes(".")) {
         throw new Error(CARD + ": entities must contain entity ids, got " + JSON.stringify(entry));
       }
+      /* The name the attribute type had up to 0.2. */
+      if (src.type === "recipe") {
+        src.type = "attribute";
+        src.attribute = src.attribute || "recipe";
+      }
       if (src.type !== "auto" && !RENDERERS[src.type]) {
         throw new Error(CARD + ": unknown source type '" + src.type + "'");
+      }
+      if (src.attribute != null && typeof src.attribute !== "string") {
+        throw new Error(CARD + ": attribute must be the name of an attribute");
       }
       if (src.image != null && typeof src.image !== "string") {
         throw new Error(CARD + ": image must be an attribute path or URL");
@@ -2313,6 +2336,7 @@ const EDITOR_STRINGS = Object.freeze({
     hide_when_empty: "Hide when there is nothing to show",
     options: "Entity options",
     type: "Kind",
+    attribute: "Attribute",
     name: "Name",
     icon: "Icon",
     image: "Picture",
@@ -2334,8 +2358,8 @@ const EDITOR_STRINGS = Object.freeze({
     type_alarm: "Alarm panel",
     type_alert: "Alert",
     type_dwd: "DWD weather warnings",
-    type_recipe: "Recipe attribute",
-    type_picture: "Picture with a text state",
+    type_attribute: "Details from an attribute",
+    type_picture: "State as title",
     type_generic: "Plain entity",
   },
   de: {
@@ -2346,6 +2370,7 @@ const EDITOR_STRINGS = Object.freeze({
     hide_when_empty: "Ausblenden, wenn nichts anliegt",
     options: "Optionen je Entität",
     type: "Art",
+    attribute: "Attribut",
     name: "Name",
     icon: "Symbol",
     image: "Bild",
@@ -2367,8 +2392,8 @@ const EDITOR_STRINGS = Object.freeze({
     type_alarm: "Alarmanlage",
     type_alert: "Alarm (alert)",
     type_dwd: "DWD-Unwetterwarnungen",
-    type_recipe: "Rezept-Attribut",
-    type_picture: "Bild mit Text-Zustand",
+    type_attribute: "Details aus einem Attribut",
+    type_picture: "Zustand als Titel",
     type_generic: "Einfache Entität",
   },
 });
@@ -2378,19 +2403,23 @@ const EDITOR_HELPERS = Object.freeze({
     label: "Every entity with this label is added and detected automatically.",
     visible: "Applies outside edit mode, like Home Assistant's own card visibility.",
     people: "Matches the user account linked to each person in Settings → People.",
-    image: "An attribute such as recipe.image, or a URL. Empty: the entity's own picture.",
+    attribute:
+      "Shown as the notification: an object with a name or title, a description and an image, or a plain value. Empty: found on its own.",
+    image: "An attribute, a path into one like book.cover, or a URL. Empty: the entity's own picture.",
     background: "Shown softly blurred behind the card while this entity is the notification on top.",
   },
   de: {
     label: "Jede Entität mit diesem Label kommt dazu und wird automatisch erkannt.",
     visible: "Gilt außerhalb des Bearbeitungsmodus, wie die Sichtbarkeit von Home Assistant selbst.",
     people: "Verglichen wird das Benutzerkonto, das unter Einstellungen → Personen verknüpft ist.",
-    image: "Ein Attribut wie recipe.image oder eine URL. Leer: das eigene Bild der Entität.",
+    attribute:
+      "Wird zur Benachrichtigung: ein Objekt mit name oder title, description und image, oder ein einfacher Wert. Leer: wird selbst gefunden.",
+    image: "Ein Attribut, ein Pfad hinein wie book.cover, oder eine URL. Leer: das eigene Bild der Entität.",
     background: "Weich und unscharf hinter der Karte, solange diese Entität oben steht.",
   },
 });
 
-const OPTION_KEYS = ["type", "name", "icon", "image", "background", "tap_action"];
+const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "tap_action"];
 
 class OrigamiNotificationsEditor extends HTMLElement {
   setConfig(config) {
@@ -2455,7 +2484,9 @@ class OrigamiNotificationsEditor extends HTMLElement {
   }
 
   _typeOf(src) {
+    if (src.type === "recipe") return "attribute";
     if (src.type && src.type !== "auto") return src.type;
+    if (src.attribute) return "attribute";
     const st = this._hass && this._hass.states[src.entity];
     return st ? detectType(src.entity, st) : "generic";
   }
@@ -2508,6 +2539,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
                         },
                       },
                     },
+                    { name: "attribute", selector: { attribute: { entity_id: e.entity } } },
                     {
                       name: "",
                       type: "grid",
@@ -2554,7 +2586,8 @@ class OrigamiNotificationsEditor extends HTMLElement {
       this._entries().map((e) => [
         e.entity,
         {
-          type: e.type || "auto",
+          type: e.type === "recipe" ? "attribute" : e.type || "auto",
+          attribute: e.attribute || (e.type === "recipe" ? "recipe" : undefined),
           name: typeof e.name === "string" ? e.name : undefined,
           icon: e.icon,
           image: e.image,
