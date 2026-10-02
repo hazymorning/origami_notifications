@@ -23,6 +23,8 @@ const ICONS = {
   alert: "mdi:alert",
   dwd: "mdi:flash",
   calendar: "mdi:calendar-month",
+  timer: "mdi:timer-outline",
+  countdown: "mdi:timer-sand",
   attribute: "mdi:card-text-outline",
   picture: "mdi:image-outline",
   generic: "mdi:information-outline",
@@ -56,6 +58,10 @@ const STRINGS = {
     day_at: "{d} at {t}",
     date_at: "on {d} at {t}",
     on_date: "on {d}",
+    paused_left: "Paused, {t} left",
+    act_pause: "Pause",
+    act_resume: "Resume",
+    act_cancel: "Cancel",
   },
   de: {
     idle_title: "Alles ruhig",
@@ -79,6 +85,10 @@ const STRINGS = {
     day_at: "{d} um {t}",
     date_at: "am {d} um {t}",
     on_date: "am {d}",
+    paused_left: "Pausiert, noch {t}",
+    act_pause: "Pause",
+    act_resume: "Fortsetzen",
+    act_cancel: "Abbrechen",
   },
 };
 
@@ -92,10 +102,13 @@ const HA_STRINGS = {
   installing: ["ui.card.update.installing"],
   installing_pct: ["ui.card.update.installing_with_progress", { progress: "{p}" }],
   update: ["ui.dialogs.more_info_control.update.update"],
+  act_pause: ["ui.card.timer.actions.pause"],
+  act_resume: ["ui.card.timer.actions.start"],
+  act_cancel: ["ui.card.timer.actions.cancel"],
 };
 
 const borrowedStrings = (localize) => {
-  const t = { ...STRINGS.en, just_now: null, soon: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}" };
+  const t = { ...STRINGS.en, just_now: null, soon: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}", paused_left: "{s}, {t}" };
   if (typeof localize === "function") {
     for (const [key, [id, vars]] of Object.entries(HA_STRINGS)) {
       const text = localize(id, vars);
@@ -274,16 +287,58 @@ const zonedParts = (ts, timeZone) => {
   return p;
 };
 
-/* Calendars give start_time as the server's wall clock time, without an offset. */
+/* Calendars give start_time as the server's wall clock time, without an offset. Other times without
+ * one may carry fractions of a second. */
 const fromServerTime = (text, timeZone) => {
-  const m = /^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d)(?::(\d\d))?)?$/.exec(String(text));
+  const m = /^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d)(?::(\d\d)(?:\.(\d+))?)?)?$/.exec(String(text));
   if (!m) return Date.parse(text);
   const wall = Date.UTC(m[1], m[2] - 1, m[3], m[4] || 0, m[5] || 0, m[6] || 0);
   const offset = (ts) => {
     const p = zonedParts(ts, timeZone);
     return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - ts;
   };
-  return wall - offset(wall - offset(wall));
+  return wall - offset(wall - offset(wall)) + (m[7] ? Number(m[7].slice(0, 3).padEnd(3, "0")) : 0);
+};
+
+/* Home Assistant writes times as ISO text. Date.parse would also read a bare number like 5 as a year. */
+const isoTime = (value, zone) =>
+  typeof value === "string" && /^\d{4}-\d\d-\d\d/.test(value) ? fromServerTime(value, zone) : NaN;
+
+/* Timers write their duration and the time left as H:MM:SS. */
+const parseDuration = (text) => {
+  const m = /^(\d+):(\d\d):(\d\d)$/.exec(String(text == null ? "" : text).trim());
+  return m ? (Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])) * 1000 : NaN;
+};
+
+const TIME_UNITS = { d: 86400000, h: 3600000, min: 60000, s: 1000, ms: 1, "μs": 0.001 };
+
+/* A state with a time unit holds the time left, unless its device class says it is a timestamp. */
+const durationUnit = (a) => (a.device_class === "timestamp" ? undefined : TIME_UNITS[a.unit_of_measurement]);
+
+/* The moment a state points to. A duration counts down from the state's last change and has ended at 0. */
+const endOf = (st, zone) => {
+  const unit = durationUnit(st.attributes || {});
+  if (!unit) return isoTime(st.state, zone);
+  const rest = Number(st.state) * unit;
+  return rest > 0 ? parseTs(st.last_changed, NaN) + rest : NaN;
+};
+
+const MINUTE_MS = 60000;
+
+const toMinute = (ts) => Math.round(ts / MINUTE_MS) * MINUTE_MS;
+
+const percent = (value) => {
+  const n = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  return Number.isFinite(n) ? Math.min(Math.max(n, 0), 100) / 100 : null;
+};
+
+/* A time from an option or a thing replaces when it happened. Estimates move by seconds, so it
+ * counts to the minute. While it lies ahead, the entry counts down. */
+const retime = (item, ts, now) => {
+  if (!Number.isFinite(ts)) return;
+  item.ts = toMinute(ts);
+  item.past = false;
+  item.live = item.ts > now;
 };
 
 /* The first of keys that holds a text or a number. */
@@ -430,7 +485,12 @@ const renderThing = (id, st, items, ctx) => {
     const title = textOf(value, ["name", "title"]);
     const text = textOf(value, THING_TEXT);
     const image = textOf(value, PICTURE_ATTRS);
-    items.push({ ...item, title, message: text || ctx.name(st), image, ack: title + "\u0000" + text });
+    const thing = { ...item, title, message: text || ctx.name(st), image, ack: title + "\u0000" + text };
+    /* A thing may say when it ends or starts, and how far it has come. */
+    retime(thing, isoTime(value.time, serverZone(ctx.hass)), ctx.now);
+    const progress = percent(value.progress);
+    if (progress !== null) thing.progress = progress;
+    items.push(thing);
     return;
   }
   if (ctx.kind === "attribute") {
@@ -521,6 +581,59 @@ const renderAlert = (id, st, items, ctx) => {
   });
 };
 
+/* A running timer has a fixed end in finishes_at. Its remaining keeps the value from the start, so
+ * the time left is read from remaining only while the timer is paused. */
+const renderTimer = (id, st, items, ctx) => {
+  const a = st.attributes;
+  const t = ctx.t;
+  const duration = parseDuration(a.duration);
+  const done = (rest) => (duration > 0 && Number.isFinite(rest) ? Math.min(Math.max(1 - rest / duration, 0), 1) : undefined);
+  const button = (label, service) => serviceAction(ctx.host, id, label, "timer." + service);
+  const item = { key: "tm:" + id, kind: "timer", entity: id, title: ctx.name(st) };
+  if (st.state === "active") {
+    const end = parseTs(a.finishes_at, NaN);
+    items.push({
+      ...item,
+      message: ctx.format(st),
+      ts: end,
+      live: true,
+      clock: true,
+      duration,
+      progress: done(end - ctx.now),
+      ack: String(a.finishes_at),
+      actions: [button(t.act_pause, "pause"), button(t.act_cancel, "cancel")],
+    });
+  } else if (st.state === "paused") {
+    const rest = parseDuration(a.remaining);
+    items.push({
+      ...item,
+      message: fill(t.paused_left, { t: clockText(rest), s: ctx.format(st) }),
+      ts: parseTs(st.last_changed, ctx.now),
+      past: true,
+      progress: done(rest),
+      ack: "paused\u0000" + a.remaining,
+      actions: [button(t.act_resume, "start"), button(t.act_cancel, "cancel")],
+    });
+  }
+};
+
+/* A timestamp sensor holds its end, a duration sensor the time left. Either shows while the end lies ahead.
+ * The time left goes stale until the sensor changes again, so a duration names its end instead. */
+const renderCountdown = (id, st, items, ctx) => {
+  const ts = toMinute(endOf(st, serverZone(ctx.hass)));
+  if (!(ts > ctx.now)) return;
+  items.push({
+    key: "cd:" + id,
+    kind: "countdown",
+    entity: id,
+    title: ctx.name(st),
+    message: durationUnit(st.attributes) ? ctx.absTime(ts) : ctx.format(st),
+    ts,
+    live: true,
+    ack: "",
+  });
+};
+
 const renderGeneric = (id, st, items, ctx) => {
   const active = ctx.forced ? !isInactive(st.state) : isUnambiguouslyActive(st.state);
   if (!active) return;
@@ -544,7 +657,9 @@ const detectType = (id, st) => {
   if (id.startsWith("update.")) return "update";
   if (id.startsWith("alarm_control_panel.")) return "alarm";
   if (id.startsWith("alert.")) return "alert";
+  if (id.startsWith("timer.")) return "timer";
   if (findThing(a) || "recipe" in a) return "attribute";
+  if (id.startsWith("sensor.") && (a.device_class === "timestamp" || a.device_class === "duration")) return "countdown";
   return "generic";
 };
 
@@ -562,6 +677,8 @@ const RENDERERS = {
   alarm: renderAlarm,
   alert: renderAlert,
   dwd: renderDwd,
+  timer: renderTimer,
+  countdown: renderCountdown,
   attribute: renderThing,
   picture: renderThing,
   generic: renderGeneric,
@@ -609,6 +726,27 @@ const fireAction = (host, config) => fire(host, "hass-action", { config, action:
 const buildTapAction = (tap, host, entity) =>
   tap && tap.action && tap.action !== "none" ? () => fireAction(host, { entity, tap_action: tap }) : null;
 
+/* A button the card offers on its own, run like an action from the config. */
+const serviceAction = (host, entity, label, action) => ({
+  label,
+  run: () => fireAction(host, { entity, tap_action: { action: "perform-action", perform_action: action, target: { entity_id: entity } } }),
+});
+
+/* Kinds that tell their own message. The time and progress options leave them as they are. */
+const MESSAGE_KINDS = new Set(["calendar", "update", "alarm", "alert", "dwd", "warning", "todo"]);
+
+/* The time and progress options name an entity Home Assistant knows, or else an attribute of the entity itself. */
+const optionTime = (hass, st, ref) => {
+  if (typeof ref !== "string" || !ref) return NaN;
+  const zone = serverZone(hass);
+  return hass.states[ref] ? endOf(hass.states[ref], zone) : isoTime(attrPath(st.attributes, ref), zone);
+};
+
+const optionProgress = (hass, st, ref) => {
+  if (typeof ref !== "string" || !ref) return null;
+  return percent(hass.states[ref] ? hass.states[ref].state : attrPath(st.attributes, ref));
+};
+
 const linkAction = (host, url) => () =>
   fireAction(host, {
     tap_action: url.startsWith("/")
@@ -643,6 +781,23 @@ const renderEntity = (id, st, items, ctx, src) => {
     items[i].backdrop = backdrop && Boolean(items[i].image);
     /* Up to 0.3 the name replaced the title of every row. */
     if (named) items[i].titles = [...(items[i].titles || [items[i].title]), name(st)];
+  }
+  if (!MESSAGE_KINDS.has(kind)) {
+    const at = optionTime(ctx.hass, st, src.time);
+    const progress = optionProgress(ctx.hass, st, src.progress);
+    for (let i = before; i < items.length; i++) {
+      retime(items[i], at, ctx.now);
+      /* A progress from the config wins over the one a timer works out from its length. */
+      if (progress !== null) Object.assign(items[i], { progress, duration: undefined });
+    }
+  }
+  /* Rows from an attribute keep no time in their ack, so a time from the thing or an option joins it. */
+  for (let i = before; i < items.length; i++) {
+    const it = items[i];
+    if ((it.kind === "attribute" || it.kind === "picture") && !it.past) {
+      it.untimedAck = it.ack;
+      it.ack += "\u0000" + it.ts;
+    }
   }
   if (src.tap_action) {
     const openFn = buildTapAction(src.tap_action, ctx.host, id);
@@ -1280,6 +1435,8 @@ const checkConfig = (config) => {
             name: entry ? entry.name : null,
             image: entry ? entry.image : null,
             background: entry ? entry.background : null,
+            time: entry ? entry.time : null,
+            progress: entry ? entry.progress : null,
             actions: entry ? entry.actions : null,
             tap_action: entry ? entry.tap_action : null,
           };
@@ -1754,9 +1911,8 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (!list.some((s) => s.entity === id)) list.push({ entity: id, type: "auto" });
     }
     this._allSources = list;
-    this._watched = [
-      ...new Set([...this._updateIds, ...list.map((s) => s.entity)]),
-    ];
+    const refs = list.flatMap((s) => [s.entity, s.time, s.progress]).filter((id) => typeof id === "string" && id);
+    this._watched = [...new Set([...this._updateIds, ...refs])];
   }
 
   _recompute() {
@@ -1788,6 +1944,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       /* A renderer names a moment when its entries change on their own, like a reminder that opens. */
       wake: waker(wakes, now),
       calWhen: (s, allDay) => this._calWhen(s, allDay, now),
+      absTime: (ts) => this._absTime(ts),
       name,
       format: (st) => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state)),
       formatAttribute: (st, path, value) => {
@@ -1881,6 +2038,11 @@ class OrigamiNotificationsCard extends HTMLElement {
       const oldKey = acks[it.key] === undefined && it.oldKey ? it.oldKey : it.key;
       if (isOldAck(acks[oldKey], it, once)) {
         delete acks[oldKey];
+        acks[it.key] = sig;
+        acksDirty = true;
+      }
+      /* Up to 0.4 a thing's time was not part of its ack. Such a dismissal holds until the time changes. */
+      if (it.untimedAck !== undefined && acks[it.key] === ACK_MARK + it.untimedAck) {
         acks[it.key] = sig;
         acksDirty = true;
       }
@@ -2447,9 +2609,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._rowCache = next;
     const kept = new Set(els);
     const gone = new Set(old.filter((el) => !kept.has(el) && !replaced.has(el)));
+    /* A button can end its own row, like Cancel on a timer. Focus then goes where it goes after a dismissal. */
+    const keys = [...cache.keys()];
+    const lost = active ? keys.findIndex((key) => !next.has(key) && cache.get(key).el.contains(active)) : -1;
     const focus = () => {
       const target = refocus && refocus[0].querySelectorAll(refocus[1])[refocus[2]];
       if (target) target.focus({ preventScroll: true });
+      else if (lost >= 0) this._focusAfter(lost);
     };
     if (!animate) {
       for (const el of old) stopMotion(el);
@@ -2681,6 +2847,8 @@ const EDITOR_STRINGS = {
     type_alarm: "Alarm panel",
     type_alert: "Alert",
     type_dwd: "DWD weather warnings",
+    type_timer: "Timer",
+    type_countdown: "Countdown",
     type_attribute: "Details from an attribute",
     type_picture: "State as title",
     type_generic: "Plain entity",
@@ -2715,6 +2883,8 @@ const EDITOR_STRINGS = {
     type_alarm: "Alarmanlage",
     type_alert: "Alarm (alert)",
     type_dwd: "DWD-Unwetterwarnungen",
+    type_timer: "Timer",
+    type_countdown: "Countdown",
     type_attribute: "Details aus einem Attribut",
     type_picture: "Zustand als Titel",
     type_generic: "Einfache Entität",
@@ -3067,5 +3237,17 @@ if (!window.customCards.some((c) => c.type === CARD)) {
 
 /* Tests reach the pure functions through this object, which only they create. */
 if (window.__origamiTest) {
-  Object.assign(window.__origamiTest, { sortItems, waker, dropExpired, nextReorder, wakeDelay, clockText, progressAt, nextTick });
+  Object.assign(window.__origamiTest, {
+    sortItems,
+    waker,
+    dropExpired,
+    nextReorder,
+    wakeDelay,
+    clockText,
+    progressAt,
+    nextTick,
+    parseDuration,
+    endOf,
+    percent,
+  });
 }
