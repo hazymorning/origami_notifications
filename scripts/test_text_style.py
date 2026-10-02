@@ -26,6 +26,8 @@ class Flags(unittest.TestCase):
             ('The card &mdash; and only the card.', 'em dash'),
             ('Done ✅', 'emoji'),
             ('Alarm at 7 ⏰', 'emoji'),
+            ('Status ◩', 'emoji'),
+            ('Status ◫', 'emoji'),
             ('/* ========== Rows ========== */', 'banner'),
             ('Moreover, it hides.', '"Moreover" adds nothing'),
             ('A seamless way to see updates.', '"seamless" is a sales word'),
@@ -78,6 +80,7 @@ class Passes(unittest.TestCase):
             'A well-known, built-in feature.',
             'The door is unlocked.',
             'The rules are in CLAUDE.md.',
+            '# ◪ Origami Notifications',
         ]:
             with self.subTest(text=text):
                 self.assertEqual(hits(text), [])
