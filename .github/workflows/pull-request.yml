@@ -1,11 +1,12 @@
 name: Pull request
 
-# The title and the body of a pull request are not in the repository, so the Tests workflow never sees them.
-# This holds them to the same rules, and fails when more than one of our own pull requests is open at a time,
-# so they do not pile up for whoever reads them.
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -18,21 +19,22 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: The title and the body
+      - name: Title and body
         env:
           TITLE: ${{ github.event.pull_request.title }}
           BODY: ${{ github.event.pull_request.body }}
         run: |
-          printf '%s' "$TITLE" | python3 scripts/text-style.py --stdin 'the title' --limit 72
-          printf '%s' "$BODY" | python3 scripts/text-style.py --stdin 'the body' --limit 1200
+          printf '%s' "$TITLE" | python3 scripts/text-style.py --stdin title --limit 72
+          printf '%s' "$BODY" | python3 scripts/text-style.py --stdin body --limit 1200
 
-      - name: One at a time
+      - name: One open pull request at a time
+        if: github.event.pull_request.user.login == github.repository_owner
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ours=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json author \
-            --jq '[.[] | select(.author.is_bot | not)] | length')
-          [ "$ours" -le 1 ] || {
-            echo "$ours pull requests of ours are open. Finish one before opening the next." >&2
+          open=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json author \
+            --jq "[.[] | select(.author.login == \"$GITHUB_REPOSITORY_OWNER\")] | length")
+          if [ "$open" -gt 1 ]; then
+            echo "$open pull requests are open. Finish one first." >&2
             exit 1
-          }
+          fi
