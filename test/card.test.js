@@ -1062,6 +1062,30 @@ test("rows can be styled by kind and severity", () => {
   same([row.className, row.dataset.kind, row.getAttribute("role")], ["row crit link", "alarm", "listitem"]);
 });
 
+/* jsdom neither computes styles nor parses sheets inside a shadow root, so these read the card's
+ * rules from a copy in the page. */
+const cssRules = (el) => {
+  const style = el.ownerDocument.createElement("style");
+  style.textContent = el.shadowRoot.querySelector("style").textContent;
+  el.ownerDocument.head.append(style);
+  return [...style.sheet.cssRules].filter((r) => r.selectorText);
+};
+
+test("the closed tile has a colour only for warnings and critical rows", () => {
+  const w = makeWindow();
+  const el = mount(w, { type: "x", hide_when_empty: false }, makeHass({}));
+  const background = (selector) => cssRules(el).find((r) => r.selectorText === selector).style.getPropertyValue("background");
+  same(background(".tile"), background(".rtile"));
+  assert.notEqual(background(".tile.warn"), background(".tile"));
+});
+
+test("keyboard focus on a row shows all of its text, like a tap", () => {
+  const w = makeWindow();
+  const el = mount(w, { type: "x", hide_when_empty: false }, makeHass({}));
+  const open = cssRules(el).filter((r) => /\.open\b.*\.(title|body)$/.test(r.selectorText));
+  same(open.map((r) => r.selectorText.includes(":has(:focus-visible)")), [true, true]);
+});
+
 test("keyboard focus stays on a row that is built again", () => {
   const w = makeWindow();
   const update = (pct) =>
