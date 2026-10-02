@@ -1,44 +1,33 @@
 name: Bug report
-description: The card does something wrong, breaks, or does not do what the readme says.
+description: Something in the card is broken or works differently than the readme says.
 labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: |
-        Thank you for taking the time to report a problem.
-
-        This form is only for **bugs**: something in the card is broken or behaves differently than the readme
-        describes. Questions, help with a setup, ideas and feature requests are just as welcome, they simply live in
-        [Discussions](https://github.com/hazymorning/origami_notifications/discussions). There they reach more people,
-        and the answer stays easy to find for the next person who wonders the same.
-
-        Not sure whether it is a bug? Start a discussion. If it turns out to be one, it becomes an issue from there,
-        nothing gets lost.
+      value: Questions and ideas go to [Discussions](https://github.com/hazymorning/origami_notifications/discussions).
 
   - type: checkboxes
     id: checks
     attributes:
       label: Before you start
       options:
-        - label: I am on the latest release of the card.
+        - label: I use the latest release and reloaded the page with a cleared cache.
           required: true
-        - label: I reloaded the page with a cleared cache after the last update (on the phone app, *Settings > Companion app > Debugging > Reset frontend cache*).
-          required: true
-        - label: I searched the open and closed issues and did not find this one.
+        - label: I searched the open and closed issues.
           required: true
 
   - type: textarea
     id: what
     attributes:
       label: What happens
-      description: A short description of the bug. Screenshots or a screen recording help a lot, you can drop them in here.
+      description: Screenshots or a screen recording help a lot.
     validations:
       required: true
 
   - type: textarea
     id: expected
     attributes:
-      label: What you expected instead
+      label: What you expected
     validations:
       required: true
 
@@ -46,11 +35,6 @@ body:
     id: steps
     attributes:
       label: Steps to reproduce
-      placeholder: |
-        1. Add the card with the config below
-        2. Create a persistent notification
-        3. Open the card
-        4. ...
     validations:
       required: true
 
@@ -58,7 +42,7 @@ body:
     id: config
     attributes:
       label: Card configuration
-      description: The YAML of the card, from the code editor of the card dialog. Remove anything private.
+      description: The YAML from the card's code editor.
       render: yaml
     validations:
       required: true
@@ -67,24 +51,14 @@ body:
     id: entity
     attributes:
       label: Entity state and attributes
-      description: If the bug is about one entity, its state and attributes from *Developer tools > States*.
+      description: From Developer tools > States, if the bug is about one entity.
       render: yaml
 
   - type: input
-    id: card-version
+    id: versions
     attributes:
-      label: Card version
-      description: Shown in HACS next to *Origami Notifications*, and in the browser console as *Origami Notifications v...*.
-      placeholder: e.g. v0.1.0
-    validations:
-      required: true
-
-  - type: input
-    id: ha-version
-    attributes:
-      label: Home Assistant version
-      description: '*Settings > About*, the Core and Frontend versions.'
-      placeholder: e.g. Core 2026.9.2, Frontend 20260904.0
+      label: Versions
+      placeholder: Card 0.4.0, Home Assistant 2026.10.0
     validations:
       required: true
 
@@ -102,30 +76,16 @@ body:
     validations:
       required: true
 
-  - type: dropdown
+  - type: input
     id: client
     attributes:
-      label: Where you see it
-      multiple: true
-      options:
-        - Chrome or Edge
-        - Firefox
-        - Safari
-        - Companion app, Android
-        - Companion app, iOS or macOS
-        - Other
+      label: Browser or app
+      placeholder: Firefox on Windows, Companion app on iOS
     validations:
       required: true
 
   - type: textarea
     id: console
     attributes:
-      label: Browser console
-      description: Errors from the browser console (F12 on the desktop), if there are any. Leave it empty otherwise.
+      label: Browser console errors
       render: text
-
-  - type: markdown
-    attributes:
-      value: |
-        Thanks again. Issues with a config and clear steps usually get fixed first, because they can be reproduced
-        right away.
