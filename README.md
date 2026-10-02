@@ -1,4 +1,4 @@
-# Origami Notifications
+# ◪ Origami Notifications
 
 A notification card for Home Assistant that folds away when there is nothing to see.
 
