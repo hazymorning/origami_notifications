@@ -2327,3 +2327,289 @@ test("a to-do list without its kind shows how many items are open, as in 0.4", (
   const el = mount(w, { type: "x", updates: false, entities: ["todo.shopping"] }, hass);
   same([rows(el).map((r) => [r.title, r.body]), todoSubs(subs).length], [[["Shopping", "3"]], 0]);
 });
+
+/* Devices as Home Assistant writes them, and a formatter that gives their state with a capital. */
+const deviceStates = (extra = {}) => ({
+  "lock.front_door": st("lock.front_door", "unlocked", { friendly_name: "Front door" }),
+  "cover.garage": st("cover.garage", "open", { friendly_name: "Garage", supported_features: 15 }),
+  "valve.garden": st("valve.garden", "opening", { friendly_name: "Garden", supported_features: 3 }),
+  "vacuum.robo": st("vacuum.robo", "cleaning", { friendly_name: "Robo", supported_features: 16 }),
+  "lawn_mower.lawn": st("lawn_mower.lawn", "returning", { friendly_name: "Mower", supported_features: 7 }),
+  "siren.hall": st("siren.hall", "on", { friendly_name: "Siren", supported_features: 3 }),
+  ...extra,
+});
+const capital = (s) => s.state.charAt(0).toUpperCase() + s.state.slice(1);
+
+test("a lock, a cover, a valve, a vacuum, a mower and a siren show while active", () => {
+  const w = makeWindow();
+  const hold = { label: "Hold", tap_action: { action: "perform-action", perform_action: "script.hold" } };
+  const entities = ["lock.front_door", { entity: "cover.garage", actions: [hold] }, "valve.garden", "vacuum.robo", "lawn_mower.lawn", "siren.hall"];
+  const config = { type: "x", hide_when_empty: false, updates: false, entities };
+  const el = mount(w, config, makeHass(deviceStates(), { formatEntityState: capital }));
+  same(
+    rows(el).map((r) => [r.title, r.body, r.tile, r.icon, r.actions]),
+    [
+      ["Siren", "On", "rtile crit", "mdi:devices", ["Turn off"]],
+      ["Garage", "Open", "rtile", "mdi:devices", ["Close", "Hold"]],
+      ["Mower", "Returning", "rtile", "mdi:devices", ["Dock"]],
+      ["Front door", "Unlocked", "rtile", "mdi:devices", ["Lock"]],
+      ["Robo", "Cleaning", "rtile", "mdi:devices", ["Dock"]],
+      ["Garden", "Opening", "rtile", "mdi:devices", ["Close"]],
+    ],
+    "the state in Home Assistant's words, a sounding siren first, and each button before the configured ones"
+  );
+  same(
+    [head(el).title, el.shadowRoot.querySelector(".head .tile").className, [...el.shadowRoot.querySelectorAll(".row")].map((r) => r.dataset.kind)],
+    ["Siren", "tile crit", Array(6).fill("device")],
+    "found on their own as devices"
+  );
+  const sent = actionsOf(el);
+  for (const row of el.shadowRoot.querySelectorAll(".row")) row.querySelector(".act").click();
+  const confirmed = (action, id) => {
+    const config = perform(action, id);
+    config.tap_action.confirmation = true;
+    return config;
+  };
+  same(
+    sent,
+    [
+      perform("siren.turn_off", "siren.hall"),
+      confirmed("cover.close_cover", "cover.garage"),
+      perform("lawn_mower.dock", "lawn_mower.lawn"),
+      perform("lock.lock", "lock.front_door"),
+      perform("vacuum.return_to_base", "vacuum.robo"),
+      confirmed("valve.close_valve", "valve.garden"),
+    ],
+    "Home Assistant runs the buttons and asks before it closes something"
+  );
+  same(
+    rows(mount(makeWindow(), config, makeHass(deviceStates(), { lang: "de" }))).map((r) => r.actions),
+    [["Ausschalten"], ["Schließen", "Hold"], ["Zur Station"], ["Abschließen"], ["Zur Station"], ["Schließen"]],
+    "in German"
+  );
+
+  const shown = (id, state, attributes = {}) =>
+    rows(mount(w, { type: "x", hide_when_empty: false, updates: false, entities: [id] }, makeHass({ [id]: st(id, state, attributes) })));
+  const idle = [
+    ["lock.a", "locked"],
+    ["cover.a", "closed"],
+    ["valve.a", "closed"],
+    ["vacuum.a", "idle"],
+    ["vacuum.a", "docked"],
+    ["vacuum.a", "paused"],
+    ["lawn_mower.a", "docked"],
+    ["lawn_mower.a", "paused"],
+    ["lawn_mower.a", "idle"],
+    ["siren.a", "off"],
+    ["lock.a", "unavailable"],
+    ["cover.a", "unknown"],
+    ["siren.a", "unknown"],
+  ];
+  same(idle.filter(([id, state]) => shown(id, state).length), [], "nothing while Home Assistant counts them as idle, or while their state is unknown");
+  const row = (id, state, attributes) => {
+    const r = shown(id, state, attributes)[0];
+    return [r.tile, r.actions];
+  };
+  same(
+    [
+      row("lock.a", "jammed"),
+      row("lock.a", "open"),
+      row("lock.a", "locking"),
+      row("lock.a", "unlocked", { code_format: "^\\d{4}$" }),
+      row("lock.a", "locking", { assumed_state: true }),
+      row("cover.a", "opening", { supported_features: 2 }),
+      row("cover.a", "open", { supported_features: 1 }),
+      row("cover.a", "closing", { supported_features: 15 }),
+      row("cover.a", "closing", { supported_features: 15, assumed_state: true }),
+      row("valve.a", "open", { supported_features: 1 }),
+      row("valve.a", "closing", { supported_features: 1, assumed_state: true }),
+      row("vacuum.a", "error", { supported_features: 16 }),
+      row("vacuum.a", "returning", { supported_features: 16, assumed_state: true }),
+      row("vacuum.a", "cleaning", { supported_features: 15 }),
+      row("lawn_mower.a", "error", { supported_features: 4 }),
+      row("lawn_mower.a", "mowing", { supported_features: 3 }),
+      row("siren.a", "on", { supported_features: 1 }),
+    ],
+    [
+      ["rtile warn", ["Lock"]],
+      ["rtile", ["Lock"]],
+      ["rtile", []],
+      ["rtile", []],
+      ["rtile", ["Lock"]],
+      ["rtile", ["Close"]],
+      ["rtile", []],
+      ["rtile", []],
+      ["rtile", ["Close"]],
+      ["rtile", []],
+      ["rtile", []],
+      ["rtile warn", ["Dock"]],
+      ["rtile", []],
+      ["rtile", []],
+      ["rtile warn", ["Dock"]],
+      ["rtile", []],
+      ["rtile crit", []],
+    ],
+    "a jam or an error is a warning, and a button shows only where Home Assistant would offer it, also for a state it only assumes"
+  );
+
+  const other = makeWindow();
+  const forced = (entity, state) =>
+    rows(mount(other, { type: "x", hide_when_empty: false, updates: false, entities: [entity] }, makeHass({ [entity.entity]: st(entity.entity, state) }))).map((r) => [r.icon, r.actions]);
+  same(
+    [
+      forced({ entity: "media_player.tv", type: "device" }, "playing"),
+      forced({ entity: "media_player.tv", type: "device" }, "standby"),
+      forced({ entity: "event.bell", type: "device" }, "unknown"),
+      forced({ entity: "lock.back", type: "generic" }, "unlocked"),
+    ],
+    [[["mdi:devices", []]], [], [], [["mdi:information-outline", []]]],
+    "type: device follows the same rule for any entity but never shows an unknown state, and a lock set to show as a plain entity stays one"
+  );
+  const guest = { name: "Cleaner", description: "Code valid until noon" };
+  const keyed = mount(other, config, makeHass({ "lock.front_door": st("lock.front_door", "unlocked", { friendly_name: "Front door", guest }) }));
+  same(
+    [rows(keyed).map((r) => [r.title, r.body]), keyed.shadowRoot.querySelector(".row").dataset.kind],
+    [[["Cleaner", "Code valid until noon"]], "attribute"],
+    "a lock that carries a thing keeps the row it had in 0.4"
+  );
+  const { stateActive } = w.__origamiTest;
+  same(
+    [
+      ["event.bell", "unknown"],
+      ["event.bell", "unavailable"],
+      ["alert.door", "off"],
+      ["alert.door", "idle"],
+      ["timer.tea", "paused"],
+      ["person.anna", "not_home"],
+      ["group.locks", "locked"],
+      ["switch.pump", "on"],
+    ].map(([id, state]) => stateActive(st(id, state))),
+    [true, false, true, false, false, false, true, true],
+    "Home Assistant's rule for other domains"
+  );
+
+  const frontDoor = () => [...el.shadowRoot.querySelectorAll(".row")].find((r) => r.querySelector(".title").textContent === "Front door");
+  frontDoor().querySelector(".x").click();
+  el.hass = makeHass(deviceStates(), { formatEntityState: capital });
+  same(frontDoor(), undefined, "a dismissed lock stays away while it stays open");
+  const lock = (state, changed) => ({ ...st("lock.front_door", state, { friendly_name: "Front door" }), last_changed: changed });
+  el.hass = makeHass(deviceStates({ "lock.front_door": lock("locked", "2026-09-21T10:30:00+00:00") }), { formatEntityState: capital });
+  el.hass = makeHass(deviceStates({ "lock.front_door": lock("unlocked", "2026-09-21T11:00:00+00:00") }), { formatEntityState: capital });
+  same(
+    [rows(el).find((r) => r.title === "Front door"), frontDoor().querySelector(".when").dateTime],
+    [{ title: "Front door", body: "Unlocked", tile: "rtile", icon: "mdi:devices", actions: ["Lock"], x: true }, "2026-09-21T11:00:00.000Z"],
+    "and comes back once it is unlocked again, with the time it changed"
+  );
+});
+
+test("a dismissal from 0.4 of a sounding siren still holds", () => {
+  const w = makeWindow();
+  const siren = (changed) => ({ ...st("siren.hall", "on", { friendly_name: "Siren", supported_features: 3 }), last_changed: changed });
+  const sounding = siren("2026-09-21T10:00:00+00:00");
+  const old = { "g:siren.hall": "#on\u0000" + Date.parse(sounding.last_changed) };
+  w.localStorage.setItem("origami-notifications-ack", JSON.stringify(old));
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["siren.hall"] };
+  const el = mount(w, config, makeHass({ "siren.hall": sounding }));
+  same(rows(el).length, 0, "0.4 showed it as a plain entity, with the same signature");
+  const plain = mount(w, { ...config, entities: [{ entity: "siren.hall", type: "generic" }] }, makeHass({ "siren.hall": sounding }));
+  same(rows(plain).length, 0, "a card that still shows it as a plain entity keeps the dismissal too");
+  el.hass = makeHass({ "siren.hall": siren("2026-09-21T11:00:00+00:00") });
+  same(rows(el).map((r) => [r.title, r.tile]), [["Siren", "rtile crit"]], "until it sounds again");
+});
+
+test("the editor offers devices as a kind", () => {
+  const w = makeWindow();
+  const ed = w.document.createElement("origami-notifications-editor");
+  ed.setConfig({ type: "x", entities: ["lock.front_door"] });
+  ed.hass = makeHass(deviceStates());
+  const kinds = ed.querySelector("ha-form").schema.find((s) => s.name === "options").schema[0];
+  const options = kinds.schema.find((s) => s.name === "type").selector.select.options;
+  same([options.find((o) => o.value === "device").label, kinds.icon], ["Device", "mdi:devices"]);
+});
+
+test("smoke is critical and a low battery is a warning", () => {
+  const w = makeWindow();
+  const sensor = (id, state, device_class, changed = "2026-09-21T10:00:00+00:00") => ({
+    ...st(id, state, { friendly_name: id.split(".")[1], device_class }),
+    last_changed: changed,
+  });
+  const states = {
+    "binary_sensor.smoke": sensor("binary_sensor.smoke", "on", "smoke"),
+    "binary_sensor.battery": sensor("binary_sensor.battery", "on", "battery"),
+    "binary_sensor.door": sensor("binary_sensor.door", "on", "door", "2026-09-21T11:00:00+00:00"),
+    "binary_sensor.leak": sensor("binary_sensor.leak", "off", "moisture"),
+    "sensor.phone_battery": sensor("sensor.phone_battery", "5", "battery"),
+  };
+  const config = { type: "x", updates: false, entities: [...Object.keys(states).slice(0, 4), { entity: "sensor.phone_battery", type: "generic" }] };
+  const el = mount(w, config, makeHass(states));
+  same(
+    [rows(el).map((r) => [r.title, r.tile, r.x]), head(el).title, el.shadowRoot.querySelector(".head .tile").className],
+    [[["smoke", "rtile crit", true], ["door", "rtile", true], ["battery", "rtile warn", true], ["phone_battery", "rtile", true]], "smoke", "tile crit"],
+    "smoke goes first although the door opened later, a low battery is a warning, and both can be dismissed"
+  );
+
+  const classes = ["smoke", "gas", "carbon_monoxide", "moisture", "safety", "heat", "problem", "tamper", "battery", "sound", "glass_break", "lock", "window"];
+  const each = Object.fromEntries(classes.map((dc) => ["binary_sensor." + dc, sensor("binary_sensor." + dc, "on", dc)]));
+  const all = mount(w, { type: "x", updates: false, entities: Object.keys(each).map((entity) => ({ entity, type: "generic" })) }, makeHass(each));
+  const tiles = Object.fromEntries(rows(all).map((r) => [r.title, r.tile]));
+  same(
+    classes.map((dc) => tiles[dc]),
+    [...Array(6).fill("rtile crit"), ...Array(4).fill("rtile warn"), "rtile", "rtile", "rtile"],
+    "these classes, also with type: generic, and nothing for glass_break, lock or window"
+  );
+  const asDevice = mount(w, { type: "x", updates: false, entities: [{ entity: "binary_sensor.smoke", type: "device" }] }, makeHass(states));
+  same(rows(asDevice).map((r) => [r.title, r.tile]), [["smoke", "rtile"]], "a binary sensor set to another kind gets no urgency from its class");
+});
+
+test("action labels borrow Home Assistant's words in other languages", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const fr = {
+    "ui.card.timer.actions.pause": "Pause",
+    "ui.card.timer.actions.cancel": "Annuler",
+    "ui.card.timer.actions.start": "Démarrer",
+    "ui.card.lock.lock": "Verrouiller",
+    "ui.card.cover.close_cover": "Fermer le volet",
+    "ui.card.valve.close_valve": "Fermer la vanne",
+    "ui.card.vacuum.actions.return_to_base": "Retour à la base",
+    "ui.card.lawn_mower.actions.dock": "Retour à la station",
+    "ui.card.common.turn_off": "Éteindre",
+  };
+  const states = deviceStates({
+    "timer.kitchen": running(300),
+    "timer.oven": st("timer.oven", "paused", { friendly_name: "Oven", duration: "0:10:00", remaining: "0:03:00" }),
+  });
+  const config = { type: "x", updates: false, entities: Object.keys(states) };
+  const labels = (localize) => {
+    const el = mount(w, config, makeHass(states, { lang: "fr", localize }));
+    return Object.fromEntries(rows(el).map((r) => [r.title, r.actions]));
+  };
+  same(
+    labels((k) => fr[k] || ""),
+    {
+      Siren: ["Éteindre"],
+      Kitchen: ["Pause", "Annuler"],
+      Garage: ["Fermer le volet"],
+      Mower: ["Retour à la station"],
+      "Front door": ["Verrouiller"],
+      Robo: ["Retour à la base"],
+      Garden: ["Fermer la vanne"],
+      Oven: ["Démarrer", "Annuler"],
+    },
+    "each button in Home Assistant's words for its domain"
+  );
+  same(
+    labels(() => ""),
+    {
+      Siren: ["Turn off"],
+      Kitchen: ["Pause", "Cancel"],
+      Garage: ["Close"],
+      Mower: ["Dock"],
+      "Front door": ["Lock"],
+      Robo: ["Dock"],
+      Garden: ["Close"],
+      Oven: ["Resume", "Cancel"],
+    },
+    "English where Home Assistant has no words yet"
+  );
+});

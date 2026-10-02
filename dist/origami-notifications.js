@@ -27,6 +27,7 @@ const ICONS = {
   countdown: "mdi:timer-sand",
   event: "mdi:eye-check",
   todo: "mdi:clipboard-check-outline",
+  device: "mdi:devices",
   attribute: "mdi:card-text-outline",
   picture: "mdi:image-outline",
   generic: "mdi:information-outline",
@@ -64,6 +65,12 @@ const STRINGS = {
     act_pause: "Pause",
     act_resume: "Resume",
     act_cancel: "Cancel",
+    act_lock: "Lock",
+    act_close: "Close",
+    act_close_valve: "Close",
+    act_dock: "Dock",
+    act_dock_mower: "Dock",
+    act_off: "Turn off",
     act_done: "Done",
   },
   de: {
@@ -92,6 +99,12 @@ const STRINGS = {
     act_pause: "Pause",
     act_resume: "Fortsetzen",
     act_cancel: "Abbrechen",
+    act_lock: "Abschließen",
+    act_close: "Schließen",
+    act_close_valve: "Schließen",
+    act_dock: "Zur Station",
+    act_dock_mower: "Zur Station",
+    act_off: "Ausschalten",
     act_done: "Erledigt",
   },
 };
@@ -109,6 +122,12 @@ const HA_STRINGS = {
   act_pause: ["ui.card.timer.actions.pause"],
   act_resume: ["ui.card.timer.actions.start"],
   act_cancel: ["ui.card.timer.actions.cancel"],
+  act_lock: ["ui.card.lock.lock"],
+  act_close: ["ui.card.cover.close_cover"],
+  act_close_valve: ["ui.card.valve.close_valve"],
+  act_dock: ["ui.card.vacuum.actions.return_to_base"],
+  act_dock_mower: ["ui.card.lawn_mower.actions.dock"],
+  act_off: ["ui.card.common.turn_off"],
 };
 
 const borrowedStrings = (localize) => {
@@ -134,11 +153,115 @@ const isInactive = (state) => {
   return INACTIVE.has(s) || Number(s) === 0;
 };
 
+/* Home Assistant's rule for an active state, from its frontend. A domain whose state is a time is
+ * active while it is available, and an alert that was acknowledged is still on. */
+const TIME_STATE_DOMAINS = new Set([
+  "ai_task",
+  "button",
+  "conversation",
+  "event",
+  "image",
+  "infrared",
+  "input_button",
+  "notify",
+  "radio_frequency",
+  "scene",
+  "stt",
+  "tag",
+  "tts",
+  "wake_word",
+  "datetime",
+]);
+const IDLE_STATES = {
+  alarm_control_panel: ["disarmed"],
+  alert: ["idle"],
+  cover: ["closed"],
+  device_tracker: ["not_home"],
+  lawn_mower: ["docked", "paused", "idle"],
+  lock: ["locked"],
+  media_player: ["standby"],
+  person: ["not_home"],
+  vacuum: ["idle", "docked", "paused"],
+  valve: ["closed"],
+};
+const ACTIVE_STATES = {
+  camera: ["streaming", "recording"],
+  group: ["on", "home", "open", "locked", "problem"],
+  plant: ["problem"],
+  timer: ["active"],
+};
+
+const stateActive = (st) => {
+  const domain = st.entity_id.split(".")[0];
+  const s = st.state;
+  if (TIME_STATE_DOMAINS.has(domain)) return s !== "unavailable";
+  if (s === "unavailable" || s === "unknown" || (s === "off" && domain !== "alert")) return false;
+  if (ACTIVE_STATES[domain]) return ACTIVE_STATES[domain].includes(s);
+  return !(IDLE_STATES[domain] || []).includes(s);
+};
+
 /* UpdateEntityFeature.INSTALL */
 const UPDATE_INSTALL = 1;
 
 /* TodoListEntityFeature.UPDATE_TODO_ITEM */
 const TODO_UPDATE_ITEM = 4;
+
+/* CoverEntityFeature.CLOSE, ValveEntityFeature.CLOSE, VacuumEntityFeature.RETURN_HOME,
+ * LawnMowerEntityFeature.DOCK and SirenEntityFeature.TURN_OFF */
+const COVER_CLOSE = 2;
+const VALVE_CLOSE = 2;
+const VACUUM_RETURN_HOME = 16;
+const MOWER_DOCK = 4;
+const SIREN_TURN_OFF = 2;
+
+/* What is urgent, and the one button with its label, its action, the feature it needs and the states it
+ * shows in. Like Home Assistant's own controls, Lock and Close also show whenever a state is only assumed. */
+const DEVICES = {
+  lock: {
+    sev: { jammed: "warn" },
+    label: "act_lock",
+    action: "lock.lock",
+    when: ["unlocked", "open", "jammed"],
+    assumed: true,
+  },
+  cover: {
+    label: "act_close",
+    action: "cover.close_cover",
+    feature: COVER_CLOSE,
+    when: ["open", "opening"],
+    assumed: true,
+    confirm: true,
+  },
+  valve: {
+    label: "act_close_valve",
+    action: "valve.close_valve",
+    feature: VALVE_CLOSE,
+    when: ["open", "opening"],
+    assumed: true,
+    confirm: true,
+  },
+  vacuum: {
+    sev: { error: "warn" },
+    label: "act_dock",
+    action: "vacuum.return_to_base",
+    feature: VACUUM_RETURN_HOME,
+    when: ["cleaning", "error"],
+  },
+  lawn_mower: {
+    sev: { error: "warn" },
+    label: "act_dock_mower",
+    action: "lawn_mower.dock",
+    feature: MOWER_DOCK,
+    when: ["mowing", "returning", "error"],
+  },
+  siren: {
+    sev: { on: "crit" },
+    label: "act_off",
+    action: "siren.turn_off",
+    feature: SIREN_TURN_OFF,
+    when: ["on"],
+  },
+};
 
 const parseTs = (value, fallback) => {
   const t = value ? Date.parse(value) : NaN;
@@ -748,12 +871,53 @@ const renderTodo = (id, st, items, ctx) => {
   }
 };
 
+/* A device shows while Home Assistant counts it as active. A lock that asks for a code gets no button, since
+ * the card can't ask for one. 0.4 showed a sounding siren as a plain entity, and its dismissal carries over. */
+const renderDevice = (id, st, items, ctx) => {
+  if (st.state === "unknown" || !stateActive(st)) return;
+  const a = st.attributes;
+  const d = DEVICES[id.split(".")[0]];
+  const offered =
+    d &&
+    (d.when.includes(st.state) || (d.assumed && a.assumed_state === true)) &&
+    (!d.feature || (Number(a.supported_features) & d.feature) === d.feature) &&
+    !(id.startsWith("lock.") && a.code_format);
+  items.push({
+    key: "dv:" + id,
+    oldKey: "g:" + id,
+    kind: "device",
+    sev: d && d.sev && d.sev[st.state],
+    entity: id,
+    title: ctx.name(st),
+    message: ctx.format(st),
+    ts: parseTs(st.last_changed, ctx.now),
+    past: true,
+    ack: String(st.state),
+    actions: offered ? [serviceAction(ctx.host, id, ctx.t[d.label], d.action, null, d.confirm)] : [],
+  });
+};
+
+/* Home Assistant's default theme shows these classes in red while they are on. The worst are critical. */
+const DEVICE_CLASS_SEV = {
+  smoke: "crit",
+  gas: "crit",
+  carbon_monoxide: "crit",
+  moisture: "crit",
+  safety: "crit",
+  heat: "crit",
+  problem: "warn",
+  tamper: "warn",
+  battery: "warn",
+  sound: "warn",
+};
+
 const renderGeneric = (id, st, items, ctx) => {
   const active = ctx.forced ? !isInactive(st.state) : isUnambiguouslyActive(st.state);
   if (!active) return;
   items.push({
     key: "g:" + id,
     kind: "generic",
+    sev: id.startsWith("binary_sensor.") && st.state === "on" ? DEVICE_CLASS_SEV[st.attributes.device_class] : undefined,
     entity: id,
     title: ctx.name(st),
     message: ctx.format(st),
@@ -773,9 +937,10 @@ const detectType = (id, st) => {
   if (id.startsWith("alert.")) return "alert";
   if (id.startsWith("timer.")) return "timer";
   if (findThing(a) || "recipe" in a) return "attribute";
-  /* Home Assistant merges what an integration sends into an event's attributes. An event with a thing
-   * there keeps the row it had in 0.4. */
+  /* Home Assistant merges what an integration sends into an event's attributes, and any integration can add
+   * attributes to a device. An event or a device with a thing there keeps the row it had in 0.4. */
   if (id.startsWith("event.")) return "event";
+  if (DEVICES[id.split(".")[0]]) return "device";
   /* A duration may count up as well, so it stays a plain number unless its kind is set, as in 0.4. */
   if (id.startsWith("sensor.") && a.device_class === "timestamp") return "countdown";
   return "generic";
@@ -799,6 +964,7 @@ const RENDERERS = {
   countdown: renderCountdown,
   event: renderEvent,
   todo: renderTodo,
+  device: renderDevice,
   attribute: renderThing,
   picture: renderThing,
   generic: renderGeneric,
@@ -846,13 +1012,20 @@ const fireAction = (host, config) => fire(host, "hass-action", { config, action:
 const buildTapAction = (tap, host, entity) =>
   tap && tap.action && tap.action !== "none" ? () => fireAction(host, { entity, tap_action: tap }) : null;
 
-/* A button the card offers on its own, run like an action from the config. */
-const serviceAction = (host, entity, label, action, data) => ({
+/* A button the card offers on its own, run like an action from the config. With confirmation, Home Assistant
+ * asks first in its own words. */
+const serviceAction = (host, entity, label, action, data, confirmation) => ({
   label,
   run: () =>
     fireAction(host, {
       entity,
-      tap_action: { action: "perform-action", perform_action: action, target: { entity_id: entity }, ...(data ? { data } : {}) },
+      tap_action: {
+        action: "perform-action",
+        perform_action: action,
+        target: { entity_id: entity },
+        ...(data ? { data } : {}),
+        ...(confirmation ? { confirmation } : {}),
+      },
     }),
 });
 
@@ -2158,6 +2331,11 @@ class OrigamiNotificationsCard extends HTMLElement {
         acks[it.key] = sig;
         acksDirty = true;
       }
+      /* The same signature under the old key carries over. It stays there for a card that still shows the row that way. */
+      if (oldKey !== it.key && acks[oldKey] === sig) {
+        acks[it.key] = sig;
+        acksDirty = true;
+      }
       if (acks[it.key] === sig) {
         items.splice(i, 1);
       } else {
@@ -2954,6 +3132,7 @@ const EDITOR_STRINGS = {
     type_countdown: "Countdown",
     type_event: "Event",
     type_todo: "To-do list",
+    type_device: "Device",
     type_attribute: "Details from an attribute",
     type_picture: "State as title",
     type_generic: "Plain entity",
@@ -2992,6 +3171,7 @@ const EDITOR_STRINGS = {
     type_countdown: "Countdown",
     type_event: "Ereignis",
     type_todo: "To-do-Liste",
+    type_device: "Gerät",
     type_attribute: "Details aus einem Attribut",
     type_picture: "Zustand als Titel",
     type_generic: "Einfache Entität",
@@ -3355,5 +3535,6 @@ if (window.__origamiTest) {
     parseDuration,
     endOf,
     parseBefore,
+    stateActive,
   });
 }
