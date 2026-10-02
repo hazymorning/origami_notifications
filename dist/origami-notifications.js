@@ -364,14 +364,19 @@ const renderDwd = (id, st, items, ctx) => {
   if (!(Number(st.state) > 0)) return;
   const a = st.attributes;
   const count = Number(a.warning_count) || 0;
+  const keys = new Set();
   for (let i = 1; i <= count; i++) {
     const w = (field) => a["warning_" + i + "_" + field];
     const title = w("headline") || w("name");
     if (!title) continue;
     const level = Number(w("level")) || 0;
     const text = w("description") || "";
+    let key = "w:" + id + ":" + (w("name") || title) + ":" + (w("start") || "");
+    while (keys.has(key)) key += "+";
+    keys.add(key);
     items.push({
-      key: "w:" + id + ":" + (w("name") || title) + ":" + (w("start") || ""),
+      key,
+      oldKey: "w:" + id + ":" + i,
       kind: "dwd",
       sev: level >= 3 ? "crit" : "warn",
       entity: id,
@@ -409,12 +414,13 @@ const renderThing = (id, st, items, ctx) => {
     const title = textOf(value, ["name", "title"]);
     const text = textOf(value, THING_TEXT);
     const image = textOf(value, PICTURE_ATTRS);
-    items.push({ ...item, title, message: text || ctx.name(st), image: URL_LIKE.test(image) ? image : null, ack: title + "\u0000" + text });
+    items.push({ ...item, title, message: text || ctx.name(st), image, ack: title + "\u0000" + text });
     return;
   }
   if (ctx.kind === "attribute") {
     if (!ctx.attribute || ctx.objectOnly || isEmpty(value) || typeof value === "object") return;
-    items.push({ ...item, title: ctx.formatAttribute(st, path, value), message: ctx.name(st), ack: String(value) });
+    const title = ctx.formatAttribute(st, path, value);
+    items.push({ ...item, title, titles: [title, String(value)], message: ctx.name(st), ack: String(value) });
     return;
   }
   if (isInactive(st.state)) return;
@@ -613,6 +619,8 @@ const renderEntity = (id, st, items, ctx, src) => {
   for (let i = before; i < items.length; i++) {
     items[i].image = ctx.url(ref ? configured : items[i].image || findPicture(st.attributes));
     items[i].backdrop = backdrop && Boolean(items[i].image);
+    /* Up to 0.3 the name replaced the title of every row. */
+    if (named) items[i].titles = [...(items[i].titles || [items[i].title]), name(st)];
   }
   if (src.tap_action) {
     const openFn = buildTapAction(src.tap_action, ctx.host, id);
@@ -861,14 +869,16 @@ const STYLES = `
     gap: var(--origami-pad);
     padding: 0 var(--origami-pad);
   }
-  :host(.docked) ha-card.settled .list,
-  :host(.bounded) ha-card.settled .list,
-  :host(.capped) ha-card.settled .list {
-    overflow-x: hidden;
-    overflow-y: auto;
+  :host(.docked) .list,
+  :host(.bounded) .list,
+  :host(.capped) .list {
+    overflow: hidden;
     overscroll-behavior: contain;
     scrollbar-width: thin;
   }
+  :host(.docked) ha-card.settled .list,
+  :host(.bounded) ha-card.settled .list,
+  :host(.capped) ha-card.settled .list { overflow-y: auto; }
   /* An animating row hides its overflow, so in a scrolling list it would shrink without flex none. */
   .row {
     flex: none;
@@ -1166,33 +1176,47 @@ const checkConfig = (config) => {
     if (src.attribute != null && typeof src.attribute !== "string") fail("attribute must be the name of an attribute");
     if (src.image != null && typeof src.image !== "string") fail("image must be an attribute path or URL");
     if (src.background != null && typeof src.background !== "boolean") fail("background must be true or false");
-    if (src.tap_action != null && !isObject(src.tap_action)) fail("tap_action must be an action, like action: more-info");
-    if (src.actions != null && !(Array.isArray(src.actions) && src.actions.every(isObject))) {
-      fail("actions must be a list of buttons, each with a label and a tap_action");
-    }
+    if (typeof src.tap_action === "string") src.tap_action = { action: src.tap_action };
+    src.actions = Array.isArray(src.actions) ? src.actions.filter(isObject) : null;
     if (!sources.some((s) => s.entity === src.entity)) sources.push(src);
   }
   if (config.css != null && typeof config.css !== "string") fail("css must be a string");
   return { sources, audience: checkAudience(config.audience) };
 };
 
-/* Local dismissals live in localStorage, shared by every card on this device. */
+/* Local dismissals, shared by every card on this device. The copy in memory keeps them for
+ * this page where storage is blocked. */
 const ACK_STORE = "origami-notifications-ack";
+const ACK_MARK = "#";
 const CARDS = new Set();
+const memory = { acks: null };
 
-const loadAcks = () => {
-  try {
-    const acks = JSON.parse(localStorage.getItem(ACK_STORE) || "{}");
-    return isObject(acks) ? acks : {};
-  } catch (e) {
-    return {};
-  }
+/* Acks up to 0.3 held the shown text, with the time except for attribute rows. They carry over
+ * while the time, or the title of an attribute row, still matches. */
+const isOldAck = (ack, it, once) => {
+  if (typeof ack !== "string" || ack.startsWith(ACK_MARK)) return false;
+  if (once) return (it.titles || [it.title]).includes(ack.split("\u0000")[0]);
+  return ack.endsWith("\u0000" + it.ts) || ack === it.title + "\u0000" + it.message;
 };
 
-/* At most 64. Those of items that are gone go first, then the oldest. */
-const saveAcks = (acks, present) => {
+const loadAcks = () => {
+  if (!memory.acks) {
+    try {
+      const acks = JSON.parse(localStorage.getItem(ACK_STORE) || "{}");
+      memory.acks = isObject(acks) ? acks : {};
+    } catch (e) {
+      memory.acks = {};
+    }
+  }
+  return memory.acks;
+};
+
+/* At most 64. Those no card shows go first, then the oldest. */
+const saveAcks = (present) => {
+  const acks = loadAcks();
+  const shown = new Set([...present, ...[...CARDS].flatMap((card) => [...card._present])]);
   const keys = Object.keys(acks);
-  const order = [...keys.filter((k) => !present.has(k)), ...keys.filter((k) => present.has(k))];
+  const order = [...keys.filter((k) => !shown.has(k)), ...keys.filter((k) => shown.has(k))];
   for (const k of order.slice(0, keys.length - 64)) delete acks[k];
   try {
     localStorage.setItem(ACK_STORE, JSON.stringify(acks));
@@ -1202,7 +1226,9 @@ const saveAcks = (acks, present) => {
 };
 
 window.addEventListener("storage", (e) => {
-  if (e.key === ACK_STORE) for (const card of CARDS) card._recompute();
+  if (e.key !== ACK_STORE) return;
+  memory.acks = null;
+  for (const card of CARDS) card._recompute();
 });
 
 class OrigamiNotificationsCard extends HTMLElement {
@@ -1235,6 +1261,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._shownOpen = false;
     this._pending = new Map();
     this._present = new Set();
+    this._thingIds = new Set();
     this._epoch = 0;
     this._painted = false;
     this._seq = 0;
@@ -1362,7 +1389,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const old = this._hass;
     this._hass = hass;
     if (!this._dom) this._build();
-    if (this.isConnected) this._subscribe();
+    const fetched = this.isConnected && this._subscribe();
     this.classList.toggle("dark", Boolean(hass.themes && hass.themes.darkMode));
     const lang = langOf(hass);
     const langSwitched = lang !== this._lang;
@@ -1385,7 +1412,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._viewer = viewer;
     if (!old || registryChanged || langChanged || viewerChanged || userChanged) {
       this._entitiesRef = hass.entities;
-      if (old && (langSwitched || userChanged)) this._refreshRepairs();
+      if (old && (langSwitched || userChanged) && !fetched) this._refreshRepairs();
       this._refreshSources();
       this._recompute();
       return;
@@ -1471,9 +1498,10 @@ class OrigamiNotificationsCard extends HTMLElement {
     return Boolean(u && u.is_admin);
   }
 
+  /* Returns true when it started listening to repairs, which also fetches them. */
   _subscribe() {
     const conn = this._hass && this._hass.connection;
-    if (!conn) return;
+    if (!conn) return false;
     if (!this._unsub) {
       this._unsub = conn.subscribeMessage((msg) => this._onNotifications(msg), {
         type: "persistent_notification/subscribe",
@@ -1496,7 +1524,9 @@ class OrigamiNotificationsCard extends HTMLElement {
         this._unsubRepairs = null;
       });
       this._refreshRepairs();
+      return true;
     }
+    return false;
   }
 
   _onNotifications(msg) {
@@ -1645,7 +1675,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       for (const issue of this._repairs) renderRepair(issue, items, ctx);
     }
 
-    const shown = new Set();
+    const available = new Set();
     if (h) {
       /* The updates rule covers every update entity, listed or found. */
       const allowedEntity = (id) => allowed(id) && (!id.startsWith("update.") || allowed("updates"));
@@ -1654,7 +1684,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       for (const src of [...this._allSources, ...found]) {
         if (!allowedEntity(src.entity)) continue;
         const st = h.states[src.entity];
-        if (st && st.state !== "unavailable" && st.state !== "unknown") shown.add(src.entity);
+        if (st && st.state !== "unavailable" && st.state !== "unknown") available.add(src.entity);
         renderEntity(src.entity, st, items, ctx, src);
       }
     }
@@ -1685,10 +1715,10 @@ class OrigamiNotificationsCard extends HTMLElement {
       const it = items[i];
       if (it.dismiss || it.sticky) continue;
       const once = it.kind === "attribute" || it.kind === "picture";
-      const sig = once ? it.ack : it.ack + "\u0000" + it.ts;
-      /* Acks up to 0.3 held the shown text, without the time in 0.2. */
-      const text = it.title + "\u0000" + it.message;
-      if (acks[it.key] !== sig && (acks[it.key] === text || acks[it.key] === text + "\u0000" + it.ts)) {
+      const sig = ACK_MARK + (once ? it.ack : it.ack + "\u0000" + it.ts);
+      const oldKey = acks[it.key] === undefined && it.oldKey ? it.oldKey : it.key;
+      if (isOldAck(acks[oldKey], it, once)) {
+        delete acks[oldKey];
         acks[it.key] = sig;
         acksDirty = true;
       }
@@ -1704,14 +1734,16 @@ class OrigamiNotificationsCard extends HTMLElement {
         it.localDismiss = true;
       }
     }
-    /* An attribute row has no time, so it counts as new once its attribute was empty. */
-    for (const id of shown) {
-      if (!present.has("r:" + id) && acks["r:" + id] !== undefined) {
+    /* An attribute row has no time, so it counts as new once its attribute was empty. Only a card
+     * that showed the row may decide that, another card may show the entity another way. */
+    for (const key of present) if (key.startsWith("r:")) this._thingIds.add(key.slice(2));
+    for (const id of this._thingIds) {
+      if (available.has(id) && !present.has("r:" + id) && acks["r:" + id] !== undefined) {
         delete acks["r:" + id];
         acksDirty = true;
       }
     }
-    if (acksDirty) saveAcks(acks, present);
+    if (acksDirty) saveAcks(present);
     /* Critical first, then newest. */
     items.sort((a, b) => {
       const ra = a.sev === "crit" ? 0 : 1;
@@ -1812,7 +1844,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (this._expanded) {
       this._refreshTimes();
       this._startClock();
-      this.classList.toggle("capped", getComputedStyle(this).getPropertyValue("--origami-max-height").trim() !== "");
+      const cap = getComputedStyle(d.card).getPropertyValue("--origami-max-height").trim();
+      this.classList.toggle("capped", cap !== "");
     } else {
       this._stopClock();
     }
@@ -1867,7 +1900,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       );
     }
     if (acked) {
-      saveAcks(acks, this._present);
+      saveAcks(this._present);
       for (const card of CARDS) if (card !== this) card._recompute();
     }
     this._recompute();
@@ -2474,7 +2507,7 @@ const EDITOR_HELPERS = {
     people: "Matches the user account linked to each person in Settings → People.",
     attribute: "An object with a name or title, a description and an image, or a plain value. Leave empty to find one.",
     attribute_picture: "An attribute that holds an object with a name or title, shown instead of the state.",
-    image: "An attribute, a path into one like book.cover, or a URL. Leave empty to use the entity's picture.",
+    image: "An attribute, a path into one like book.cover, or a URL. Leave empty for the picture of the shown object or the entity.",
     background: "Blurred behind the card while this entity is on top.",
   },
   de: {
@@ -2483,7 +2516,7 @@ const EDITOR_HELPERS = {
     people: "Verglichen wird das Benutzerkonto, das unter Einstellungen → Personen verknüpft ist.",
     attribute: "Ein Objekt mit name oder title, description und image, oder ein einfacher Wert. Leer lassen, um eins zu finden.",
     attribute_picture: "Ein Attribut mit einem Objekt mit name oder title, das statt des Zustands erscheint.",
-    image: "Ein Attribut, ein Pfad hinein wie book.cover, oder eine URL. Leer lassen für das Bild der Entität.",
+    image: "Ein Attribut, ein Pfad hinein wie book.cover, oder eine URL. Leer lassen für das Bild des gezeigten Objekts oder der Entität.",
     background: "Unscharf hinter der Karte, solange diese Entität oben steht.",
   },
 };
@@ -2732,9 +2765,11 @@ class OrigamiNotificationsEditor extends HTMLElement {
     if (this._swapped && audience[this._swapped[0]] && !audience[this._swapped[1]]) {
       audience[this._swapped[1]] = audience[this._swapped[0]];
     }
-    /* A rule goes when its source leaves the list, since the editor could no longer show it. */
+    /* A rule goes when its source leaves the list, since the editor could no longer show it.
+     * Rules for updates stay, because the card applies them to the updates it finds as well. */
     const after = new Set(this._sources({ ...this._config, ...value }).map((s) => s.key));
-    for (const key of before) if (!after.has(key)) delete audience[key];
+    const kept = (key) => after.has(key) || key === "updates" || key.startsWith("update.");
+    for (const key of before) if (!kept(key)) delete audience[key];
     value.audience = Object.keys(audience).length ? audience : null;
     /* Only what differs from the defaults is written, in a fixed order. */
     const merged = { ...this._config, ...value };

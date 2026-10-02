@@ -782,6 +782,28 @@ test("a dismissal from 0.3 still holds", () => {
   same(rows(el).length, 0);
 });
 
+test("dismissals from 0.3 of warnings, values and renamed rows still hold", () => {
+  const w = makeWindow();
+  const start = "2026-09-21T09:00:00+02:00";
+  w.localStorage.setItem(
+    "origami-notifications-ack",
+    JSON.stringify({
+      "w:sensor.dwd:1": "Frost\u0000Level 3\u0000" + Date.parse(start),
+      "r:sensor.parcels": "1500\u0000Parcels",
+      "r:sensor.lunch": "Today's lunch\u0000Hot",
+    })
+  );
+  const hass = makeHass({
+    "sensor.dwd": st("sensor.dwd", "1", { warning_count: 1, warning_1_name: "Frost", warning_1_headline: "Frost", warning_1_level: 3, warning_1_start: start }),
+    "sensor.parcels": st("sensor.parcels", "x", { friendly_name: "Parcels", count: 1500 }),
+    "sensor.lunch": st("sensor.lunch", "x", { friendly_name: "Lunch", recipe: { name: "Soup", description: "Hot" } }),
+  });
+  hass.formatEntityAttributeValue = () => "1,500";
+  const entities = ["sensor.dwd", { entity: "sensor.parcels", attribute: "count" }, { entity: "sensor.lunch", name: "Today's lunch" }];
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false, entities }, hass);
+  same(rows(el).length, 0);
+});
+
 test("new formatters from Home Assistant are picked up", () => {
   const w = makeWindow();
   const states = { "alarm_control_panel.house": st("alarm_control_panel.house", "triggered", { friendly_name: "House" }) };
@@ -951,8 +973,29 @@ test("a broken config gets a clear error", () => {
     }
   };
   same(error({ entities: "sensor.door" }), "origami-notifications: entities must be a list");
-  same(error({ entities: [{ entity: "sensor.door", actions: [null] }] }), "origami-notifications: actions must be a list of buttons, each with a label and a tap_action");
-  same(error({ entities: [{ entity: "sensor.door", tap_action: "more-info" }] }), "origami-notifications: tap_action must be an action, like action: more-info");
+  same(error({ entities: [{ entity: "sensor.door", background: "yes" }] }), "origami-notifications: background must be true or false");
+});
+
+test("loose configs that worked before still work", () => {
+  const w = makeWindow();
+  const hass = makeHass({
+    "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }),
+    "binary_sensor.window": st("binary_sensor.window", "on", { friendly_name: "Window" }),
+  });
+  const config = {
+    type: "x",
+    updates: false,
+    entities: [
+      { entity: "binary_sensor.door", tap_action: "more-info", actions: [null, { label: "Open", tap_action: { action: "toggle" } }] },
+      { entity: "binary_sensor.window", tap_action: "none", actions: "Open" },
+    ],
+  };
+  const el = mount(w, config, hass);
+  const infos = [];
+  el.addEventListener("hass-more-info", (e) => infos.push(e.detail.entityId));
+  el.addEventListener("hass-action", (e) => infos.push(e.detail.config.tap_action.action));
+  for (const tile of el.shadowRoot.querySelectorAll(".rtile")) tile.click();
+  same([rows(el).map((r) => r.actions), infos], [[["Open"], []], ["more-info"]]);
 });
 
 test("Home Assistant's failed login notice is left out, nothing else", () => {
@@ -1030,12 +1073,72 @@ test("keyboard focus stays on a row that is built again", () => {
   same(el.shadowRoot.activeElement && el.shadowRoot.activeElement.className, "x");
 });
 
-test("a height limit from css makes the open list scroll", () => {
+test("a height limit makes the open list scroll, also when it is set on ha-card", () => {
   const w = makeWindow();
-  const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.door"], css: ":host { --origami-max-height: 200px; }" }, makeHass({ "binary_sensor.door": st("binary_sensor.door", "on") }));
-  el.style.setProperty("--origami-max-height", "200px");
+  const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": st("binary_sensor.door", "on") }));
+  el.shadowRoot.querySelector("ha-card").style.setProperty("--origami-max-height", "200px");
   el.shadowRoot.querySelector(".head").click();
   same([el.classList.contains("capped"), el.shadowRoot.querySelector("ha-card").classList.contains("settled")], [true, true]);
+});
+
+test("a card that shows an entity another way keeps the other card's dismissal", () => {
+  const w = makeWindow();
+  const dinner = { "sensor.dinner": st("sensor.dinner", "Lasagne", { friendly_name: "Dinner", recipe: { name: "Lasagne", description: "Pasta" } }) };
+  const a = mount(w, { type: "x", hide_when_empty: false, updates: false, entities: ["sensor.dinner"] }, makeHass(dinner));
+  mount(w, { type: "x", hide_when_empty: false, updates: false, entities: [{ entity: "sensor.dinner", type: "generic" }] }, makeHass(dinner));
+  a.shadowRoot.querySelector(".row .x").click();
+  same(rows(a).length, 0);
+});
+
+test("dismissing works for the page where storage is blocked", () => {
+  const w = makeWindow();
+  w.Storage.prototype.setItem = () => {
+    throw new w.DOMException("blocked", "QuotaExceededError");
+  };
+  const states = { "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }) };
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false, entities: ["binary_sensor.door"] }, makeHass(states));
+  el.shadowRoot.querySelector(".row .x").click();
+  el.hass = makeHass(states);
+  same(rows(el).length, 0);
+});
+
+test("two warnings of one event and onset are dismissed one by one", () => {
+  const w = makeWindow();
+  const warning = (i, headline) => ({
+    ["warning_" + i + "_name"]: "SNOW",
+    ["warning_" + i + "_headline"]: headline,
+    ["warning_" + i + "_level"]: 2,
+    ["warning_" + i + "_start"]: "2026-09-21T08:00:00+00:00",
+  });
+  const dwd = () => makeHass({ "sensor.dwd": st("sensor.dwd", "2", { warning_count: 2, ...warning(1, "Snow above 800 m"), ...warning(2, "Snow above 400 m") }) });
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false, entities: ["sensor.dwd"] }, dwd());
+  el.shadowRoot.querySelector(".row .x").click();
+  el.hass = dwd();
+  same(rows(el).length, 1);
+});
+
+test("the dismissals another card still shows are dropped last", () => {
+  const w = makeWindow();
+  const acks = { "r:sensor.dinner": "Lasagne\u0000Pasta" };
+  for (let i = 0; i < 63; i++) acks["g:sensor.gone_" + i] = "x";
+  w.localStorage.setItem("origami-notifications-ack", JSON.stringify(acks));
+  const dinner = { "sensor.dinner": st("sensor.dinner", "Lasagne", { friendly_name: "Dinner", recipe: { name: "Lasagne", description: "Pasta" } }) };
+  const b = mount(w, { type: "x", hide_when_empty: false, updates: false, entities: ["sensor.dinner"] }, makeHass(dinner));
+  const door = { "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }) };
+  const a = mount(w, { type: "x", hide_when_empty: false, updates: false, entities: ["binary_sensor.door"] }, makeHass(door));
+  a.shadowRoot.querySelector(".row .x").click();
+  b.hass = makeHass(dinner);
+  same(rows(b).length, 0);
+});
+
+test("repairs are fetched once when the user arrives late", async () => {
+  const w = makeWindow();
+  const hass = makeHass({});
+  hass.user = null;
+  const el = mount(w, { type: "x" }, hass);
+  el.hass = { ...hass, user: { id: "u1", is_admin: true } };
+  await tick();
+  same(hass.calls.filter((c) => c[1] === "repairs/list_issues").length, 1);
 });
 
 describe("editor", () => {
@@ -1071,6 +1174,24 @@ describe("editor", () => {
       entities: [{ ...door, entity: "binary_sensor.door_2" }],
       audience: { "binary_sensor.door_2": { only: ["person.anna"] } },
     });
+  });
+
+  test("rules for updates stay, the card still applies them", () => {
+    const w = makeWindow();
+    const anna = { "person.anna": st("person.anna", "home", { user_id: "u1" }) };
+    const off = edit(w, { entities: ["update.router"], audience: { updates: { except: ["person.anna"] } } }, makeHass(anna), (v) => {
+      v.updates = false;
+    });
+    same(off.written.audience, { updates: { except: ["person.anna"] } }, "updates turned off");
+    const rule = { "update.nas": { except: ["person.anna"] } };
+    const gone = edit(w, { entities: ["update.nas"], audience: rule }, makeHass(anna), (v) => {
+      v.entities = [];
+    });
+    same(gone.written.audience, rule, "update taken off the list");
+    const swapped = edit(w, { entities: ["update.nas"], audience: rule }, makeHass(anna), (v) => {
+      v.entities = ["update.other"];
+    });
+    same(swapped.written.audience, { ...rule, "update.other": rule["update.nas"] }, "update swapped");
   });
 
   test("duplicate entries show and keep the first, like the card", () => {
