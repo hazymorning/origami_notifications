@@ -57,7 +57,7 @@ function makeHass(states = {}, opts = {}) {
       return Promise.resolve();
     },
     callWS: (msg) => {
-      calls.push(["ws", msg.type]);
+      calls.push(["ws", msg.type, msg]);
       return Promise.resolve(opts.wsReply ? opts.wsReply(msg) : { issues: [] });
     },
     hassUrl: (p) => (String(p).startsWith("http") ? p : "http://ha.local" + p),
@@ -97,6 +97,8 @@ const same = (got, want, message) =>
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
+const services = (hass) => hass.calls.filter((c) => c[0] !== "ws");
+
 test("empty", () => {
   const w = makeWindow();
   same(mount(w, { type: "x" }, makeHass({})).hidden, true, "hidden when empty");
@@ -123,7 +125,7 @@ test("persistent notification", () => {
   });
   same(rows(el).map((r) => [r.title, r.body]), [["Backup", "Backup done"]], "row");
   el.shadowRoot.querySelector(".row .x").click();
-  same(hass.calls.map((c) => c[0]).includes("persistent_notification.dismiss"), true, "dismiss service");
+  same(services(hass), [["persistent_notification.dismiss", { notification_id: "n1" }]], "dismiss service");
 });
 
 test("update entity", () => {
@@ -595,7 +597,7 @@ test("loading the file twice", () => {
   const w = makeWindow();
   let error = null;
   try {
-    w.eval(CODE.replace(/^const /gm, "var "));
+    w.eval(CODE);
   } catch (e) {
     error = e.message;
   }
@@ -632,7 +634,9 @@ test("repairs", async () => {
   ], "repair rows");
   same(asked, [["issues", ["zwave_js", "cloud"]]], "issue translations are requested");
   el.shadowRoot.querySelectorAll(".row .x")[0].click();
-  same(hass.calls.some((c) => c[1] === "repairs/ignore_issue"), true, "ignore issue");
+  same(hass.calls.filter((c) => c[1] === "repairs/ignore_issue").map((c) => c[2]), [
+    { type: "repairs/ignore_issue", domain: "cloud", issue_id: "legacy", ignore: true },
+  ], "ignore issue");
 
   const guest = makeHass({}, { wsReply: () => ({ issues }), user: { id: "u2", is_admin: false } });
   mount(w, { type: "x" }, guest);
@@ -647,6 +651,8 @@ test("repairs", async () => {
 
 test("a dismissal shows at once, Home Assistant confirms it later", async () => {
   const w = makeWindow();
+  const warnings = [];
+  w.console.warn = (...args) => warnings.push(args.join(" "));
   const subs = [];
   const hass = makeHass({}, { subs });
   const answers = [];
@@ -662,7 +668,7 @@ test("a dismissal shows at once, Home Assistant confirms it later", async () => 
   same([rows(el).length, dismissals()], [1, 1], "gone before Home Assistant answers");
   answers[0].reject(new Error("refused"));
   await tick();
-  same(rows(el).length, 2, "back when Home Assistant refuses");
+  same([rows(el).length, warnings.length], [2, 1], "back when Home Assistant refuses");
 
   el.shadowRoot.querySelector(".row .x").click();
   answers[1].resolve();
@@ -1105,4 +1111,63 @@ describe("editor", () => {
     const field = form.schema.find((s) => s.name === "options").schema[0].schema.find((s) => s.name === "attribute");
     assert.notEqual(form.computeHelper(field), form.computeHelper({ name: "attribute" }));
   });
+});
+
+test("the version matches package.json", () => {
+  const { version } = require("../package.json");
+  same(/const VERSION = "([^"]+)"/.exec(CODE)[1], version);
+});
+
+test("your css goes into the card, after its own", () => {
+  const w = makeWindow();
+  const css = ".row { border: 1px solid red; }";
+  const el = mount(w, { type: "x", css }, makeHass({}));
+  same([...el.shadowRoot.querySelectorAll("style")].pop().textContent, css);
+});
+
+test("a label adds every entity that carries it", () => {
+  const w = makeWindow();
+  const entities = { "binary_sensor.door": { entity_id: "binary_sensor.door", labels: ["notify"] }, "binary_sensor.window": { labels: [] } };
+  const states = {
+    "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }),
+    "binary_sensor.window": st("binary_sensor.window", "on", { friendly_name: "Window" }),
+  };
+  same(rows(mount(w, { type: "x", updates: false, label: "notify" }, makeHass(states, { entities }))).map((r) => r.title), ["Door"]);
+});
+
+test("an only rule shows a source to the listed people alone", () => {
+  const w = makeWindow();
+  const states = {
+    "person.anna": st("person.anna", "home", { user_id: "u1" }),
+    "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }),
+  };
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["binary_sensor.door"], audience: { "binary_sensor.door": { only: ["person.anna"] } } };
+  same(rows(mount(w, config, makeHass(states, { user: { id: "u1" } }))).length, 1, "Anna");
+  same(rows(mount(w, config, makeHass(states, { user: { id: "u2" } }))).length, 0, "someone else");
+});
+
+test("buttons and taps go to Home Assistant", () => {
+  const w = makeWindow();
+  const hass = makeHass({ "binary_sensor.doorbell": st("binary_sensor.doorbell", "on", { friendly_name: "Doorbell" }) });
+  const open = { action: "perform-action", perform_action: "lock.open" };
+  const el = mount(w, { type: "x", updates: false, entities: [{ entity: "binary_sensor.doorbell", actions: [{ label: "Open", tap_action: open }] }] }, hass);
+  const actions = [];
+  const infos = [];
+  el.addEventListener("hass-action", (e) => actions.push(e.detail.config.tap_action));
+  el.addEventListener("hass-more-info", (e) => infos.push(e.detail.entityId));
+  el.shadowRoot.querySelector(".row .act").click();
+  el.shadowRoot.querySelector(".row .rtile").click();
+  same([actions, infos], [[open], ["binary_sensor.doorbell"]]);
+});
+
+test("install and skip are calls to Home Assistant", () => {
+  const w = makeWindow();
+  const hass = makeHass({ "update.router": st("update.router", "on", { title: "RouterOS", latest_version: "7.15", supported_features: 1 }) });
+  const el = mount(w, { type: "x" }, hass);
+  el.shadowRoot.querySelector(".row .act").click();
+  el.shadowRoot.querySelector(".row .x").click();
+  same(services(hass), [
+    ["update.install", { entity_id: "update.router" }],
+    ["update.skip", { entity_id: "update.router" }],
+  ]);
 });
