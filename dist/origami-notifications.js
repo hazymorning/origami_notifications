@@ -5,7 +5,7 @@
 const CARD = "origami-notifications";
 const EDITOR = CARD + "-editor";
 const REPO = "https://github.com/hazymorning/origami_notifications";
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 /* ── configuration ──────────────────────────────────────────────────── */
 
@@ -20,9 +20,9 @@ const DEFAULTS = Object.freeze({
 
 /* The order the editor writes keys in, so the YAML reads top to bottom. */
 const KEY_ORDER = ["entities", "label", "updates", "repairs", "hide_when_empty", "audience", "css"];
-const ENTITY_KEY_ORDER = ["entity", "type", "name", "icon", "image", "background", "tap_action", "actions"];
+const ENTITY_KEY_ORDER = ["entity", "type", "attribute", "name", "icon", "image", "background", "tap_action", "actions"];
 
-const TYPES = ["auto", "calendar", "update", "alarm", "alert", "dwd", "recipe", "picture", "generic"];
+const TYPES = ["auto", "calendar", "update", "alarm", "alert", "dwd", "attribute", "picture", "generic"];
 
 const ICONS = Object.freeze({
   system: "mdi:bell",
@@ -32,7 +32,7 @@ const ICONS = Object.freeze({
   alert: "mdi:alert",
   weather: "mdi:flash",
   calendar: "mdi:calendar-month",
-  recipe: "mdi:chef-hat",
+  attribute: "mdi:card-text-outline",
   picture: "mdi:image-outline",
   generic: "mdi:information-outline",
 });
@@ -137,6 +137,125 @@ const REDUCED_MOTION = window.matchMedia
 
 const motionOK = () => !(REDUCED_MOTION && REDUCED_MOTION.matches);
 
+/* ── motion ─────────────────────────────────────────────────────────── */
+/* Whatever leaves first fades, then the space it took closes; whatever
+ * arrives first gets its space, then fades in. Android's list animator plays
+ * them in the same order, so two motions never run into each other. Only one
+ * height changes at a time, and the rest of the card and of the dashboard
+ * below follows it through layout, in step by construction. */
+const FADE_MS = 150;
+const SIZE_MS = 250;
+
+/* Material's standard, accelerate and decelerate curves. Home Assistant's
+ * expansion panels open and close on the standard one. */
+const EASE_STANDARD = "cubic-bezier(0.4, 0, 0.2, 1)";
+const EASE_FADE_OUT = "cubic-bezier(0.4, 0, 1, 1)";
+const EASE_FADE_IN = "cubic-bezier(0, 0, 0.2, 1)";
+
+/* When the card hides, Home Assistant takes the gap after it away in a
+ * single step, once the card is gone. So the card closes on a curve that
+ * still moves at the end, at about one gap per frame, and that step reads as
+ * the last bit of the motion instead of a jolt after it. Coming back, the gap
+ * appears first and the card starts opening at that pace. Sections set the
+ * gap as --row-gap and masonry leaves about the same; the view footer goes
+ * as a whole, with its padding, so there the step is measured. */
+const FRAME_MS = 1000 / 60;
+
+const gapPace = (host, height) => {
+  const footer = host.classList.contains("docked") && host.getRootNode().host;
+  const gap = footer
+    ? Math.max(footer.getBoundingClientRect().height - host.getBoundingClientRect().height, 0) || 8
+    : parseFloat(getComputedStyle(host).getPropertyValue("--row-gap")) || 8;
+  return Math.min(4, (gap * SIZE_MS) / (FRAME_MS * Math.max(height || 0, 1)));
+};
+
+/* The end (or start) slope of each curve is the pace; above 2.5 the second
+ * form keeps the curve from overshooting. Both forms meet at 2.5. */
+const easeClose = (pace) =>
+  pace <= 2.5
+    ? "cubic-bezier(0.4, 0, 0.6, " + (1 - 0.4 * pace).toFixed(3) + ")"
+    : "cubic-bezier(0.4, 0, " + (1 - 1 / pace).toFixed(3) + ", 0)";
+const easeOpen = (pace) =>
+  pace <= 2.5
+    ? "cubic-bezier(0.4, " + (0.4 * pace).toFixed(3) + ", 0.6, 1)"
+    : "cubic-bezier(" + (1 / pace).toFixed(3) + ", 1, 0.6, 1)";
+
+/* Everything that makes up the height of a box in the flow. */
+const FLOW = ["height", "paddingTop", "paddingBottom", "marginTop", "marginBottom", "borderTopWidth", "borderBottomWidth"];
+
+const flowBox = (el) => {
+  const cs = getComputedStyle(el);
+  const box = {};
+  for (const k of FLOW) box[k] = cs[k];
+  if (!/px$/.test(box.height)) box.height = el.offsetHeight + "px";
+  return box;
+};
+
+/* No space at all. A row in the list also gives back the gap next to it,
+ * through a negative margin on the side that has a neighbour. */
+const noBox = (gapSide, gap) => {
+  const box = {};
+  for (const k of FLOW) box[k] = "0px";
+  if (gapSide) box[gapSide] = -gap + "px";
+  return box;
+};
+
+const gapSide = (el) =>
+  el.previousElementSibling ? "marginTop" : el.nextElementSibling ? "marginBottom" : null;
+
+const stopMotion = (el) => {
+  if (el._motion) {
+    el._motion.onfinish = null;
+    el._motion.cancel();
+    el._motion = null;
+  }
+  el.classList.remove("moving", "leaving");
+};
+
+/* Browsers round a border to whole device pixels, so one shrinking with the
+ * box would hold a pixel to the end and let it go in one step. Borders come
+ * and go while the box is invisible and keeps its height instead. */
+const NO_BORDER = Object.freeze({ borderTopWidth: "0px", borderBottomWidth: "0px" });
+
+/* Fade, then close the space. Holds the closed state until the caller removes the box. */
+const playLeave = (el, gap, slide) => {
+  const full = flowBox(el);
+  const opacity = getComputedStyle(el).opacity;
+  stopMotion(el);
+  const out = slide ? "translateX(" + slide + "px)" : "none";
+  el.classList.add("moving", "leaving");
+  el._motion = el.animate(
+    [
+      { ...full, opacity, transform: "none", easing: EASE_FADE_OUT },
+      { ...full, ...NO_BORDER, opacity: 0, transform: out, offset: FADE_MS / (FADE_MS + SIZE_MS), easing: EASE_STANDARD },
+      { ...noBox(gap ? gapSide(el) : null, gap), opacity: 0, transform: out },
+    ],
+    { duration: FADE_MS + SIZE_MS, fill: "forwards" }
+  );
+  return el._motion;
+};
+
+/* Open the space, then fade in. */
+const playEnter = (el, gap) => {
+  stopMotion(el);
+  const full = flowBox(el);
+  el.classList.add("moving");
+  el._motion = el.animate(
+    [
+      { ...noBox(gap ? gapSide(el) : null, gap), opacity: 0, easing: EASE_STANDARD },
+      { ...full, ...NO_BORDER, opacity: 0, offset: SIZE_MS / (SIZE_MS + FADE_MS), easing: EASE_FADE_IN },
+      { ...full, opacity: 1 },
+    ],
+    { duration: SIZE_MS + FADE_MS }
+  );
+  el._motion.onfinish = () => stopMotion(el);
+  return el._motion;
+};
+
+/* A dismissal shows at once. Home Assistant confirms it a moment later; if it
+ * refuses, or the item is still there after this long, the item comes back. */
+const PENDING_MS = 10000;
+
 const sevClass = (sev) => (sev === "crit" ? " crit" : sev === "warn" ? " warn" : "");
 
 const fill = (template, vars) =>
@@ -185,7 +304,8 @@ const plainText = (md) =>
 const SAFE_LINK = /^(https?:\/\/|\/(?!\/))/i;
 
 const firstLink = (md) => {
-  const m = /\[[^\]]*\]\(([^)\s]+)[^)]*\)/.exec(String(md || ""));
+  const text = String(md || "").replace(/!\[[^\]]*\]\([^)]*\)/g, "");
+  const m = /\[[^\]]*\]\(([^)\s]+)[^)]*\)/.exec(text);
   return m && SAFE_LINK.test(m[1]) ? m[1] : null;
 };
 
@@ -260,30 +380,55 @@ const renderDwd = (id, st, items, ctx) => {
   }
 };
 
-/* One thing worth showing with its picture: a dish from a meal plan, a book,
- * a parcel, a film tonight. Either an attribute holds it as an object (a
- * recipe attribute is detected on its own) or, with type: picture, the state
- * names it. The picture itself is resolved in renderEntity like for any kind. */
-const renderPicture = (id, st, items, ctx) => {
+/* An attribute that describes one thing: a dish, a book, a parcel, a film
+ * tonight. It holds an object with a name or a title, and maybe a text and
+ * a picture. */
+const THING_TEXT = ["description", "summary"];
+const THING_PICTURE = ["image", "image_url", "picture", "thumbnail"];
+
+const isThing = (v) =>
+  v != null && typeof v === "object" && !Array.isArray(v) &&
+  ["name", "title"].some((k) => (typeof v[k] === "string" && v[k] !== "") || typeof v[k] === "number");
+
+/* Found without being named: a recipe, the one attribute the card knew up to
+ * 0.2, or any object that has a text or a picture besides its name. */
+const findThing = (attrs) => {
+  if (isThing(attrs.recipe)) return "recipe";
+  return Object.keys(attrs).find(
+    (k) => isThing(attrs[k]) && [...THING_TEXT, ...THING_PICTURE].some((f) => !isEmpty(attrs[k][f]))
+  );
+};
+
+/* type: attribute shows what an attribute holds: the object of isThing, or a
+ * plain value as the title. Set to an attribute that is empty, it shows
+ * nothing. type: picture puts the state itself in the title, for entities
+ * whose state is the thing, like the dish of the day. The picture is
+ * resolved in renderEntity like for any kind. */
+const renderThing = (id, st, items, ctx) => {
   const a = st.attributes;
   const ts = parseTs(st.last_changed, Date.now());
-  const obj = a.recipe && typeof a.recipe === "object" ? a.recipe : null;
-  if (obj) {
-    const title = pick(obj, ["name", "title"]);
-    if (!title) return;
+  /* type: picture reads only the attribute it is given, or a recipe as in 0.2. */
+  const path = ctx.attribute || (ctx.kind === "picture" ? isThing(a.recipe) && "recipe" : findThing(a));
+  const value = path ? attrPath(a, path) : undefined;
+  if (isThing(value)) {
     items.push({
       key: "r:" + id,
       kind: ctx.kind,
       source: id,
       entity: id,
-      title: String(title),
-      message: String(pick(obj, ["description", "summary"]) || ctx.name(st)),
-      image: pick(obj, ["image", "image_url", "picture", "thumbnail"]),
+      title: String(pick(value, ["name", "title"])),
+      message: String(pick(value, THING_TEXT) || ctx.name(st)),
+      image: pick(value, THING_PICTURE),
       ts,
     });
     return;
   }
-  if (ctx.kind === "recipe" || INACTIVE.has(String(st.state).toLowerCase())) return;
+  if (ctx.kind === "attribute") {
+    if (!ctx.attribute || ctx.objectOnly || value == null || value === "" || typeof value === "object") return;
+    items.push({ key: "r:" + id, kind: ctx.kind, source: id, entity: id, title: String(value), message: ctx.name(st), ts });
+    return;
+  }
+  if (INACTIVE.has(String(st.state).toLowerCase())) return;
   items.push({
     key: "r:" + id,
     kind: ctx.kind,
@@ -394,24 +539,24 @@ const renderGeneric = (id, st, items, ctx) => {
   });
 };
 
-/* Detection order: attribute shapes first, then domain, then generic.
- * A present-but-empty shape key (e.g. recipe: null) still claims the entity,
- * so an empty source renders nothing instead of falling through to generic. */
+/* Detection order: the DWD attribute shape, the domain, an attribute that
+ * describes one thing, then generic. A recipe attribute claims the entity
+ * even while it is empty, as it did up to 0.2. */
 const detectType = (id, st) => {
   const a = st.attributes;
   if (a.warning_count !== undefined) return "dwd";
-  if ("recipe" in a) return "recipe";
   if (id.startsWith("calendar.")) return "calendar";
   if (id.startsWith("update.")) return "update";
   if (id.startsWith("alarm_control_panel.")) return "alarm";
   if (id.startsWith("alert.")) return "alert";
+  if (findThing(a) || "recipe" in a) return "attribute";
   return "generic";
 };
 
 const RENDERERS = Object.freeze({
   dwd: renderDwd,
-  recipe: renderPicture,
-  picture: renderPicture,
+  attribute: renderThing,
+  picture: renderThing,
   calendar: renderCalendar,
   update: renderUpdate,
   alarm: renderAlarm,
@@ -475,12 +620,14 @@ const linkAction = (host, url) => () =>
 const renderEntity = (id, st, items, ctx, src) => {
   if (!st) return;
   const forced = Boolean(src && src.type && src.type !== "auto");
-  const kind = forced ? src.type : detectType(id, st);
+  const attribute = (src && src.attribute) || null;
+  const objectOnly = Boolean(src && src.objectOnly);
+  const kind = forced ? src.type : attribute ? "attribute" : detectType(id, st);
   const renderer = RENDERERS[kind];
   if (!renderer) return;
   const before = items.length;
   try {
-    renderer(id, st, items, { ...ctx, forced, kind });
+    renderer(id, st, items, { ...ctx, forced, kind, attribute, objectOnly });
   } catch (e) {
     console.warn(CARD + ": renderer failed for " + id, e);
     items.length = before;
@@ -514,6 +661,20 @@ const renderEntity = (id, st, items, ctx, src) => {
     }
   }
 };
+
+/* A row is built again only when something it shows has changed. */
+const rowSig = (it) =>
+  [
+    it.kind,
+    it.icon || "",
+    it.sev || "",
+    it.title,
+    it.message,
+    it.ts,
+    Boolean(it.dismiss),
+    Boolean(it.open || it.entity) && !it.inert,
+    (it.actions || []).map((a) => a.label + (a.disabled ? "!" : "")).join("|"),
+  ].join("␟");
 
 const setImage = (tile, url) => {
   let img = tile.querySelector("img");
@@ -558,29 +719,13 @@ const STYLES = `
     --origami-bg-auto: 0.22;
     display: grid;
     grid-template-rows: 1fr;
-    opacity: 1;
     -webkit-tap-highlight-color: transparent;
-    transition:
-      grid-template-rows 450ms var(--origami-ease),
-      opacity 450ms var(--origami-ease),
-      display 450ms allow-discrete;
   }
   :host(.dark) { --origami-bg-auto: 0.32; }
   /* Home Assistant drops the grid cell of a card that sets hidden, so the
-   * section closes the gap. .gone plays the collapse before that. */
+   * section closes the gap. The card fades and shrinks before that, see _setShown. */
   :host([hidden]) { display: none !important; }
-  :host(.gone) {
-    display: none;
-    grid-template-rows: 0fr;
-    opacity: 0;
-  }
-  /* Leaving display: none needs a start value. First paint is covered by no-anim. */
-  @starting-style {
-    :host(:not(.gone)) {
-      grid-template-rows: 0fr;
-      opacity: 0;
-    }
-  }
+  :host(.leaving) { pointer-events: none; }
   :host(.no-anim), :host(.no-anim) * {
     transition: none !important;
     animation: none !important;
@@ -757,7 +902,10 @@ const STYLES = `
     overscroll-behavior: contain;
     scrollbar-width: thin;
   }
+  /* A row in a list that scrolls must not give way while it animates;
+   * overflow: hidden would otherwise let it shrink to its padding. */
   .row {
+    flex: none;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas: "rtile rtitle rmeta" "rtile rbody rbody";
@@ -770,6 +918,8 @@ const STYLES = `
     transition: box-shadow 150ms ease, background-color var(--origami-time) var(--origami-ease);
   }
   .row.link, .row.expandable, .row.open { cursor: pointer; }
+  .row.moving, .foot.moving { overflow: hidden; }
+  .row.leaving, .foot.leaving { pointer-events: none; }
   :host(.has-bg) .row { background: color-mix(in srgb, var(--origami-row-bg) 72%, transparent); }
   .rtile {
     grid-area: rtile;
@@ -1048,7 +1198,10 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._clock = null;
     this._lastMsg = null;
     this._bgUrl = null;
-    this._hideTimer = null;
+    this._hostAnim = null;
+    this._enterFrom = null;
+    this._shownOpen = false;
+    this._pending = new Map();
     this._acks = this._loadAcks();
     this._painted = false;
     this._seq = 0;
@@ -1066,6 +1219,7 @@ class OrigamiNotificationsCard extends HTMLElement {
           : {
               entity: entry && entry.entity,
               type: (entry && entry.type) || "auto",
+              attribute: entry ? entry.attribute : null,
               icon: entry ? entry.icon : null,
               name: entry ? entry.name : null,
               image: entry ? entry.image : null,
@@ -1076,8 +1230,17 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (typeof src.entity !== "string" || !src.entity.includes(".")) {
         throw new Error(CARD + ": entities must contain entity ids, got " + JSON.stringify(entry));
       }
+      /* The name the attribute type had up to 0.2, which showed objects only. */
+      if (src.type === "recipe") {
+        src.type = "attribute";
+        src.attribute = src.attribute || "recipe";
+        src.objectOnly = true;
+      }
       if (src.type !== "auto" && !RENDERERS[src.type]) {
         throw new Error(CARD + ": unknown source type '" + src.type + "'");
+      }
+      if (src.attribute != null && typeof src.attribute !== "string") {
+        throw new Error(CARD + ": attribute must be the name of an attribute");
       }
       if (src.image != null && typeof src.image !== "string") {
         throw new Error(CARD + ": image must be an attribute path or URL");
@@ -1092,7 +1255,10 @@ class OrigamiNotificationsCard extends HTMLElement {
       throw new Error(CARD + ": css must be a string");
     }
     this._config = { ...DEFAULTS, ...config };
-    const rows = config.grid_options && config.grid_options.rows;
+    /* Home Assistant reads layout_options only when grid_options is missing. */
+    const rows = config.grid_options
+      ? config.grid_options.rows
+      : config.layout_options && config.layout_options.grid_rows;
     this.classList.toggle("bounded", typeof rows === "number");
     this._sources = sources;
     this._audience = audience;
@@ -1114,7 +1280,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { hide_when_empty: false };
+    return {};
   }
 
   /* -- language --------------------------------------------------------- */
@@ -1273,7 +1439,15 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
     const root = this.getRootNode();
     this.classList.toggle("docked", Boolean(root && root.host && root.host.localName === "hui-view-footer"));
+    /* The card picker shows a preview without preview mode; an empty card
+     * stays visible there so the picker has something to show. */
+    const picker = Boolean(root && root.host && root.host.localName === "hui-card-picker");
+    if (picker !== Boolean(this._inPicker)) {
+      this._inPicker = picker;
+      this._recompute();
+    }
     if (this._hass) this._subscribe();
+    if (this._hostAnim) this._hostAnim.finish();
     if (this._dom) {
       this._ro.observe(this._dom.msg);
       this._suppressAnim();
@@ -1294,6 +1468,7 @@ class OrigamiNotificationsCard extends HTMLElement {
      * re-parents the preview constantly and must not lose expansion. */
     this._detachReset = setTimeout(() => {
       this._expanded = false;
+      this._shownOpen = false;
       if (this._dom) {
         this._dom.card.classList.remove("open");
         this._dom.head.setAttribute("aria-expanded", "false");
@@ -1471,16 +1646,34 @@ class OrigamiNotificationsCard extends HTMLElement {
 
     const seen = new Set();
     if (h) {
+      /* The updates rule covers every update entity, listed or found. */
+      const allowedEntity = (id) => allowed(id) && (!id.startsWith("update.") || allowed("updates"));
       for (const src of this._allSources) {
-        if (seen.has(src.entity) || !allowed(src.entity)) continue;
+        if (seen.has(src.entity) || !allowedEntity(src.entity)) continue;
         seen.add(src.entity);
         renderEntity(src.entity, h.states[src.entity], items, ctx, src);
       }
       if (c.updates && allowed("updates")) {
         for (const id of this._updateIds) {
-          if (!seen.has(id)) renderEntity(id, h.states[id], items, ctx, null);
+          if (!seen.has(id) && allowed(id)) renderEntity(id, h.states[id], items, ctx, null);
         }
       }
+    }
+
+    /* Dismissed here, not yet confirmed by Home Assistant. Once the source no
+     * longer has the item, or the wait is over, it is no longer pending. */
+    if (this._pending.size) {
+      const now = Date.now();
+      const present = new Set(items.map((it) => it.key));
+      for (const [key, until] of this._pending) {
+        if (!present.has(key) || until <= now) this._pending.delete(key);
+      }
+      for (let i = items.length - 1; i >= 0; i--) {
+        if (this._pending.has(items[i].key)) items.splice(i, 1);
+      }
+      clearTimeout(this._pendingTimer);
+      const next = Math.min(...this._pending.values());
+      if (next !== Infinity) this._pendingTimer = setTimeout(() => this._recompute(), next - now + 50);
     }
 
     /* Critical warnings pin above everything; within a tier newest first. */
@@ -1492,7 +1685,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       if (it.dismiss || it.sticky) continue;
-      const sig = it.title + "\u0000" + it.message;
+      const said = it.title + "\u0000" + it.message;
+      const sig = it.kind === "attribute" || it.kind === "picture" ? said : said + "\u0000" + it.ts;
+      /* 0.2 kept no time; such a dismissal turns into one that does. */
+      if (this._acks[it.key] === said && sig !== said) {
+        this._acks[it.key] = sig;
+        acksDirty = true;
+      }
       if (this._acks[it.key] === sig) {
         items.splice(i, 1);
       } else {
@@ -1619,10 +1818,11 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   _refreshTimes() {
     if (!this._dom) return;
-    const whens = this._dom.list.querySelectorAll(".when");
-    this._items.forEach((it, i) => {
-      if (whens[i]) whens[i].textContent = this._relTime(it.ts);
-    });
+    for (const it of this._items) {
+      const entry = this._rowCache.get(it.key);
+      const when = entry && entry.el.querySelector(".when");
+      if (when) when.textContent = this._relTime(it.ts);
+    }
   }
 
   _loadAcks() {
@@ -1633,7 +1833,10 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
   }
 
+  /* The oldest acknowledgments go first once there are more than 64. */
   _saveAcks() {
+    const keys = Object.keys(this._acks);
+    for (let i = 0; i < keys.length - 64; i++) delete this._acks[keys[i]];
     try {
       localStorage.setItem("origami-notifications-ack", JSON.stringify(this._acks));
     } catch (e) {
@@ -1643,53 +1846,166 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   _ack(key, sig) {
     this._acks[key] = sig;
-    const keys = Object.keys(this._acks);
-    if (keys.length > 64) delete this._acks[keys[0]];
     this._saveAcks();
     this._recompute();
   }
 
-  _clearAll() {
-    if (!this._hass) return;
+  /* Rows go at once, whether Home Assistant or this device keeps the
+   * dismissal; see PENDING_MS for what happens when Home Assistant refuses. */
+  _dismiss(items) {
     let acked = false;
-    for (const item of this._items) {
-      if (item.localDismiss) {
-        this._acks[item.key] = item.ackSig;
+    for (const it of items) {
+      if (it.localDismiss) {
+        this._acks[it.key] = it.ackSig;
         acked = true;
-      } else if (item.dismiss) {
-        item.dismiss();
+        continue;
       }
+      if (!it.dismiss) continue;
+      const key = it.key;
+      this._pending.set(key, Infinity);
+      let done;
+      try {
+        done = Promise.resolve(it.dismiss());
+      } catch (e) {
+        done = Promise.reject(e);
+      }
+      done.then(
+        () => {
+          if (this._pending.get(key) !== Infinity) return;
+          this._pending.set(key, Date.now() + PENDING_MS);
+          this._recompute();
+        },
+        (e) => {
+          console.warn(CARD + ": could not dismiss " + key, e);
+          if (this._pending.delete(key)) this._recompute();
+        }
+      );
     }
-    if (acked) {
-      this._saveAcks();
-      this._recompute();
-    }
+    if (acked) this._saveAcks();
+    this._recompute();
+  }
+
+  _clearAll() {
+    if (this._hass) this._dismiss(this._items.filter((it) => it.dismiss));
+  }
+
+  /* After a dismissal by keyboard, focus moves on to the row that took its
+   * place instead of falling out of the card. */
+  _focusAfter(index) {
+    if (this.hidden || (this._hostAnim && !this._hostAnim.showing)) return;
+    const it = this._items[Math.min(Math.max(index, 0), this._items.length - 1)];
+    const entry = it && this._rowCache.get(it.key);
+    const target =
+      (entry && (entry.el.querySelector(".x") || entry.el.querySelector(".rtile[role=button]"))) ||
+      (this._expanded ? this._dom.ebar : this._dom.head);
+    target.focus({ preventScroll: true });
   }
 
   /* Hidden the way Home Assistant expects it: the hidden attribute plus
    * card-visibility-changed, so sections, masonry and the view footer drop
-   * the card's slot instead of keeping an empty gap. The collapse plays first. */
+   * the card's slot instead of keeping an empty gap. Before that the card
+   * fades and its space closes, see gapPace. With a fixed height from the
+   * layout tab the slot keeps its size anyway, so the card only fades. */
   _setShown(show) {
+    const running = this._hostAnim;
+    if (show ? !this.hidden && !(running && !running.showing) : this.hidden || (running && !running.showing)) return;
+    const now = getComputedStyle(this);
+    const from = { height: now.height, opacity: now.opacity };
+    if (running) {
+      running.onfinish = null;
+      running.cancel();
+      this._hostAnim = null;
+    }
+    this.classList.remove("leaving");
+    this._enterFrom = null;
     if (show) {
-      clearTimeout(this._hideTimer);
-      this._hideTimer = null;
-      this.classList.remove("gone");
       if (this.hidden) {
         this.hidden = false;
         fire(this, "card-visibility-changed", { value: true });
+        from.height = "0px";
+        from.opacity = "0";
       }
+      /* Played at the end of _render, once the content is in and can be measured. */
+      if (this._animOK()) this._enterFrom = from;
       return;
     }
-    if (this.hidden || this._hideTimer) return;
-    const finish = () => {
-      this._hideTimer = null;
-      this.hidden = true;
-      fire(this, "card-visibility-changed", { value: false });
+    const fade = Number(from.opacity) > 0;
+    const size = !this.classList.contains("bounded");
+    if (!this._animOK() || !(fade || size)) {
+      this._gone();
+      return;
+    }
+    const frames = [];
+    if (fade) frames.push({ height: from.height, opacity: from.opacity, easing: EASE_FADE_OUT });
+    if (size) {
+      frames.push({ height: from.height, opacity: 0, easing: easeClose(gapPace(this, parseFloat(from.height))) });
+      if (fade) frames[1].offset = FADE_MS / (FADE_MS + SIZE_MS);
+    }
+    frames.push({ height: size ? "0px" : from.height, opacity: 0 });
+    this.classList.add("leaving");
+    const duration = (fade ? FADE_MS : 0) + (size ? SIZE_MS : 0);
+    const anim = this.animate(frames, { duration, fill: "forwards" });
+    anim.showing = false;
+    this._hostAnim = anim;
+    /* Home Assistant takes the gap away in the frame after the first one that
+     * shows the card closed, so that step gets a frame of its own like every
+     * step before it, and no frame stands still in between. */
+    let closed = false;
+    const watch = () => {
+      if (this._hostAnim !== anim) return;
+      if (!closed) {
+        closed = anim.playState === "finished" || anim.currentTime >= duration - 4;
+        requestAnimationFrame(watch);
+        return;
+      }
+      this._hostAnim = null;
+      this._gone();
+      anim.cancel();
     };
-    const animate = this._animOK();
-    this.classList.add("gone");
-    if (animate) this._hideTimer = setTimeout(finish, 450);
-    else finish();
+    requestAnimationFrame(watch);
+  }
+
+  _playEnter() {
+    const from = this._enterFrom;
+    this._enterFrom = null;
+    if (!from || !this._animOK()) return;
+    const to = getComputedStyle(this).height;
+    const size = !this.classList.contains("bounded") && from.height !== to;
+    const frames = size
+      ? [
+          { height: from.height, opacity: from.opacity, easing: easeOpen(gapPace(this, parseFloat(to) - parseFloat(from.height))) },
+          { height: to, opacity: from.opacity, offset: SIZE_MS / (SIZE_MS + FADE_MS), easing: EASE_FADE_IN },
+          { height: to, opacity: 1 },
+        ]
+      : [{ opacity: from.opacity, easing: EASE_FADE_IN }, { opacity: 1 }];
+    const anim = this.animate(frames, { duration: (size ? SIZE_MS : 0) + FADE_MS });
+    anim.showing = true;
+    this._hostAnim = anim;
+    anim.onfinish = () => {
+      if (this._hostAnim === anim) this._hostAnim = null;
+    };
+  }
+
+  /* Out of sight: whatever comes next starts closed, from an empty list. */
+  _gone() {
+    const d = this._dom;
+    this.classList.remove("leaving");
+    this.hidden = true;
+    fire(this, "card-visibility-changed", { value: false });
+    this._expanded = false;
+    this._shownOpen = false;
+    this._stopClock();
+    this._lastMsg = null;
+    clearTimeout(this._listTimer);
+    this._listTimer = null;
+    if (!d) return;
+    d.card.classList.remove("open");
+    d.head.setAttribute("aria-expanded", "false");
+    for (const el of d.list.children) stopMotion(el);
+    stopMotion(d.foot);
+    d.list.replaceChildren();
+    this._rowCache = new Map();
+    this._setBackdrop(null);
   }
 
   /* Two layers so one picture fades into the next; a picture shows only once loaded. */
@@ -1726,11 +2042,9 @@ class OrigamiNotificationsCard extends HTMLElement {
     const items = this._items;
     const empty = items.length === 0;
 
-    if (empty && this._config.hide_when_empty && !this._editMode) {
+    /* The card keeps showing what it showed while it fades away. */
+    if (empty && this._config.hide_when_empty && !this._editMode && !this._inPicker) {
       this._setShown(false);
-      this._setBackdrop(null);
-      this._lastMsg = null;
-      this._stopClock();
       this._painted = true;
       return;
     }
@@ -1741,6 +2055,8 @@ class OrigamiNotificationsCard extends HTMLElement {
       this._stopClock();
       d.head.setAttribute("aria-expanded", "false");
     }
+    const wasOpen = this._shownOpen;
+    this._shownOpen = this._expanded;
     d.card.classList.toggle("open", this._expanded);
     d.card.classList.toggle("has-items", !empty);
     d.head.setAttribute("aria-disabled", String(empty));
@@ -1765,58 +2081,95 @@ class OrigamiNotificationsCard extends HTMLElement {
 
     setImage(d.tile, empty ? null : items[0].image);
     this._setBackdrop(!empty && items[0].backdrop ? items[0].image : null);
-    d.count.textContent = empty
-      ? ""
-      : fill(items.length === 1 ? this._t.count_one : this._t.count_other, { n: items.length });
-    this._renderList(empty ? [] : items);
-    d.foot.hidden = empty || items.length < 2 || !items.some((it) => it.dismiss);
+
+    /* The list is only seen while the drawer is open, so only then does it
+     * move. A closing drawer keeps its rows until it is shut. */
+    if (!this._expanded && (wasOpen || this._listTimer)) {
+      this._listTimer =
+        this._listTimer ||
+        setTimeout(() => {
+          this._listTimer = null;
+          if (!this._expanded) this._renderDrawer(false);
+        }, 400);
+    } else {
+      clearTimeout(this._listTimer);
+      this._listTimer = null;
+      this._renderDrawer(wasOpen && this._expanded);
+    }
     this._painted = true;
+    if (this._enterFrom) this._playEnter();
   }
 
+  _renderDrawer(animate) {
+    const d = this._dom;
+    const items = this._items;
+    animate = animate && this._animOK();
+    if (items.length) {
+      d.count.textContent = fill(items.length === 1 ? this._t.count_one : this._t.count_other, { n: items.length });
+    }
+    this._renderList(items, animate);
+    this._setFoot(items.length > 1 && items.some((it) => it.dismiss), animate);
+  }
+
+  _setFoot(show, animate) {
+    const foot = this._dom.foot;
+    const leaving = foot.classList.contains("leaving");
+    if (show === (!foot.hidden && !leaving)) return;
+    /* Wanted again halfway out: the way back is the way out, played backwards. */
+    if (show && leaving && animate && foot._motion) {
+      const anim = foot._motion;
+      foot.classList.remove("leaving");
+      anim.onfinish = () => stopMotion(foot);
+      anim.reverse();
+      return;
+    }
+    stopMotion(foot);
+    foot.hidden = false;
+    if (!animate) {
+      foot.hidden = !show;
+      return;
+    }
+    const anim = show ? playEnter(foot, 0) : playLeave(foot, 0, 0);
+    if (!show) {
+      anim.onfinish = () => {
+        foot.hidden = true;
+        stopMotion(foot);
+      };
+    }
+  }
+
+  /* A card that is connected but not laid out, like one a visibility
+   * condition hides, has nothing to animate and no height to measure. */
   _animOK() {
     return (
       this._painted &&
       !this._editMode &&
       this.isConnected &&
+      this.getClientRects().length > 0 &&
       !this.classList.contains("no-anim") &&
       motionOK() &&
       typeof this.animate === "function"
     );
   }
 
-  static get _EASE() {
-    return "cubic-bezier(0.22, 1, 0.36, 1)";
-  }
-
-  /* Keyed reconciliation with FLIP: removed rows exit as absolutely
-   * positioned clones, surviving rows glide, new rows ease in. */
-  _renderList(items) {
+  /* Keyed: a row whose content did not change stays as it is. With animate,
+   * a row that goes fades and then closes its space where it stood, a new
+   * one opens its space and then fades in, and rows that only change places
+   * glide there. Nothing else moves on its own. */
+  _renderList(items, animate) {
+    const list = this._dom.list;
     const cache = this._rowCache;
-    const animate = this._animOK();
-    const listEl = this._dom.list;
-    const listRect = animate ? listEl.getBoundingClientRect() : null;
+    animate = animate && this._animOK();
     const before = new Map();
     if (animate) {
-      for (const [key, entry] of cache) {
-        if (entry.el.isConnected) {
-          before.set(key, entry.el.getBoundingClientRect());
-        }
-      }
+      for (const [key, entry] of cache) before.set(key, entry.el.offsetTop);
     }
+    const old = [...list.children];
+    const replaced = new Map();
     const next = new Map();
     const els = [];
     for (const it of items) {
-      const sig = [
-        it.kind,
-        it.icon || "",
-        it.sev || "",
-        it.title,
-        it.message,
-        it.ts,
-        Boolean(it.dismiss),
-        Boolean(it.open || it.entity) && !it.inert,
-        (it.actions || []).map((a) => a.label + (a.disabled ? "!" : "")).join("|"),
-      ].join("␟");
+      const sig = rowSig(it);
       const hit = cache.get(it.key);
       let el;
       if (hit && hit.sig === sig) {
@@ -1826,54 +2179,65 @@ class OrigamiNotificationsCard extends HTMLElement {
         setImage(el.querySelector(".rtile"), it.image);
       } else {
         el = this._row(it);
+        if (hit) replaced.set(hit.el, el);
       }
       next.set(it.key, { sig, el });
       els.push(el);
     }
     this._rowCache = next;
-    listEl.replaceChildren(...els);
-    if (!animate) return;
-    const EASE = OrigamiNotificationsCard._EASE;
-    const scale = listEl.offsetWidth / listRect.width || 1;
-    const out = getComputedStyle(this).direction === "rtl" ? -24 : 24;
-    for (const [key, oldRect] of before) {
-      const entry = next.get(key);
-      if (entry) {
-        const newRect = entry.el.getBoundingClientRect();
-        const dy = (oldRect.top - newRect.top) * scale;
-        if (Math.abs(dy) > 1) {
-          entry.el.animate(
-            [{ transform: "translateY(" + dy + "px)" }, { transform: "none" }],
-            { duration: 400, easing: EASE }
-          );
-        }
+    const kept = new Set(els);
+    const gone = old.filter((el) => !kept.has(el) && !replaced.has(el));
+    if (!animate) {
+      for (const el of old) stopMotion(el);
+      list.replaceChildren(...els);
+      return;
+    }
+
+    /* Rows on their way out stay where they were, after the row above them. */
+    const after = new Map();
+    let anchor = null;
+    for (const el of old) {
+      if (gone.includes(el)) {
+        if (!after.has(anchor)) after.set(anchor, []);
+        after.get(anchor).push(el);
       } else {
-        const ghost = cache.get(key).el;
-        ghost.style.position = "absolute";
-        ghost.style.top = (oldRect.top - listRect.top) * scale + listEl.scrollTop + "px";
-        ghost.style.left = (oldRect.left - listRect.left) * scale + "px";
-        ghost.style.width = oldRect.width * scale + "px";
-        ghost.style.pointerEvents = "none";
-        listEl.appendChild(ghost);
-        const anim = ghost.animate(
-          [
-            { opacity: 1, transform: "none" },
-            { opacity: 0, transform: "translateX(" + out + "px)" },
-          ],
-          { duration: 450, easing: EASE }
-        );
-        anim.onfinish = () => ghost.remove();
+        anchor = replaced.get(el) || el;
       }
+    }
+    const order = [...(after.get(null) || [])];
+    for (const el of els) order.push(el, ...(after.get(el) || []));
+    let cursor = list.firstChild;
+    for (const el of order) {
+      if (el === cursor) cursor = cursor.nextSibling;
+      else list.insertBefore(el, cursor);
+    }
+    while (cursor) {
+      const n = cursor.nextSibling;
+      cursor.remove();
+      cursor = n;
+    }
+
+    const gap = parseFloat(getComputedStyle(list).rowGap) || 0;
+    const slide = getComputedStyle(this).direction === "rtl" ? -16 : 16;
+    for (const el of gone) {
+      if (el.classList.contains("leaving")) continue;
+      playLeave(el, gap, slide).onfinish = () => {
+        stopMotion(el);
+        el.remove();
+      };
     }
     for (const [key, entry] of next) {
-      if (!before.has(key) && this._listPainted) {
-        entry.el.animate(
-          [{ opacity: 0, transform: "translateY(-6px)" }, { opacity: 1, transform: "none" }],
-          { duration: 350, easing: EASE }
-        );
+      if (!before.has(key)) playEnter(entry.el, gap);
+    }
+    for (const [key, entry] of next) {
+      const dy = before.has(key) ? before.get(key) - entry.el.offsetTop : 0;
+      if (Math.abs(dy) > 1) {
+        entry.el.animate([{ transform: "translateY(" + dy + "px)" }, { transform: "none" }], {
+          duration: SIZE_MS,
+          easing: EASE_STANDARD,
+        });
       }
     }
-    this._listPainted = true;
   }
 
   _row(it) {
@@ -1907,7 +2271,10 @@ class OrigamiNotificationsCard extends HTMLElement {
       x.append(xi);
       x.addEventListener("click", (e) => {
         e.stopPropagation();
-        it.dismiss();
+        /* The row may have been built several updates ago; dismiss what it shows now. */
+        const index = this._items.findIndex((i) => i.key === it.key);
+        this._dismiss([index < 0 ? it : this._items[index]]);
+        if (e.detail === 0) this._focusAfter(index);
       });
       meta.append(x);
     }
@@ -2031,6 +2398,7 @@ const EDITOR_STRINGS = Object.freeze({
     hide_when_empty: "Hide when there is nothing to show",
     options: "Entity options",
     type: "Kind",
+    attribute: "Attribute",
     name: "Name",
     icon: "Icon",
     image: "Picture",
@@ -2052,8 +2420,8 @@ const EDITOR_STRINGS = Object.freeze({
     type_alarm: "Alarm panel",
     type_alert: "Alert",
     type_dwd: "DWD weather warnings",
-    type_recipe: "Recipe attribute",
-    type_picture: "Picture with a text state",
+    type_attribute: "Details from an attribute",
+    type_picture: "State as title",
     type_generic: "Plain entity",
   },
   de: {
@@ -2064,6 +2432,7 @@ const EDITOR_STRINGS = Object.freeze({
     hide_when_empty: "Ausblenden, wenn nichts anliegt",
     options: "Optionen je Entität",
     type: "Art",
+    attribute: "Attribut",
     name: "Name",
     icon: "Symbol",
     image: "Bild",
@@ -2085,8 +2454,8 @@ const EDITOR_STRINGS = Object.freeze({
     type_alarm: "Alarmanlage",
     type_alert: "Alarm (alert)",
     type_dwd: "DWD-Unwetterwarnungen",
-    type_recipe: "Rezept-Attribut",
-    type_picture: "Bild mit Text-Zustand",
+    type_attribute: "Details aus einem Attribut",
+    type_picture: "Zustand als Titel",
     type_generic: "Einfache Entität",
   },
 });
@@ -2096,19 +2465,23 @@ const EDITOR_HELPERS = Object.freeze({
     label: "Every entity with this label is added and detected automatically.",
     visible: "Applies outside edit mode, like Home Assistant's own card visibility.",
     people: "Matches the user account linked to each person in Settings → People.",
-    image: "An attribute such as recipe.image, or a URL. Empty: the entity's own picture.",
+    attribute:
+      "Shown as the notification: an object with a name or title, a description and an image, or a plain value. Empty: found on its own.",
+    image: "An attribute, a path into one like book.cover, or a URL. Empty: found on its own.",
     background: "Shown softly blurred behind the card while this entity is the notification on top.",
   },
   de: {
     label: "Jede Entität mit diesem Label kommt dazu und wird automatisch erkannt.",
     visible: "Gilt außerhalb des Bearbeitungsmodus, wie die Sichtbarkeit von Home Assistant selbst.",
     people: "Verglichen wird das Benutzerkonto, das unter Einstellungen → Personen verknüpft ist.",
-    image: "Ein Attribut wie recipe.image oder eine URL. Leer: das eigene Bild der Entität.",
+    attribute:
+      "Wird zur Benachrichtigung: ein Objekt mit name oder title, description und image, oder ein einfacher Wert. Leer: wird selbst gefunden.",
+    image: "Ein Attribut, ein Pfad hinein wie book.cover, oder eine URL. Leer: wird selbst gefunden.",
     background: "Weich und unscharf hinter der Karte, solange diese Entität oben steht.",
   },
 });
 
-const OPTION_KEYS = ["type", "name", "icon", "image", "background", "tap_action"];
+const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "tap_action"];
 
 class OrigamiNotificationsEditor extends HTMLElement {
   setConfig(config) {
@@ -2173,7 +2546,9 @@ class OrigamiNotificationsEditor extends HTMLElement {
   }
 
   _typeOf(src) {
+    if (src.type === "recipe") return "attribute";
     if (src.type && src.type !== "auto") return src.type;
+    if (src.attribute) return "attribute";
     const st = this._hass && this._hass.states[src.entity];
     return st ? detectType(src.entity, st) : "generic";
   }
@@ -2226,6 +2601,9 @@ class OrigamiNotificationsEditor extends HTMLElement {
                         },
                       },
                     },
+                    ...(["auto", "attribute", "picture", "recipe"].includes(e.type || "auto")
+                      ? [{ name: "attribute", selector: { attribute: { entity_id: e.entity } } }]
+                      : []),
                     {
                       name: "",
                       type: "grid",
@@ -2272,7 +2650,8 @@ class OrigamiNotificationsEditor extends HTMLElement {
       this._entries().map((e) => [
         e.entity,
         {
-          type: e.type || "auto",
+          type: e.type === "recipe" ? "attribute" : e.type || "auto",
+          attribute: e.attribute || (e.type === "recipe" ? "recipe" : undefined),
           name: typeof e.name === "string" ? e.name : undefined,
           icon: e.icon,
           image: e.image,
@@ -2303,6 +2682,11 @@ class OrigamiNotificationsEditor extends HTMLElement {
         if (key === "name" && isEmpty(v) && base.name != null && typeof base.name !== "string") continue;
         if (isEmpty(v) || (key === "type" && v === "auto")) delete merged[key];
         else merged[key] = v;
+      }
+      /* type: recipe is shown as attribute recipe and written back as it was. */
+      if (base.type === "recipe" && !("attribute" in base) && merged.type === "attribute" && merged.attribute === "recipe") {
+        merged.type = "recipe";
+        delete merged.attribute;
       }
       const ordered = {};
       for (const key of [...ENTITY_KEY_ORDER, ...Object.keys(merged)]) {

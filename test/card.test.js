@@ -116,7 +116,7 @@ console.log("\n# empty");
 {
   const w = makeWindow();
   const el = mount(w, { type: "x" }, makeHass({}));
-  check("hidden when empty", el.classList.contains("gone"), true);
+  check("hidden when empty", el.hidden, true);
   const el2 = mount(w, { type: "x", hide_when_empty: false }, makeHass({}));
   check("idle title", el2.shadowRoot.querySelector(".head .title").textContent, "All quiet");
 }
@@ -261,6 +261,23 @@ console.log("\n# audience");
   check("viewer excluded", rows(el).length, 0);
 }
 
+console.log("\n# audience: the updates rule covers every update entity");
+{
+  const w = makeWindow();
+  const hass = makeHass(
+    {
+      "person.anna": st("person.anna", "home", { user_id: "u1" }),
+      "update.router": st("update.router", "on", { title: "RouterOS", latest_version: "7.15" }),
+      "update.nas": st("update.nas", "on", { title: "NAS", latest_version: "2" }),
+    },
+    { user: { id: "u1" } }
+  );
+  const el = mount(w, { type: "x", hide_when_empty: false, entities: ["update.router"], audience: { updates: { except: ["person.anna"] } } }, hass);
+  check("listed and found updates are both hidden", rows(el).length, 0);
+  const el2 = mount(w, { type: "x", hide_when_empty: false, audience: { "update.nas": { except: ["person.anna"] } } }, hass);
+  check("a rule for one found update applies", rows(el2).map((r) => r.title), ["RouterOS"]);
+}
+
 console.log("\n# dwd + sorting");
 {
   const w = makeWindow();
@@ -310,7 +327,7 @@ console.log("\n# editor");
   check(
     "entity options",
     form.schema.find((s) => s.name === "options").schema[0].schema.map((s) => s.name || s.type),
-    ["type", "grid", "image", "background", "tap_action"]
+    ["type", "attribute", "grid", "image", "background", "tap_action"]
   );
   check("audience sources", form.schema.find((s) => s.name === "audience").schema.map((s) => s.name), [
     "system",
@@ -340,7 +357,7 @@ console.log("\n# hidden the way Home Assistant expects");
   check("never hidden in the dashboard editor", el.hidden, false);
 }
 
-console.log("\n# pictures: recipe attribute, picture type, background");
+console.log("\n# pictures: attribute, picture type, background");
 {
   const w = makeWindow();
   const hass = makeHass({
@@ -387,6 +404,107 @@ console.log("\n# pictures: recipe attribute, picture type, background");
   check("no background for sources without it", el._bgUrl, null);
 }
 
+console.log("\n# any attribute can describe the notification");
+{
+  const w = makeWindow();
+  const hass = makeHass({
+    "sensor.library": st("sensor.library", "3", {
+      friendly_name: "Library",
+      due: { title: "Dune", summary: "Due back tomorrow", image: "/local/dune.jpg" },
+    }),
+    "sensor.bins": st("sensor.bins", "2026-10-03", { friendly_name: "Bin day", next: "Paper" }),
+    "sensor.parcel": st("sensor.parcel", "0", { friendly_name: "Parcel", item: null }),
+    "sensor.dinner": st("sensor.dinner", "Lasagne", { friendly_name: "Dinner", recipe: { name: "Lasagne" } }),
+  });
+  const el = mount(
+    w,
+    {
+      type: "x",
+      updates: false,
+      entities: [
+        "sensor.library",
+        { entity: "sensor.bins", attribute: "next" },
+        { entity: "sensor.parcel", attribute: "item" },
+        { entity: "sensor.dinner", type: "recipe" },
+      ],
+    },
+    hass
+  );
+  const byTitle = Object.fromEntries(rows(el).map((r) => [r.title, r]));
+  check("an object in any attribute is found on its own", [byTitle.Dune.body, byTitle.Dune.icon], ["Due back tomorrow", "mdi:card-text-outline"]);
+  check("a plain value becomes the title", byTitle.Paper.body, "Bin day");
+  check("an empty attribute shows nothing", Object.keys(byTitle).includes("Parcel"), false);
+  check("type: recipe from 0.2 still works", byTitle.Lasagne.body, "Dinner");
+
+  const empty = makeHass({
+    "sensor.dinner": st("sensor.dinner", "2", { friendly_name: "Dinner", recipe: null }),
+    "sensor.lunch": st("sensor.lunch", "none", { friendly_name: "Lunch", recipe: "none" }),
+  });
+  const quiet = mount(w, { type: "x", updates: false, hide_when_empty: false, entities: ["sensor.dinner", { entity: "sensor.lunch", type: "recipe" }] }, empty);
+  check("an empty recipe shows nothing, as in 0.2", rows(quiet).length, 0);
+
+  const ed = w.document.createElement("origami-notifications-editor");
+  ed.setConfig({ type: "x", entities: [{ entity: "sensor.dinner", type: "recipe" }] });
+  ed.hass = hass;
+  const opts = ed.querySelector("ha-form").data.options["sensor.dinner"];
+  check("the editor shows type: recipe as an attribute", [opts.type, opts.attribute], ["attribute", "recipe"]);
+}
+
+console.log("\n# found on its own only where an attribute describes something");
+{
+  const w = makeWindow();
+  const hass = makeHass({
+    "binary_sensor.door": st("binary_sensor.door", "off", { friendly_name: "Door", zone: { name: "Hall" } }),
+    "sensor.book": st("sensor.book", "Dune", { friendly_name: "Book", shelf: { title: "Sci-fi", image: "/local/shelf.jpg" } }),
+  });
+  const el = mount(w, { type: "x", updates: false, hide_when_empty: false, entities: ["binary_sensor.door", { entity: "sensor.book", type: "picture" }] }, hass);
+  check("a bare name in an attribute does not make a row", rows(el).some((r) => r.title === "Hall"), false);
+  check("type: picture keeps the state as its title", rows(el).map((r) => [r.title, r.body]), [["Dune", "Book"]]);
+
+  const ed = w.document.createElement("origami-notifications-editor");
+  ed.setConfig({ type: "custom:origami-notifications", entities: [{ entity: "sensor.book", type: "recipe" }] });
+  ed.hass = hass;
+  let written = null;
+  ed.addEventListener("config-changed", (e) => (written = e.detail.config));
+  const form = ed.querySelector("ha-form");
+  const value = JSON.parse(JSON.stringify(form.data));
+  value.options["sensor.book"].background = true;
+  form.dispatchEvent(new w.CustomEvent("value-changed", { detail: { value } }));
+  check("the editor writes type: recipe back as it was", written.entities, [{ entity: "sensor.book", type: "recipe", background: true }]);
+}
+
+console.log("\n# a dismissed entity comes back the next time it happens");
+{
+  const w = makeWindow();
+  w.localStorage.clear();
+  const door = (state, at) => ({ ...st("binary_sensor.door", state, { friendly_name: "Door" }), last_changed: at });
+  const el = mount(w, { type: "x", updates: false, hide_when_empty: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": door("on", "2026-09-21T10:00:00+00:00") }));
+  el.shadowRoot.querySelector(".row .x").click();
+  check("gone", rows(el).length, 0);
+  el.hass = makeHass({ "binary_sensor.door": door("off", "2026-09-21T10:05:00+00:00") });
+  el.hass = makeHass({ "binary_sensor.door": door("on", "2026-09-21T11:00:00+00:00") });
+  check("back when the door opens again", rows(el).length, 1);
+
+  const w2 = makeWindow();
+  w2.localStorage.setItem("origami-notifications-ack", JSON.stringify({ "g:binary_sensor.door": "Door\u0000on" }));
+  const el2 = mount(w2, { type: "x", updates: false, hide_when_empty: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": door("on", "2026-09-21T10:00:00+00:00") }));
+  check("a dismissal from 0.2 still holds", rows(el2).length, 0);
+}
+
+console.log("\n# the card picker");
+{
+  const w = makeWindow();
+  check("adds the card with the defaults", w.customElements.get("origami-notifications").getStubConfig(), {});
+  const picker = w.document.createElement("hui-card-picker");
+  picker.attachShadow({ mode: "open" });
+  w.document.body.appendChild(picker);
+  const el = w.document.createElement("origami-notifications");
+  el.setConfig({ type: "x", updates: false });
+  el.hass = makeHass({});
+  picker.shadowRoot.appendChild(el);
+  check("shows an empty card as a preview", [el.hidden, el.shadowRoot.querySelector(".head .title").textContent], [false, "All quiet"]);
+}
+
 console.log("\n# persistent notification markdown");
 {
   const w = makeWindow();
@@ -397,12 +515,33 @@ console.log("\n# persistent notification markdown");
   subs[0].cb({
     type: "current",
     notifications: {
-      n1: { notification_id: "n1", title: "**New devices**", message: "We found [2 devices](/config/integrations/dashboard).\n\n- Hue\n- `Z-Wave`" },
+      n1: { notification_id: "n1", title: "**New devices**", message: "![logo](/static/logo.png) We found [2 devices](/config/integrations/dashboard).\n\n- Hue\n- `Z-Wave`" },
     },
   });
   check("plain text", rows(el).map((r) => [r.title, r.body]), [["New devices", "We found 2 devices.\n\nHue\nZ-Wave"]]);
   el.shadowRoot.querySelector(".row .rtile").click();
   check("the link is the tap target", actions, [{ action: "navigate", navigation_path: "/config/integrations/dashboard" }]);
+}
+
+console.log("\n# a picture is never the link");
+{
+  const w = makeWindow();
+  const subs = [];
+  const el = mount(w, { type: "x" }, makeHass({}, { subs }));
+  const actions = [];
+  el.addEventListener("hass-action", (e) => actions.push(e.detail.config.tap_action.navigation_path));
+  subs[0].cb({ type: "current", notifications: { n1: { notification_id: "n1", message: "[![cam](/api/cam.jpg)](/lovelace/cams) Someone rang." } } });
+  el.shadowRoot.querySelector(".row .rtile").click();
+  check("a linked picture leads to its link", actions, ["/lovelace/cams"]);
+}
+
+console.log("\n# a fixed height, also from the older layout_options");
+{
+  const w = makeWindow();
+  const bounded = (extra) => mount(w, { type: "x", ...extra }, makeHass({})).classList.contains("bounded");
+  check("grid_options.rows", bounded({ grid_options: { rows: 4 } }), true);
+  check("layout_options.grid_rows", bounded({ layout_options: { grid_rows: 4 } }), true);
+  check("grid_options wins, as in Home Assistant", bounded({ grid_options: { columns: 6 }, layout_options: { grid_rows: 4 } }), false);
 }
 
 console.log("\n# tap actions go through Home Assistant");
@@ -454,6 +593,23 @@ console.log("\n# other languages borrow Home Assistant's strings");
   check("install in french", rows(el)[0].actions, ["Installer"]);
   const idle = mount(w, { type: "x", hide_when_empty: false, updates: false }, makeHass({}, { lang: "fr", localize: (k) => fr[k] || "" }));
   check("idle text in french", idle.shadowRoot.querySelector(".msg .t").textContent, "Aucune notification");
+}
+
+console.log("\n# the language follows the profile, English unless it is German");
+{
+  const w = makeWindow();
+  const texts = (lang) => {
+    const el = mount(w, { type: "x", hide_when_empty: false, updates: false }, makeHass({}, { lang }));
+    const ed = w.document.createElement("origami-notifications-editor");
+    ed.setConfig({ type: "x" });
+    ed.hass = makeHass({}, { lang });
+    const form = ed.querySelector("ha-form");
+    return [el.shadowRoot.querySelector(".head .title").textContent, form.computeLabel({ name: "hide_when_empty" })];
+  };
+  check("English", texts("en"), ["All quiet", "Hide when there is nothing to show"]);
+  check("British English", texts("en-GB"), ["All quiet", "Hide when there is nothing to show"]);
+  check("German", texts("de"), ["Alles ruhig", "Ausblenden, wenn nichts anliegt"]);
+  check("anything else is English, never German", texts("nl"), ["All quiet", "Hide when there is nothing to show"]);
 }
 
 console.log("\n# calendar");
@@ -552,6 +708,80 @@ console.log("\n# loading the file twice");
     const el2 = mount(w, { type: "x", repairs: false, hide_when_empty: false }, off);
     await new Promise((r) => setTimeout(r, 0));
     check("repairs off", rows(el2).length, 0);
+  }
+
+  console.log("\n# a dismissal shows at once, Home Assistant confirms it later");
+  {
+    const w = makeWindow();
+    const subs = [];
+    const hass = makeHass({}, { subs });
+    const answers = [];
+    hass.callService = (d, s, data) => {
+      hass.calls.push([d + "." + s, data]);
+      return new Promise((resolve, reject) => answers.push({ resolve, reject }));
+    };
+    const el = mount(w, { type: "x", hide_when_empty: false }, hass);
+    const note = (id) => ({ notification_id: id, title: "Backup " + id, message: "done" });
+    subs[0].cb({ type: "current", notifications: { n1: note("n1"), n2: note("n2") } });
+    el.shadowRoot.querySelector(".row .x").click();
+    const dismissals = () => hass.calls.filter((c) => c[0] === "persistent_notification.dismiss").length;
+    check("gone before Home Assistant answers", [rows(el).length, dismissals()], [1, 1]);
+    answers[0].reject(new Error("refused"));
+    await new Promise((r) => setTimeout(r, 0));
+    check("back when Home Assistant refuses", rows(el).length, 2);
+
+    el.shadowRoot.querySelector(".row .x").click();
+    answers[1].resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    check("still away once confirmed", rows(el).length, 1);
+    const key = [...el._pending.keys()][0];
+    el._pending.set(key, Date.now() - 1);
+    el._recompute();
+    check("back when it is still there after the wait", rows(el).length, 2);
+
+    el.shadowRoot.querySelector(".row .x").click();
+    const gone = [...el._pending.keys()][0].slice(2);
+    subs[0].cb({ type: "removed", notifications: { [gone]: { notification_id: gone } } });
+    check("nothing pending once Home Assistant removed it", [el._pending.size, rows(el).length], [0, 1]);
+  }
+
+  console.log("\n# clear all");
+  {
+    const w = makeWindow();
+    const subs = [];
+    const hass = makeHass({ "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }) }, { subs });
+    const el = mount(w, { type: "x", hide_when_empty: false, updates: false, entities: ["binary_sensor.door"] }, hass);
+    subs[0].cb({ type: "current", notifications: { n1: { notification_id: "n1", message: "one" }, n2: { notification_id: "n2", message: "two" } } });
+    el.shadowRoot.querySelector(".clear").click();
+    check("everything goes at once", [rows(el).length, hass.calls.filter((c) => c[0] === "persistent_notification.dismiss").length], [0, 2]);
+  }
+
+  console.log("\n# a card that hid itself comes back closed");
+  {
+    const w = makeWindow();
+    const on = st("binary_sensor.door", "on", { friendly_name: "Door" });
+    const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": on }));
+    el._toggle();
+    check("open", el.shadowRoot.querySelector("ha-card").classList.contains("open"), true);
+    el.hass = makeHass({ "binary_sensor.door": { ...on, state: "off" } });
+    el.hass = makeHass({ "binary_sensor.door": on });
+    check("closed again", [el.hidden, el.shadowRoot.querySelector("ha-card").classList.contains("open")], [false, false]);
+  }
+
+  console.log("\n# keyboard focus after a dismissal");
+  {
+    const w = makeWindow();
+    const hass = makeHass({
+      "binary_sensor.a": st("binary_sensor.a", "on", { friendly_name: "A" }),
+      "binary_sensor.b": st("binary_sensor.b", "on", { friendly_name: "B" }),
+    });
+    const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.a", "binary_sensor.b"] }, hass);
+    el._toggle();
+    const x = el.shadowRoot.querySelector(".row .x");
+    x.focus();
+    x.click();
+    const focused = el.shadowRoot.activeElement;
+    check("moves to the row that took its place", focused && focused.closest(".row").querySelector(".title").textContent, "B");
   }
 
   console.log("\n" + pass + " ok, " + fail + " failed\n");
