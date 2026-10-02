@@ -1662,3 +1662,253 @@ test("without an IntersectionObserver the card counts as in view", () => {
   el.shadowRoot.querySelector(".head").click();
   same([Boolean(el._io), Boolean(el._clock)], [false, true]);
 });
+
+/* A timer as Home Assistant writes it. A running one ends this many seconds from NOW, a paused one has
+ * the time left. */
+const timerAt = (state, attributes = {}) =>
+  st("timer.kitchen", state, { friendly_name: "Kitchen", duration: "0:10:00", editable: true, ...attributes });
+const running = (seconds) => timerAt("active", { remaining: "0:10:00", finishes_at: new Date(NOW + seconds * 1000).toISOString() });
+
+const actionsOf = (el) => {
+  const sent = [];
+  el.addEventListener("hass-action", (e) => sent.push(e.detail.config));
+  return sent;
+};
+
+const perform = (action, entity_id) => ({ entity: entity_id, tap_action: { action: "perform-action", perform_action: action, target: { entity_id } } });
+
+test("a running timer counts down and offers pause and cancel", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const add = { label: "Add a minute", tap_action: { action: "perform-action", perform_action: "timer.change" } };
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: [{ entity: "timer.kitchen", actions: [add] }] };
+  const el = mount(w, config, makeHass({ "timer.kitchen": running(300) }, { formatEntityState: () => "Active" }));
+  const q = (s) => el.shadowRoot.querySelector(s);
+  same(
+    [head(el).title, q(".head .eta").textContent, q(".head .msg").hidden],
+    ["Kitchen", "5:00", true],
+    "the head counts down"
+  );
+  same(
+    [rows(el).map((r) => [r.title, r.body, r.icon, r.actions]), q(".row").dataset.kind],
+    [[["Kitchen", "Active", "mdi:timer-outline", ["Pause", "Cancel", "Add a minute"]]], "timer"],
+    "its own buttons come before the configured ones"
+  );
+  mock.timers.tick(1000);
+  same([q(".head .eta").textContent, whens(el)[0]], ["4:59", "4:59"], "by the second");
+  const sent = actionsOf(el);
+  const [pause, cancel] = el.shadowRoot.querySelectorAll(".row .act");
+  pause.click();
+  cancel.click();
+  same(sent, [perform("timer.pause", "timer.kitchen"), perform("timer.cancel", "timer.kitchen")], "Home Assistant runs the buttons");
+  const de = mount(makeWindow({ clock: true }), config, makeHass({ "timer.kitchen": running(300) }, { lang: "de" }));
+  same(rows(de)[0].actions, ["Pause", "Abbrechen", "Add a minute"], "in German");
+
+  q(".row .x").click();
+  el.hass = makeHass({ "timer.kitchen": running(300) });
+  same(rows(el).length, 0, "dismissed while it runs");
+  el.hass = makeHass({ "timer.kitchen": running(600) });
+  same(rows(el).length, 1, "back once it starts again");
+});
+
+test("a paused timer shows the time left and offers resume", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const paused = { ...timerAt("paused", { remaining: "0:03:12" }), last_changed: new Date(NOW - 120000).toISOString() };
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["timer.kitchen"] };
+  const el = mount(w, config, makeHass({ "timer.kitchen": paused }, { formatEntityState: () => "Paused" }));
+  const q = (s) => el.shadowRoot.querySelector(s);
+  same(
+    [q(".head .msg .t").textContent, q(".head .msg").hidden, q(".head .eta").hidden],
+    ["Paused, 3:12 left", false, true],
+    "the head shows the time left"
+  );
+  same([rows(el).map((r) => [r.body, r.actions]), whens(el)], [[["Paused, 3:12 left", ["Resume", "Cancel"]]], ["2 min. ago"]], "the row says when it paused");
+  const ahead = { ...paused, last_changed: new Date(NOW + 2000).toISOString() };
+  same(whens(mount(makeWindow({ clock: true }), config, makeHass({ "timer.kitchen": ahead }))), ["just now"], "a pause never lies ahead, even by Home Assistant's clock");
+  const sent = actionsOf(el);
+  q(".row .act").click();
+  same(sent, [perform("timer.start", "timer.kitchen")], "resume starts it again");
+  same(rows(mount(w, config, makeHass({ "timer.kitchen": paused }, { lang: "de" })))[0].body, "Pausiert, noch 3:12", "in German");
+
+  const fr = {
+    "ui.card.timer.actions.start": "Démarrer",
+    "ui.card.timer.actions.cancel": "Annuler",
+  };
+  const french = makeHass({ "timer.kitchen": paused }, { lang: "fr", localize: (k) => fr[k] || "", formatEntityState: () => "En pause" });
+  same(
+    rows(mount(w, config, french)).map((r) => [r.body, r.actions]),
+    [["En pause, 3:12", ["Démarrer", "Annuler"]]],
+    "other languages take Home Assistant's words"
+  );
+
+  el.shadowRoot.querySelector(".row .x").click();
+  el.hass = makeHass({ "timer.kitchen": { ...paused } });
+  same(rows(el).length, 0, "dismissed while it waits");
+  el.hass = makeHass({ "timer.kitchen": running(192) });
+  same(rows(el).length, 1, "back once it runs again");
+});
+
+test("an idle timer shows nothing", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const idle = timerAt("idle");
+  const config = (entity) => ({ type: "x", updates: false, entities: [entity] });
+  const el = mount(w, config("timer.kitchen"), makeHass({ "timer.kitchen": running(300) }));
+  same([el.hidden, el.shadowRoot.querySelector(".row").dataset.kind], [false, "timer"], "found on its own as a timer");
+  el.hass = makeHass({ "timer.kitchen": idle });
+  same(el.hidden, true, "gone once it is idle");
+  el.hass = makeHass({ "timer.kitchen": running(300) });
+  same(el.hidden, false, "back once it runs");
+  el.hass = makeHass({ "timer.kitchen": st("timer.kitchen", "unavailable") });
+  same(el.hidden, true, "gone while it is unavailable");
+  same(mount(w, config({ entity: "timer.kitchen", type: "timer" }), makeHass({ "timer.kitchen": idle })).hidden, true, "with type: timer");
+});
+
+test("a timestamp sensor counts down while it lies ahead", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const at = (ms, attributes = { device_class: "timestamp" }) =>
+    st("sensor.next_alarm", new Date(NOW + ms).toISOString(), { friendly_name: "Next alarm", ...attributes });
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["sensor.next_alarm"] };
+  const el = mount(w, config, makeHass({ "sensor.next_alarm": at(25 * 60000) }, { formatEntityState: () => "October 2, 2026 at 12:25 PM" }));
+  const q = (s) => el.shadowRoot.querySelector(s);
+  same(
+    [head(el).title, q(".head .eta").textContent, q(".head .msg").hidden, q(".row").dataset.kind],
+    ["Next alarm", "in 25 min.", true, "countdown"],
+    "the head counts down to it"
+  );
+  same(rows(el).map((r) => [r.body, r.icon]), [["October 2, 2026 at 12:25 PM", "mdi:timer-sand"]], "the row tells the time");
+  same(q(".row .when").dateTime, new Date(NOW + 25 * 60000).toISOString());
+  const uneven = mount(makeWindow({ clock: true }), config, makeHass({ "sensor.next_alarm": at(25 * 60000 + 40000) }));
+  same(uneven.shadowRoot.querySelector(".row .when").dateTime, new Date(NOW + 26 * 60000).toISOString(), "to the minute");
+  mock.timers.tick(20 * 60000);
+  same(q(".head .eta").textContent, "in 5 min.", "on the minute");
+  same(rows(mount(w, config, makeHass({ "sensor.next_alarm": at(-60000) }))).length, 0, "a time behind shows nothing");
+  same(rows(mount(w, config, makeHass({ "sensor.next_alarm": st("sensor.next_alarm", "unknown", { device_class: "timestamp" }) }))).length, 0, "nor does an unknown one");
+  const forced = { ...config, entities: [{ entity: "sensor.next_alarm", type: "countdown" }] };
+  same(rows(mount(w, forced, makeHass({ "sensor.next_alarm": at(25 * 60000, {}) }))).length, 1, "type: countdown reads any time");
+});
+
+test("a duration sensor ends at its last change plus the time left", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const left = (state, unit, changed = NOW - 10000, attributes = { device_class: "duration" }) => ({
+    ...st("sensor.dishwasher", state, { friendly_name: "Dishwasher", ...attributes, unit_of_measurement: unit }),
+    last_changed: new Date(changed).toISOString(),
+  });
+  /* The end reads as a date and time in UTC, on a 24 hour clock. Home Assistant keeps both objects as they are. */
+  const server = { time_zone: "UTC" };
+  const locale = { language: "en", time_format: "24", time_zone: "server" };
+  const format = (s) => s.state + " " + s.attributes.unit_of_measurement;
+  const hassOf = (state) => ({ ...makeHass({ "sensor.dishwasher": state }, { formatEntityState: format }), config: server, locale });
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: [{ entity: "sensor.dishwasher", type: "countdown" }] };
+  const end = (el) => {
+    const when = el.shadowRoot.querySelector(".row .when");
+    return when ? when.dateTime : null;
+  };
+  const el = mount(w, config, hassOf(left("25", "min")));
+  same([head(el).title, el.shadowRoot.querySelector(".head .eta").textContent], ["Dishwasher", "in 25 min."], "a running countdown");
+  same(end(el), new Date(NOW + 25 * 60000).toISOString(), "24 minutes and 50 seconds count as 25");
+  same(rows(el)[0].body, "Oct 2, 2026, 12:25", "the row names the end, since the time left goes stale between updates");
+  const row = el.shadowRoot.querySelector(".row");
+  el.hass = hassOf(left("24", "min", NOW + 50000));
+  same([el.shadowRoot.querySelector(".row") === row, end(el)], [true, new Date(NOW + 25 * 60000).toISOString()], "a new estimate of the same end keeps the row");
+  /* Cards in one browser share their dismissals, so the others go in a window of their own. */
+  const other = makeWindow({ clock: true });
+  same(
+    [["1.5", "h"], ["90", "min"], ["5400", "s"], ["5400000", "ms"], ["0.0625", "d"], ["5400000000", "μs"]].map(([state, unit]) =>
+      end(mount(other, config, makeHass({ "sensor.dishwasher": left(state, unit, NOW) })))
+    ),
+    Array(6).fill(new Date(NOW + 90 * 60000).toISOString()),
+    "every unit Home Assistant allows"
+  );
+  same([end(mount(other, config, makeHass({ "sensor.dishwasher": left("0", "min") }))), end(mount(other, config, makeHass({ "sensor.dishwasher": left("5", "") })))], [null, null], "nothing at 0 or without a unit");
+  const forced = mount(other, config, makeHass({ "sensor.dishwasher": left("25", "min", NOW, {}) }));
+  same([end(forced), whens(forced)], [new Date(NOW + 25 * 60000).toISOString(), ["in 25 min."]], "type: countdown reads a number with a time unit as the time left");
+  const plain = mount(other, { ...config, entities: ["sensor.dishwasher"] }, hassOf(left("25", "min")));
+  same(rows(plain).map((r) => [r.title, r.body]), [["Dishwasher", "25 min"]], "without it, a duration shows its value as in 0.4, since it may count up");
+
+  el.shadowRoot.querySelector(".row .x").click();
+  el.hass = hassOf(left("23", "min", NOW + 110000));
+  same(rows(el).length, 0, "a new estimate of the same end keeps it dismissed");
+  el.hass = hassOf(left("40", "min", NOW + 60000));
+  same([rows(el).length, end(el)], [1, new Date(NOW + 41 * 60000).toISOString()], "a new end brings it back");
+  const { parseDuration, endOf } = w.__origamiTest;
+  const read = (v) => (Number.isNaN(v) ? "none" : v);
+  same(
+    ["0:05:00", "36:00:00", " 1:02:03 ", "5", "1:2:3", "", null].map((text) => read(parseDuration(text))),
+    [300000, 129600000, 3723000, "none", "none", "none", "none"],
+    "timer durations"
+  );
+  same(read(endOf(st("sensor.x", "5", { unit_of_measurement: "%" }))), "none", "a number without a time unit is no time");
+});
+
+test("keyboard focus stays in the card when a button ends its row", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const door = st("binary_sensor.door", "on", { friendly_name: "Door" });
+  const config = { type: "x", updates: false, entities: ["timer.kitchen", "binary_sensor.door"] };
+  const el = mount(w, config, makeHass({ "timer.kitchen": running(300), "binary_sensor.door": door }));
+  el.shadowRoot.querySelector(".head").click();
+  const timer = el.shadowRoot.querySelector(".row[data-kind=timer]");
+  timer.querySelectorAll(".act")[1].focus();
+  el.hass = makeHass({ "timer.kitchen": timerAt("idle"), "binary_sensor.door": door });
+  const focused = el.shadowRoot.activeElement;
+  same([timer.isConnected, focused && focused.className, focused && focused.closest(".row").querySelector(".title").textContent], [false, "x", "Door"]);
+});
+
+test("the clock writes the countdown in place and keeps the rows", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const states = { "timer.kitchen": running(65), "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }) };
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(states));
+  el.shadowRoot.querySelector(".head").click();
+  const list = [...el.shadowRoot.querySelectorAll(".list .row")];
+  const timer = list.find((r) => r.dataset.kind === "timer");
+  const texts = [];
+  for (let i = 0; i < 3; i++) {
+    texts.push(timer.querySelector(".when").textContent);
+    mock.timers.tick(1000);
+  }
+  same(texts, ["1:05", "1:04", "1:03"], "every second");
+  const after = [...el.shadowRoot.querySelectorAll(".list .row")];
+  same(after.length === list.length && after.every((row, i) => row === list[i]), true, "the same rows");
+  same(el.shadowRoot.querySelector(".head .eta").textContent, "1:02", "and the head");
+  mock.timers.tick(62000);
+  same([timer.querySelector(".when").textContent, timer.isConnected], ["0:00", true], "until it ends");
+});
+
+test("the list changes on its own when a countdown ends", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const states = {
+    "sensor.next_alarm": st("sensor.next_alarm", new Date(NOW + 120000).toISOString(), { friendly_name: "Alarm", device_class: "timestamp" }),
+    "sensor.dishwasher": {
+      ...st("sensor.dishwasher", "5", { friendly_name: "Dishwasher", device_class: "duration", unit_of_measurement: "min" }),
+      last_changed: new Date(NOW).toISOString(),
+    },
+    "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }),
+  };
+  const entities = ["sensor.next_alarm", { entity: "sensor.dishwasher", type: "countdown" }, "binary_sensor.door"];
+  const el = mount(w, { type: "x", updates: false, entities }, makeHass(states));
+  same([head(el).title, rows(el).map((r) => r.title)], ["Alarm", ["Alarm", "Dishwasher", "Door"]]);
+  mock.timers.tick(120049);
+  same(rows(el).length, 3, "not before the end");
+  mock.timers.tick(1);
+  same([head(el).title, rows(el).map((r) => r.title)], ["Dishwasher", ["Dishwasher", "Door"]], "the alarm goes at its end");
+  mock.timers.tick(180000);
+  same([head(el).title, rows(el).map((r) => r.title)], ["Door", ["Door"]], "and the dishwasher at its end");
+});
+
+test("the editor offers timers and countdowns as kinds", () => {
+  const w = makeWindow();
+  const ed = w.document.createElement("origami-notifications-editor");
+  ed.setConfig({ type: "x", entities: ["timer.kitchen"] });
+  ed.hass = makeHass({ "timer.kitchen": timerAt("idle") });
+  const form = ed.querySelector("ha-form");
+  const kinds = form.schema.find((s) => s.name === "options").schema[0];
+  const options = kinds.schema.find((s) => s.name === "type").selector.select.options;
+  same(options.filter((o) => ["timer", "countdown"].includes(o.value)).map((o) => o.label), ["Timer", "Countdown"]);
+  same(kinds.icon, "mdi:timer-outline", "a timer has its icon");
+});

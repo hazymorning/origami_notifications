@@ -23,6 +23,8 @@ const ICONS = {
   alert: "mdi:alert",
   dwd: "mdi:flash",
   calendar: "mdi:calendar-month",
+  timer: "mdi:timer-outline",
+  countdown: "mdi:timer-sand",
   attribute: "mdi:card-text-outline",
   picture: "mdi:image-outline",
   generic: "mdi:information-outline",
@@ -56,6 +58,10 @@ const STRINGS = {
     day_at: "{d} at {t}",
     date_at: "on {d} at {t}",
     on_date: "on {d}",
+    paused_left: "Paused, {t} left",
+    act_pause: "Pause",
+    act_resume: "Resume",
+    act_cancel: "Cancel",
   },
   de: {
     idle_title: "Alles ruhig",
@@ -79,6 +85,10 @@ const STRINGS = {
     day_at: "{d} um {t}",
     date_at: "am {d} um {t}",
     on_date: "am {d}",
+    paused_left: "Pausiert, noch {t}",
+    act_pause: "Pause",
+    act_resume: "Fortsetzen",
+    act_cancel: "Abbrechen",
   },
 };
 
@@ -92,10 +102,13 @@ const HA_STRINGS = {
   installing: ["ui.card.update.installing"],
   installing_pct: ["ui.card.update.installing_with_progress", { progress: "{p}" }],
   update: ["ui.dialogs.more_info_control.update.update"],
+  act_pause: ["ui.card.timer.actions.pause"],
+  act_resume: ["ui.card.timer.actions.start"],
+  act_cancel: ["ui.card.timer.actions.cancel"],
 };
 
 const borrowedStrings = (localize) => {
-  const t = { ...STRINGS.en, just_now: null, soon: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}" };
+  const t = { ...STRINGS.en, just_now: null, soon: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}", paused_left: "{s}, {t}" };
   if (typeof localize === "function") {
     for (const [key, [id, vars]] of Object.entries(HA_STRINGS)) {
       const text = localize(id, vars);
@@ -274,17 +287,46 @@ const zonedParts = (ts, timeZone) => {
   return p;
 };
 
-/* Calendars give start_time as the server's wall clock time, without an offset. */
+/* Calendars give start_time as the server's wall clock time, without an offset. Other times without
+ * one may carry fractions of a second. */
 const fromServerTime = (text, timeZone) => {
-  const m = /^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d)(?::(\d\d))?)?$/.exec(String(text));
+  const m = /^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d)(?::(\d\d)(?:\.(\d+))?)?)?$/.exec(String(text));
   if (!m) return Date.parse(text);
   const wall = Date.UTC(m[1], m[2] - 1, m[3], m[4] || 0, m[5] || 0, m[6] || 0);
   const offset = (ts) => {
     const p = zonedParts(ts, timeZone);
     return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - ts;
   };
-  return wall - offset(wall - offset(wall));
+  return wall - offset(wall - offset(wall)) + (m[7] ? Number(m[7].slice(0, 3).padEnd(3, "0")) : 0);
 };
+
+/* Home Assistant writes times as ISO text. Date.parse would also read a bare number like 5 as a year. */
+const isoTime = (value, zone) =>
+  typeof value === "string" && /^\d{4}-\d\d-\d\d/.test(value) ? fromServerTime(value, zone) : NaN;
+
+/* Timers write their duration and the time left as H:MM:SS. */
+const parseDuration = (text) => {
+  const m = /^(\d+):(\d\d):(\d\d)$/.exec(String(text == null ? "" : text).trim());
+  return m ? (Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])) * 1000 : NaN;
+};
+
+const TIME_UNITS = { d: 86400000, h: 3600000, min: 60000, s: 1000, ms: 1, "μs": 0.001 };
+
+/* A state with a time unit holds the time left, unless its device class says it is a timestamp. */
+const durationUnit = (a) => (a.device_class === "timestamp" ? undefined : TIME_UNITS[a.unit_of_measurement]);
+
+/* The moment a state points to. A duration counts down from the state's last change and has ended at 0. */
+const endOf = (st, zone) => {
+  const unit = durationUnit(st.attributes || {});
+  if (!unit) return isoTime(st.state, zone);
+  const rest = Number(st.state) * unit;
+  return rest > 0 ? parseTs(st.last_changed, NaN) + rest : NaN;
+};
+
+const MINUTE_MS = 60000;
+
+const toMinute = (ts) => Math.round(ts / MINUTE_MS) * MINUTE_MS;
+
 
 /* The first of keys that holds a text or a number. */
 const textOf = (obj, keys) => {
@@ -521,6 +563,54 @@ const renderAlert = (id, st, items, ctx) => {
   });
 };
 
+/* A running timer has a fixed end in finishes_at. Its remaining keeps the value from the start, so
+ * the time left is read from remaining only while the timer is paused. */
+const renderTimer = (id, st, items, ctx) => {
+  const a = st.attributes;
+  const t = ctx.t;
+  const button = (label, service) => serviceAction(ctx.host, id, label, "timer." + service);
+  const item = { key: "tm:" + id, kind: "timer", entity: id, title: ctx.name(st) };
+  if (st.state === "active") {
+    const end = parseTs(a.finishes_at, NaN);
+    items.push({
+      ...item,
+      message: ctx.format(st),
+      ts: end,
+      live: true,
+      clock: true,
+      ack: String(a.finishes_at),
+      actions: [button(t.act_pause, "pause"), button(t.act_cancel, "cancel")],
+    });
+  } else if (st.state === "paused") {
+    const rest = parseDuration(a.remaining);
+    items.push({
+      ...item,
+      message: fill(t.paused_left, { t: clockText(rest), s: ctx.format(st) }),
+      ts: parseTs(st.last_changed, ctx.now),
+      past: true,
+      ack: "paused\u0000" + a.remaining,
+      actions: [button(t.act_resume, "start"), button(t.act_cancel, "cancel")],
+    });
+  }
+};
+
+/* A timestamp sensor holds its end, a duration sensor the time left. Either shows while the end lies ahead.
+ * The time left goes stale until the sensor changes again, so a duration names its end instead. */
+const renderCountdown = (id, st, items, ctx) => {
+  const ts = toMinute(endOf(st, serverZone(ctx.hass)));
+  if (!(ts > ctx.now)) return;
+  items.push({
+    key: "cd:" + id,
+    kind: "countdown",
+    entity: id,
+    title: ctx.name(st),
+    message: durationUnit(st.attributes) ? ctx.absTime(ts) : ctx.format(st),
+    ts,
+    live: true,
+    ack: "",
+  });
+};
+
 const renderGeneric = (id, st, items, ctx) => {
   const active = ctx.forced ? !isInactive(st.state) : isUnambiguouslyActive(st.state);
   if (!active) return;
@@ -544,7 +634,10 @@ const detectType = (id, st) => {
   if (id.startsWith("update.")) return "update";
   if (id.startsWith("alarm_control_panel.")) return "alarm";
   if (id.startsWith("alert.")) return "alert";
+  if (id.startsWith("timer.")) return "timer";
   if (findThing(a) || "recipe" in a) return "attribute";
+  /* A duration may count up as well, so it stays a plain number unless its kind is set, as in 0.4. */
+  if (id.startsWith("sensor.") && a.device_class === "timestamp") return "countdown";
   return "generic";
 };
 
@@ -562,6 +655,8 @@ const RENDERERS = {
   alarm: renderAlarm,
   alert: renderAlert,
   dwd: renderDwd,
+  timer: renderTimer,
+  countdown: renderCountdown,
   attribute: renderThing,
   picture: renderThing,
   generic: renderGeneric,
@@ -608,6 +703,12 @@ const fireAction = (host, config) => fire(host, "hass-action", { config, action:
 
 const buildTapAction = (tap, host, entity) =>
   tap && tap.action && tap.action !== "none" ? () => fireAction(host, { entity, tap_action: tap }) : null;
+
+/* A button the card offers on its own, run like an action from the config. */
+const serviceAction = (host, entity, label, action) => ({
+  label,
+  run: () => fireAction(host, { entity, tap_action: { action: "perform-action", perform_action: action, target: { entity_id: entity } } }),
+});
 
 const linkAction = (host, url) => () =>
   fireAction(host, {
@@ -1771,6 +1872,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       /* A renderer names a moment when its entries change on their own, like a reminder that opens. */
       wake: waker(wakes, now),
       calWhen: (s, allDay) => this._calWhen(s, allDay, now),
+      absTime: (ts) => this._absTime(ts),
       name,
       format: (st) => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state)),
       formatAttribute: (st, path, value) => {
@@ -2421,9 +2523,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._rowCache = next;
     const kept = new Set(els);
     const gone = new Set(old.filter((el) => !kept.has(el) && !replaced.has(el)));
+    /* A button can end its own row, like Cancel on a timer. Focus then goes where it goes after a dismissal. */
+    const keys = [...cache.keys()];
+    const lost = active ? keys.findIndex((key) => !next.has(key) && cache.get(key).el.contains(active)) : -1;
     const focus = () => {
       const target = refocus && refocus[0].querySelectorAll(refocus[1])[refocus[2]];
       if (target) target.focus({ preventScroll: true });
+      else if (lost >= 0) this._focusAfter(lost);
     };
     if (!animate) {
       for (const el of old) stopMotion(el);
@@ -2655,6 +2761,8 @@ const EDITOR_STRINGS = {
     type_alarm: "Alarm panel",
     type_alert: "Alert",
     type_dwd: "DWD weather warnings",
+    type_timer: "Timer",
+    type_countdown: "Countdown",
     type_attribute: "Details from an attribute",
     type_picture: "State as title",
     type_generic: "Plain entity",
@@ -2689,6 +2797,8 @@ const EDITOR_STRINGS = {
     type_alarm: "Alarmanlage",
     type_alert: "Alarm (alert)",
     type_dwd: "DWD-Unwetterwarnungen",
+    type_timer: "Timer",
+    type_countdown: "Countdown",
     type_attribute: "Details aus einem Attribut",
     type_picture: "Zustand als Titel",
     type_generic: "Einfache Entität",
@@ -3041,5 +3151,15 @@ if (!window.customCards.some((c) => c.type === CARD)) {
 
 /* Tests reach the pure functions through this object, which only they create. */
 if (window.__origamiTest) {
-  Object.assign(window.__origamiTest, { sortItems, waker, dropExpired, nextReorder, wakeDelay, clockText, nextTick });
+  Object.assign(window.__origamiTest, {
+    sortItems,
+    waker,
+    dropExpired,
+    nextReorder,
+    wakeDelay,
+    clockText,
+    nextTick,
+    parseDuration,
+    endOf,
+  });
 }
