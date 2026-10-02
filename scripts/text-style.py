@@ -19,7 +19,8 @@ BANNER = re.compile(r'[\u2500-\u257f]{3,}|[-=*#/]{8,}')
 BUZZWORDS = re.compile(
     r'(?i)\b('
     r'seamless(ly)?|effortless(ly)?|delightful|cutting[- ]edge|state[- ]of[- ]the[- ]art|best[- ]in[- ]class|'
-    r'game[- ]chang\w*|supercharge\w*|delve[sd]?|testament to|elevate[sd]?|unlock(s|ed)?|unleash\w*|empower\w*|'
+    r'game[- ]chang\w*|supercharge\w*|delve[sd]?|testament to|elevate[sd]? (your|the)|unlock(s|ing)? (your|the full|new)|'
+    r'unleash\w*|empower\w*|enhanc\w*|user[- ]friendly|'
     r'leverag\w*|utiliz\w*|robust|powerful|intuitive(ly)?|sleek|elegant(ly)?|beautiful(ly)?|stunning|'
     r'comprehensive|streamlin\w*|versatile|lightweight|blazing(ly)?|lightning[- ]fast|out of the box|'
     r'under the hood|hassle[- ]free|with ease|a breeze|first[- ]class|(fully|highly) customi[sz]able|'
@@ -42,6 +43,7 @@ FILLER = re.compile(
 SIGNATURES = [
     (re.compile(r'(?i)^\s*co-authored-by:'), 'a co-author trailer'),
     (re.compile(r'(?i)^\s*claude[- ]session:'), 'a session trailer'),
+    (re.compile(r'(?i)^\s*[a-z]+(-[a-z]+)*-by:\s'), 'a trailer'),
     (re.compile(r'(?i)claude\.ai/code/(session|artifact)'), 'a session link'),
     (re.compile(r'(?i)\b(claude|anthropic)\b(?!\.md)'), 'the name of a writing tool or its vendor'),
     (re.compile(r'(?i)\bgenerated (with|by)\s+\[?(an? )?(ai|llm|language model|chatgpt|copilot|gemini|gpt)\b'), 'a "generated with" line'),
@@ -51,31 +53,35 @@ SIGNATURES = [
 
 # Prose rules run on Markdown outside code, on comments, and on commit, pull request and release texts.
 MID_COLON = re.compile(r'[^\s:]:\s+\S')
-SPACED_DASH = re.compile(r'\S\s[-–]\s\S')
+SPACED_DASH = re.compile(r'\S\s(--?|[–―])\s\S')
 EXCLAMATION = re.compile(r'\w!(\s|$)')
 BOLD_LABEL = re.compile(r'^\s*([-*+]|\d+\.)\s+(\*\*|__)')
 
 
 def words_only(text):
-    """Prose without inline code, link targets, URLs and tags, so their colons and dashes do not count."""
+    """Prose without inline code, emphasis, link targets, URLs and tags, so their colons and dashes do not count.
+    A colon right before a link introduces it, like in a release footer."""
     text = re.sub(r'`[^`]*`', 'code', text)
+    text = re.sub(r'\*\*|__', '', text)
     text = re.sub(r'!?\[([^\]]*)\]\([^)]*\)', r'\1', text)
+    text = re.sub(r':\s+(?=https?://)', ' ', text)
     text = re.sub(r'https?://\S+', 'link', text)
     return re.sub(r'<[^>]+>', ' ', text)
 
 
-def check_line(line):
+def check_line(line, markdown=False):
     hits = []
-    if '—' in line:
-        hits.append('an em dash, use a comma or a full stop')
+    if re.search(r'—|&mdash;|&#8212;', line):
+        hits.append('an em dash. Use a comma or a full stop.')
     if EMOJI.search(line):
         hits.append('an emoji')
-    if BANNER.search(line):
-        hits.append('a banner line, the code is structured enough without it')
+    # Table rules and heading underlines in Markdown are structure, not banners.
+    if BANNER.search(line) and not (markdown and re.fullmatch(r'[\s|:=-]+', line)):
+        hits.append('a banner line. Drop it.')
     for m in dict.fromkeys(m.group(0) for m in BUZZWORDS.finditer(line)):
-        hits.append(f'"{m}" is a sales word, say what is the case')
+        hits.append(f'"{m}" is a sales word. Say what it does.')
     for m in dict.fromkeys(m.group(0) for m in FILLER.finditer(line)):
-        hits.append(f'"{m}" adds nothing, drop it')
+        hits.append(f'"{m}" adds nothing. Drop it.')
     for pattern, why in SIGNATURES:
         if pattern.search(line):
             hits.append(why)
@@ -92,8 +98,10 @@ def paragraphs(text, markdown):
             marker = stripped[:3]
             fence = None if fence == marker else fence or marker
             stripped = ''
-        elif fence or (markdown and (stripped.startswith(('|', '#', '>')) or re.match(r'^</?\w+[^>]*>$', stripped))):
+        elif fence or (markdown and (stripped.startswith(('|', '#')) or re.match(r'^</?\w+[^>]*>$', stripped))):
             stripped = ''
+        elif markdown and stripped.startswith('>'):
+            stripped = stripped.lstrip('> ')
         new_item = markdown and re.match(r'([-*+]|\d+\.)\s', stripped)
         if not stripped or new_item:
             if buf:
@@ -115,9 +123,9 @@ def check_prose(text, markdown):
     for number, paragraph in paragraphs(text, markdown):
         prose = words_only(paragraph)
         if MID_COLON.search(prose):
-            hits.append((number, 'a colon in the middle of a sentence, make it two sentences'))
+            hits.append((number, 'a colon in the middle of a sentence. Make it two sentences.'))
         if SPACED_DASH.search(prose):
-            hits.append((number, 'a dash between words, use a comma or a full stop'))
+            hits.append((number, 'a dash between words. Use a comma or a full stop.'))
         if EXCLAMATION.search(prose):
             hits.append((number, 'an exclamation mark'))
         for sentence in re.split(r'(?<=[.!?])\s+', prose):
@@ -160,12 +168,17 @@ def check_comments(path, text):
 
 
 def check_text(where, text, markdown=False, prose=True, path=None):
-    hits = [(n, why) for n, line in enumerate(text.splitlines(), 1) for why in check_line(line)]
+    hits = [(n, why) for n, line in enumerate(text.splitlines(), 1) for why in check_line(line, markdown)]
     if prose:
         hits += check_prose(text, markdown)
     if path:
         hits += check_comments(path, text)
-    return [f'{where}:{n}: {why}' for n, why in sorted(hits)]
+    found = [f'{where}:{n}: {why}' for n, why in sorted(hits)]
+    if path == 'README.md':
+        count = sum(len(words_only(p).split()) for _, p in paragraphs(text, True))
+        if count > MAX_README_WORDS:
+            found.append(f'{where}: {count} words of prose, at most {MAX_README_WORDS}')
+    return found
 
 
 def git(*args):
@@ -176,8 +189,8 @@ def new_commits():
     """The commits on top of main, or only the tip where main is missing (a shallow checkout)."""
     for base in ('origin/main', 'main'):
         if subprocess.run(['git', 'rev-parse', '--verify', '--quiet', base], capture_output=True).returncode == 0:
-            return git('rev-list', '--no-merges', f'{base}..HEAD').split()
-    return git('rev-list', '--no-merges', '-1', 'HEAD').split()
+            return git('rev-list', f'{base}..HEAD').split()
+    return git('rev-list', '-1', 'HEAD').split()
 
 
 def check_repository():
@@ -192,16 +205,16 @@ def check_repository():
             continue
         markdown = path.endswith('.md')
         hits += check_text(path, text, markdown=markdown, prose=markdown, path=path)
-        if path == 'README.md':
-            count = sum(len(words_only(p).split()) for _, p in paragraphs(text, True))
-            if count > MAX_README_WORDS:
-                hits.append(f'README.md: {count} words of prose, at most {MAX_README_WORDS}')
     for commit in new_commits():
         message = git('log', '-1', '--format=%B', commit).strip()
-        hits += check_text(f'commit {commit[:9]}', message)
         subject = message.splitlines()[0] if message else ''
-        if len(subject) > MAX_SUBJECT:
+        # Git or GitHub writes a merge subject, with the branch name in it. A shallow checkout has no
+        # parents to count, so the subject decides as well.
+        if len(git('log', '-1', '--format=%P', commit).split()) > 1 or subject.startswith('Merge '):
+            message = '\n' + message[len(subject):]
+        elif len(subject) > MAX_SUBJECT:
             hits.append(f'commit {commit[:9]}: a subject of {len(subject)} characters, at most {MAX_SUBJECT}')
+        hits += check_text(f'commit {commit[:9]}', message, markdown=True)
     return hits
 
 
