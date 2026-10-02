@@ -3059,3 +3059,284 @@ test("action labels borrow Home Assistant's words in other languages", () => {
     "English where Home Assistant has no words yet"
   );
 });
+
+/* Window sensors as Home Assistant writes them, and the rooms its registries give them. The kitchen window has a room
+ * of its own, apart from its device's. The bath window has the room of its device, and the office window has none. */
+const windowAt = (id, name, changed) => ({ ...st(id, "on", { friendly_name: name, device_class: "window" }), last_changed: changed });
+const KITCHEN = windowAt("binary_sensor.kitchen_window", "Kitchen window", "2026-09-21T10:00:00+00:00");
+const BATH = windowAt("binary_sensor.bath_window", "Bath window", "2026-09-21T10:30:00+00:00");
+const OFFICE = windowAt("binary_sensor.office_window", "Office window", "2026-09-21T11:00:00+00:00");
+const ROOMS = {
+  entities: {
+    "binary_sensor.kitchen_window": { entity_id: "binary_sensor.kitchen_window", area_id: "kitchen", device_id: "kitchen_contact", labels: [] },
+    "binary_sensor.bath_window": { entity_id: "binary_sensor.bath_window", device_id: "bath_contact", labels: [] },
+    "binary_sensor.office_window": { entity_id: "binary_sensor.office_window", labels: [] },
+  },
+  devices: { kitchen_contact: { id: "kitchen_contact", area_id: "hall" }, bath_contact: { id: "bath_contact", area_id: "bath" } },
+  areas: { kitchen: { area_id: "kitchen", name: "Kitchen" }, bath: { area_id: "bath", name: "Bath" }, hall: { area_id: "hall", name: "Hall" } },
+};
+const statesOf = (...list) => Object.fromEntries(list.map((s) => [s.entity_id, s]));
+const WINDOWS = { type: "x", hide_when_empty: false, updates: false, entities: [KITCHEN, BATH, OFFICE].map((s) => s.entity_id) };
+
+test("two open windows become one entry with their rooms", () => {
+  const w = makeWindow();
+  const el = mount(w, WINDOWS, makeHass(statesOf(KITCHEN, BATH), ROOMS));
+  const q = (s) => el.shadowRoot.querySelector(s);
+  same(
+    [rows(el).map((r) => [r.title, r.body, r.tile, r.icon, r.x]), q(".row").dataset.kind, q(".row .when").dateTime],
+    [[["2 windows open", "Bath, Kitchen", "rtile", "mdi:google-circles-communities", true]], "group", "2026-09-21T10:30:00.000Z"],
+    "one entry names the rooms newest first, an entity's own room before its device's, and takes the time of the newest"
+  );
+  same(
+    [head(el).title, head(el).badge, q(".head .msg .t").textContent, q(".head .tile ha-icon").getAttribute("icon")],
+    ["2 windows open", "1", "Bath, Kitchen", "mdi:google-circles-communities"],
+    "the head shows it like any entry"
+  );
+  const icons = { ...WINDOWS, entities: [{ entity: KITCHEN.entity_id, icon: "mdi:window-closed" }, { entity: BATH.entity_id, icon: "mdi:window-open" }] };
+  same(rows(mount(w, icons, makeHass(statesOf(KITCHEN, BATH), ROOMS)))[0].icon, "mdi:window-open", "the icon option of the newest window carries over");
+  const sent = [];
+  el.addEventListener("hass-action", (e) => sent.push(e.detail));
+  el.addEventListener("hass-more-info", (e) => sent.push(e.detail));
+  /* jsdom has no layout, so the text says it is cut off. */
+  Object.defineProperty(q(".row .body"), "scrollHeight", { configurable: true, value: 100 });
+  q(".row").click();
+  same([sent, q(".row").classList.contains("open"), q(".row .rtile").getAttribute("role")], [[], true, null], "a tap opens nothing but its text");
+
+  const three = mount(w, WINDOWS, makeHass(statesOf(KITCHEN, BATH, OFFICE), ROOMS));
+  same(rows(three).map((r) => [r.title, r.body]), [["3 windows open", "Office window, Bath, Kitchen"]], "a window without a room goes by its name");
+  const bare = { ...makeHass(statesOf(KITCHEN, BATH)), entities: undefined, devices: undefined, areas: undefined };
+  same(rows(mount(w, WINDOWS, bare))[0].body, "Bath window, Kitchen window", "without the registries of Home Assistant, every window does");
+  const twins = [KITCHEN, BATH].map((s) => ({ ...s, attributes: { ...s.attributes, friendly_name: "Contact sensor" } }));
+  same(rows(mount(w, WINDOWS, makeHass(statesOf(...twins))))[0].body, "Contact sensor, Contact sensor", "a name shows for each window, so it matches the count");
+  const child = {
+    entities: { [KITCHEN.entity_id]: { device_id: "kitchen_contact" }, [BATH.entity_id]: { device_id: "bath_contact" } },
+    devices: {
+      hub: { id: "hub", area_id: "hall" },
+      kitchen_contact: { id: "kitchen_contact", area_id: null, parent_device_id: "hub" },
+      bath_contact: { id: "bath_contact", area_id: "bath", parent_device_id: "hub" },
+    },
+    areas: ROOMS.areas,
+  };
+  same(rows(mount(w, WINDOWS, makeHass(statesOf(KITCHEN, BATH), child)))[0].body, "Bath, Hall", "a device without a room of its own sits in the room of its parent");
+  const letters = ["a", "b", "c", "d", "e", "f"];
+  const many = letters.map((x, i) => windowAt("binary_sensor.window_" + x, "Window " + x, "2026-09-21T10:0" + i + ":00+00:00"));
+  const placed = {
+    entities: Object.fromEntries(letters.map((x) => ["binary_sensor.window_" + x, { area_id: x === "b" ? "a" : x, labels: [] }])),
+    areas: Object.fromEntries(letters.map((x) => [x, { area_id: x, name: "Room " + x.toUpperCase() }])),
+  };
+  same(
+    rows(mount(w, { ...WINDOWS, entities: many.map((s) => s.entity_id) }, makeHass(statesOf(...many), placed)))[0].body,
+    "Room F, Room E, Room D, Room C +1",
+    "a room shows once, and four at most"
+  );
+
+  same(rows(mount(w, WINDOWS, makeHass(statesOf(KITCHEN, BATH), { ...ROOMS, lang: "de" })))[0].title, "2 Fenster offen", "in German");
+  const names = { "component.binary_sensor.entity_component.window.name": "Fenêtre", "component.binary_sensor.entity_component.battery_charging.name": "Charging" };
+  const localize = (k) => names[k] || "";
+  same(rows(mount(w, WINDOWS, makeHass(statesOf(KITCHEN, BATH), { ...ROOMS, lang: "fr", localize })))[0].title, "Fenêtre (2)", "other languages take Home Assistant's name");
+  const charging = ["phone", "tablet"].map((x) => st("binary_sensor." + x + "_charging", "on", { friendly_name: x, device_class: "battery_charging" }));
+  const chargers = { ...WINDOWS, entities: charging.map((s) => s.entity_id) };
+  same(
+    [rows(mount(w, chargers, makeHass(statesOf(...charging), { localize })))[0].title, rows(mount(w, chargers, makeHass(statesOf(...charging))))[0].title],
+    ["Charging (2)", "Battery charging (2)"],
+    "and so do classes without words of their own"
+  );
+  const { alikeTitle } = w.__origamiTest;
+  same(
+    [alikeTitle("en", "window", 1), alikeTitle("en-GB", "door", 3), alikeTitle("de", "garage_door", 1), alikeTitle("de", "smoke", 2), alikeTitle("fr", "window", 1, () => "Fenêtre")],
+    ["1 window open", "3 doors open", "1 Garagentor offen", "2 Rauchmelder ausgelöst", "Fenêtre (1)"],
+    "one or more, in the words of the card or of Home Assistant"
+  );
+});
+
+test("a group follows the rooms and words Home Assistant loads later", () => {
+  const w = makeWindow();
+  const charging = ["phone", "tablet"].map((x) => st("binary_sensor." + x + "_charging", "on", { friendly_name: x, device_class: "battery_charging" }));
+  const config = { ...WINDOWS, entities: [KITCHEN, BATH, ...charging].map((s) => s.entity_id) };
+  /* Only one part changes at a time, and the states stay as they are. */
+  let hass = makeHass(statesOf(KITCHEN, BATH, ...charging), { entities: ROOMS.entities });
+  const el = mount(w, config, hass);
+  const shown = () => rows(el).map((r) => [r.title, r.body]).sort();
+  same(shown(), [["2 windows open", "Bath window, Kitchen window"], ["Battery charging (2)", "phone, tablet"]], "before the rooms and words are there");
+  hass = { ...hass, areas: ROOMS.areas };
+  el.hass = hass;
+  same(shown()[0], ["2 windows open", "Bath window, Kitchen"], "rooms that arrive later");
+  hass = { ...hass, devices: ROOMS.devices };
+  el.hass = hass;
+  same(shown()[0], ["2 windows open", "Bath, Kitchen"], "devices that arrive later");
+  hass = { ...hass, localize: (k) => (k === "component.binary_sensor.entity_component.battery_charging.name" ? "Charging" : "") };
+  el.hass = hass;
+  same(shown()[1], ["Charging (2)", "phone, tablet"], "words that arrive later");
+});
+
+test("dismissing a group dismisses each window", () => {
+  const w = makeWindow();
+  const KEY = "origami-notifications-ack";
+  const el = mount(w, WINDOWS, makeHass(statesOf(KITCHEN, BATH), ROOMS));
+  el.shadowRoot.querySelector(".row .x").click();
+  same(rows(el).length, 0, "gone at once");
+  same(
+    JSON.parse(w.localStorage.getItem(KEY)),
+    { "g:binary_sensor.kitchen_window": "#on\u0000" + Date.parse(KITCHEN.last_changed), "g:binary_sensor.bath_window": "#on\u0000" + Date.parse(BATH.last_changed) },
+    "each window keeps a dismissal of its own"
+  );
+  el.hass = makeHass(statesOf(KITCHEN, BATH, OFFICE), ROOMS);
+  same(
+    [rows(el).map((r) => [r.title, r.body]), el.shadowRoot.querySelector(".row").dataset.kind],
+    [[["Office window", "on"]], "generic"],
+    "a window that opens later shows alone and new"
+  );
+  const reload = makeWindow();
+  reload.localStorage.setItem(KEY, w.localStorage.getItem(KEY));
+  same(rows(mount(reload, WINDOWS, makeHass(statesOf(KITCHEN, BATH, OFFICE), ROOMS))).map((r) => r.title), ["Office window"], "the dismissals hold after a reload");
+  el.hass = makeHass(statesOf({ ...KITCHEN, last_changed: "2026-09-21T12:00:00+00:00" }, BATH, OFFICE), ROOMS);
+  same(rows(el).map((r) => [r.title, r.body]), [["2 windows open", "Kitchen, Office window"]], "a dismissed window that opens again joins the next group");
+
+  const other = makeWindow();
+  const subs = [];
+  const card = mount(other, WINDOWS, makeHass(statesOf(KITCHEN, BATH), { ...ROOMS, subs }));
+  subs[0].cb({ type: "current", notifications: { n1: { notification_id: "n1", message: "Backup done" } } });
+  card.shadowRoot.querySelector(".clear").click();
+  same(
+    [rows(card).length, Object.keys(JSON.parse(other.localStorage.getItem(KEY))).sort()],
+    [0, ["g:binary_sensor.bath_window", "g:binary_sensor.kitchen_window"]],
+    "clear all dismisses the windows of a group as well"
+  );
+});
+
+test("a group entity names its active members", () => {
+  const w = makeWindow();
+  const light = (id, name, state = "on") => st("light." + id, state, { friendly_name: name });
+  const members = ["light.hall", "light.stairs", "light.kitchen", "light.living_room", "light.gone", "light.office", "light.porch"];
+  let hass = makeHass(
+    {
+      "light.downstairs": st("light.downstairs", "on", { friendly_name: "Downstairs", entity_id: members }),
+      "light.hall": light("hall", "Hall"),
+      "light.stairs": light("stairs", "Stairs", "off"),
+      "light.kitchen": light("kitchen", "Kitchen"),
+      "light.living_room": light("living_room", "Living room"),
+      "light.office": light("office", "Office"),
+      "light.porch": light("porch", "Porch"),
+    },
+    { formatEntityState: capital }
+  );
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["light.downstairs"] };
+  const el = mount(w, config, hass);
+  same(
+    [rows(el).map((r) => [r.title, r.body]), el.shadowRoot.querySelector(".head .msg .t").textContent],
+    [[["Downstairs", "Hall, Kitchen, Living room, Office +1"]], "Hall, Kitchen, Living room, Office +1"],
+    "the members that are on, four at most, then how many more"
+  );
+  hass = { ...hass, states: { ...hass.states, "light.office": light("office", "Office", "off"), "light.porch": light("porch", "Porch", "unavailable") } };
+  el.hass = hass;
+  same(rows(el)[0].body, "Hall, Kitchen, Living room", "a member that turns off goes at once, while the group stays as it was");
+
+  const others = makeHass(
+    {
+      "group.doors": st("group.doors", "on", { friendly_name: "Doors", entity_id: ["binary_sensor.front", "binary_sensor.back"] }),
+      "binary_sensor.front": st("binary_sensor.front", "on", { friendly_name: "Front door" }),
+      "binary_sensor.back": st("binary_sensor.back", "off", { friendly_name: "Back door" }),
+      "cover.garage_doors": st("cover.garage_doors", "open", { friendly_name: "Garage doors", entity_id: ["cover.left", "cover.right"] }),
+      "cover.left": st("cover.left", "open", { friendly_name: "Left door" }),
+      "cover.right": st("cover.right", "closed", { friendly_name: "Right door" }),
+      "sensor.mean_temperature": st("sensor.mean_temperature", "21.5", { friendly_name: "Mean temperature", entity_id: ["sensor.kitchen_temperature"] }),
+      "sensor.kitchen_temperature": st("sensor.kitchen_temperature", "21.5", { friendly_name: "Kitchen temperature" }),
+      "switch.pumps": st("switch.pumps", "on", { friendly_name: "Pumps", entity_id: ["switch.pump_1"] }),
+      "switch.pump_1": st("switch.pump_1", "unavailable", { friendly_name: "Pump 1" }),
+    },
+    { formatEntityState: (s) => (s.entity_id.startsWith("sensor.") ? s.state + " °C" : capital(s)) }
+  );
+  const card = mount(w, { ...config, entities: ["group.doors", "cover.garage_doors", "sensor.mean_temperature", "switch.pumps"] }, others);
+  same(
+    rows(card).map((r) => [r.title, r.body]).sort(),
+    [["Doors", "Front door"], ["Garage doors", "Left door"], ["Mean temperature", "21.5 °C"], ["Pumps", "On"]],
+    "an old style group and a group of covers name theirs too, a sensor group keeps its value, and with no member on the state stays"
+  );
+  const recompute = card._recompute;
+  let runs = 0;
+  card._recompute = () => {
+    runs++;
+    recompute.call(card);
+  };
+  card.hass = { ...others, states: { ...others.states, "sensor.kitchen_temperature": st("sensor.kitchen_temperature", "22", { friendly_name: "Kitchen temperature" }) } };
+  same(runs, 0, "a sensor group names no member, so a member's new value changes nothing");
+});
+
+test("only plain sensor entries become a group", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const sensor = (id, state, attributes = {}) => st(id, state, { friendly_name: id.split(".")[1], ...attributes });
+  const states = {
+    "binary_sensor.smoke_hall": sensor("binary_sensor.smoke_hall", "on", { device_class: "smoke" }),
+    "binary_sensor.smoke_attic": sensor("binary_sensor.smoke_attic", "on", { device_class: "smoke" }),
+    "binary_sensor.front_door": sensor("binary_sensor.front_door", "on", { device_class: "door" }),
+    "binary_sensor.back_door": sensor("binary_sensor.back_door", "on", { device_class: "door" }),
+    "binary_sensor.side_door": sensor("binary_sensor.side_door", "on", { device_class: "door", entity_picture: "/local/side.jpg" }),
+    "binary_sensor.garage_left": sensor("binary_sensor.garage_left", "on", { device_class: "garage_door" }),
+    "binary_sensor.garage_right": sensor("binary_sensor.garage_right", "on", { device_class: "garage_door" }),
+    "binary_sensor.washer": sensor("binary_sensor.washer", "on", { device_class: "running" }),
+    "binary_sensor.dryer": sensor("binary_sensor.dryer", "on", { device_class: "running" }),
+    "sensor.dryer_progress": sensor("sensor.dryer_progress", "40"),
+    "binary_sensor.oven": sensor("binary_sensor.oven", "on", { device_class: "running" }),
+    "sensor.oven_finish": sensor("sensor.oven_finish", new Date(NOW + 30 * 60000).toISOString(), { device_class: "timestamp" }),
+    "binary_sensor.doorbell": sensor("binary_sensor.doorbell", "on"),
+    "binary_sensor.motion": sensor("binary_sensor.motion", "on"),
+    "binary_sensor.kitchen_window": sensor("binary_sensor.kitchen_window", "on", { device_class: "window" }),
+    "binary_sensor.all_windows": sensor("binary_sensor.all_windows", "on", { device_class: "window", entity_id: ["binary_sensor.kitchen_window"] }),
+    "binary_sensor.leak": sensor("binary_sensor.leak", "on", { device_class: "moisture" }),
+    "sensor.phone_battery": sensor("sensor.phone_battery", "5", { device_class: "battery" }),
+    "sensor.tablet_battery": sensor("sensor.tablet_battery", "7", { device_class: "battery" }),
+    "lock.front": sensor("lock.front", "unlocked"),
+    "lock.back": sensor("lock.back", "unlocked"),
+    "binary_sensor.meteoalarm": meteoalarm(),
+    "binary_sensor.meteoalarm_wind": { ...meteoalarm({ headline: "Yellow wind for Hedmark" }), entity_id: "binary_sensor.meteoalarm_wind" },
+  };
+  const ring = { label: "Ring", tap_action: { action: "perform-action", perform_action: "script.ring" } };
+  const entities = [
+    "binary_sensor.smoke_hall",
+    "binary_sensor.smoke_attic",
+    "binary_sensor.front_door",
+    { entity: "binary_sensor.back_door", actions: [ring] },
+    "binary_sensor.side_door",
+    { entity: "binary_sensor.garage_left", image: "/local/garage.jpg", background: true },
+    "binary_sensor.garage_right",
+    "binary_sensor.washer",
+    { entity: "binary_sensor.dryer", progress: "sensor.dryer_progress" },
+    { entity: "binary_sensor.oven", time: "sensor.oven_finish" },
+    "binary_sensor.doorbell",
+    "binary_sensor.motion",
+    "binary_sensor.kitchen_window",
+    "binary_sensor.all_windows",
+    "binary_sensor.leak",
+    { entity: "sensor.phone_battery", type: "generic" },
+    { entity: "sensor.tablet_battery", type: "generic" },
+    "lock.front",
+    "lock.back",
+    "binary_sensor.meteoalarm",
+    "binary_sensor.meteoalarm_wind",
+  ];
+  const el = mount(w, { type: "x", updates: false, entities }, makeHass(states));
+  const shown = Object.fromEntries(
+    [...el.shadowRoot.querySelectorAll(".row")].map((r) => [r.querySelector(".title").textContent, [r.dataset.kind, r.querySelector(".rtile").className]])
+  );
+  same(Object.keys(shown).length, 20, "one row for the smoke alarms and one for every other entry");
+  same(shown["2 smoke alarms"], ["group", "rtile crit"], "two smoke alarms make one group as urgent as they are");
+  same(
+    ["front", "back", "Orange forest-fire for Hedmark, Oppland", "Yellow wind for Hedmark", "phone_battery", "tablet_battery"].map((t) => shown[t]),
+    [["device", "rtile"], ["device", "rtile"], ["warning", "rtile crit"], ["warning", "rtile crit"], ["generic", "rtile"], ["generic", "rtile"]],
+    "devices, warnings and sensors stay alone"
+  );
+  same(
+    ["doorbell", "motion", "kitchen_window", "all_windows", "leak"].map((t) => shown[t]),
+    [["generic", "rtile"], ["generic", "rtile"], ["generic", "rtile"], ["generic", "rtile"], ["generic", "rtile crit"]],
+    "so do binary sensors without a class, a group entity and the only sensor of its class"
+  );
+  same(
+    ["front_door", "back_door", "side_door", "garage_left", "garage_right", "washer", "dryer", "oven"].map((t) => shown[t]),
+    Array(8).fill(["generic", "rtile"]),
+    "an entry with buttons, a picture, a progress or a time of its own stays alone, and so does the other one of its class"
+  );
+  const picture = (title) =>
+    [...el.shadowRoot.querySelectorAll(".row")].find((r) => r.querySelector(".title").textContent === title).querySelector(".rtile img").getAttribute("src");
+  same([picture("garage_left"), picture("side_door")], ["http://ha.local/local/garage.jpg", "http://ha.local/local/side.jpg"], "and keeps its picture");
+});

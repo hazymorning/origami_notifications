@@ -29,6 +29,7 @@ const ICONS = {
   todo: "mdi:clipboard-check-outline",
   device: "mdi:devices",
   warning: "mdi:alert-circle",
+  group: "mdi:google-circles-communities",
   attribute: "mdi:card-text-outline",
   picture: "mdi:image-outline",
   generic: "mdi:information-outline",
@@ -73,6 +74,7 @@ const STRINGS = {
     act_dock_mower: "Dock",
     act_off: "Turn off",
     act_done: "Done",
+    more: "+{n}",
   },
   de: {
     idle_title: "Alles ruhig",
@@ -107,6 +109,7 @@ const STRINGS = {
     act_dock_mower: "Zur Station",
     act_off: "Ausschalten",
     act_done: "Erledigt",
+    more: "+{n}",
   },
 };
 
@@ -142,6 +145,42 @@ const borrowedStrings = (localize) => {
     if (title) t.count_one = t.count_other = title + " ({n})";
   }
   return t;
+};
+
+/* How many binary sensors of one device class are on, in the languages the card ships. */
+const ALIKE_TITLES = {
+  en: {
+    window: { one: "1 window open", other: "{n} windows open" },
+    door: { one: "1 door open", other: "{n} doors open" },
+    garage_door: { one: "1 garage door open", other: "{n} garage doors open" },
+    opening: { other: "{n} sensors open" },
+    battery: { other: "{n} batteries low" },
+    moisture: { other: "{n} water alarms" },
+    smoke: { other: "{n} smoke alarms" },
+    gas: { other: "{n} gas alarms" },
+    carbon_monoxide: { other: "{n} CO alarms" },
+    heat: { other: "{n} heat alarms" },
+    problem: { other: "{n} problems" },
+    tamper: { other: "{n} tamper alerts" },
+    safety: { other: "{n} safety alerts" },
+    sound: { other: "{n} sounds detected" },
+  },
+  de: {
+    window: { one: "1 Fenster offen", other: "{n} Fenster offen" },
+    door: { one: "1 Tür offen", other: "{n} Türen offen" },
+    garage_door: { one: "1 Garagentor offen", other: "{n} Garagentore offen" },
+    opening: { other: "{n} Sensoren offen" },
+    battery: { other: "{n} Akkus schwach" },
+    moisture: { other: "{n} Wassermelder ausgelöst" },
+    smoke: { other: "{n} Rauchmelder ausgelöst" },
+    gas: { other: "{n} Gasmelder ausgelöst" },
+    carbon_monoxide: { other: "{n} CO-Melder ausgelöst" },
+    heat: { other: "{n} Hitzemelder ausgelöst" },
+    problem: { other: "{n} Probleme" },
+    tamper: { other: "{n} Sabotagealarme" },
+    safety: { other: "{n} Sicherheitswarnungen" },
+    sound: { other: "{n} Geräusche erkannt" },
+  },
 };
 
 /* Home Assistant's notice about a failed login is never shown. */
@@ -910,7 +949,7 @@ const renderDevice = (id, st, items, ctx) => {
     sev: d && d.sev && d.sev[st.state],
     entity: id,
     title: ctx.name(st),
-    message: ctx.format(st),
+    message: ctx.memberText(st) || ctx.format(st),
     ts: parseTs(st.last_changed, ctx.now),
     past: true,
     ack: String(st.state),
@@ -1004,16 +1043,46 @@ const DEVICE_CLASS_SEV = {
   sound: "warn",
 };
 
+/* At most four names, then how many more. */
+const nameList = (names, t) =>
+  names.length > 4 ? names.slice(0, 4).join(", ") + " " + fill(t.more, { n: names.length - 4 }) : names.join(", ");
+
+/* The members a group entity names. A sensor group keeps its state, a value like a mean, so it names none. */
+const groupMembers = (st) =>
+  Array.isArray(st.attributes.entity_id) && !st.entity_id.startsWith("sensor.")
+    ? st.attributes.entity_id.filter((id) => typeof id === "string")
+    : [];
+
+/* The members that Home Assistant counts as active. */
+const memberText = (hass, ids, name, t) => {
+  const active = ids.map((id) => hass.states[id]).filter((m) => m && stateActive(m));
+  return nameList(active.map((m) => name(m)), t);
+};
+
+/* The room of an entity, its own or else its device's. A child device without a room sits in its parent's. */
+const areaOf = (hass, id) => {
+  const entry = hass.entities && hass.entities[id];
+  const devices = hass.devices || {};
+  const device = entry && entry.device_id && devices[entry.device_id];
+  const parent = device && device.parent_device_id && devices[device.parent_device_id];
+  const area = hass.areas && hass.areas[(entry && entry.area_id) || (device && device.area_id) || (parent && parent.area_id)];
+  return (area && area.name) || "";
+};
+
 const renderGeneric = (id, st, items, ctx) => {
   const active = ctx.forced ? !isInactive(st.state) : isUnambiguouslyActive(st.state);
   if (!active) return;
+  const a = st.attributes;
+  const binary = id.startsWith("binary_sensor.");
   items.push({
     key: "g:" + id,
     kind: "generic",
-    sev: id.startsWith("binary_sensor.") && st.state === "on" ? DEVICE_CLASS_SEV[st.attributes.device_class] : undefined,
+    sev: binary && st.state === "on" ? DEVICE_CLASS_SEV[a.device_class] : undefined,
+    /* A group entity is a group already, so it never joins one. */
+    deviceClass: binary && typeof a.device_class === "string" && !Array.isArray(a.entity_id) ? a.device_class : undefined,
     entity: id,
     title: ctx.name(st),
-    message: ctx.format(st),
+    message: ctx.memberText(st) || ctx.format(st),
     ts: parseTs(st.last_changed, ctx.now),
     past: true,
     ack: String(st.state),
@@ -1226,6 +1295,71 @@ const sortItems = (items, now) => {
     if ((a.seq || 0) !== (b.seq || 0)) return (b.seq || 0) - (a.seq || 0);
     return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
   });
+};
+
+/* A count like 3 windows open. Without words of its own, a class takes Home Assistant's name for it. */
+const alikeTitle = (lang, dc, n, localize) => {
+  const forms = (ALIKE_TITLES[String(lang).split("-")[0]] || {})[dc];
+  if (forms) return fill(n === 1 && forms.one ? forms.one : forms.other, { n });
+  const name = (typeof localize === "function" && localize("component.binary_sensor.entity_component." + dc + ".name")) || prettySlug(dc);
+  return fill("{name} ({n})", { name, n });
+};
+
+/* A group can't show the buttons, picture, time or progress of one entry, so such an entry stays alone. */
+const groupable = (it) =>
+  it.kind === "generic" &&
+  Boolean(it.deviceClass) &&
+  it.past &&
+  it.progress == null &&
+  !it.image &&
+  !(it.actions && it.actions.length);
+
+/* Two or more plain binary sensors of one device class become one entry. */
+const groupAlike = (items, group) => {
+  const alike = new Map();
+  for (const it of items) {
+    if (!groupable(it)) continue;
+    if (!alike.has(it.deviceClass)) alike.set(it.deviceClass, []);
+    alike.get(it.deviceClass).push(it);
+  }
+  const out = [];
+  for (const it of items) {
+    const members = groupable(it) ? alike.get(it.deviceClass) : null;
+    if (!members || members.length < 2) out.push(it);
+    else if (members[0] === it) out.push(group(it.deviceClass, members));
+  }
+  return out;
+};
+
+const SEV_RANK = { warn: 1, crit: 2 };
+
+/* The newest member comes first. A member without a room is named instead, and a room shared by several shows once. */
+const alikeGroup = (dc, members, ctx) => {
+  const sorted = sortItems([...members], ctx.now);
+  let sev;
+  for (const m of sorted) if ((SEV_RANK[m.sev] || 0) > (SEV_RANK[sev] || 0)) sev = m.sev;
+  const rooms = new Set();
+  const names = [];
+  for (const m of sorted) {
+    const room = areaOf(ctx.hass, m.entity);
+    if (!room) {
+      names.push(m.title);
+    } else if (!rooms.has(room)) {
+      rooms.add(room);
+      names.push(room);
+    }
+  }
+  return {
+    key: "gr:" + dc,
+    kind: "group",
+    sev,
+    title: ctx.alikeTitle(dc, sorted.length),
+    message: nameList(names, ctx.t),
+    ts: sorted.reduce((ts, m) => Math.max(ts, m.ts), -Infinity),
+    past: true,
+    icon: sorted[0].icon,
+    members: sorted,
+  };
 };
 
 /* Only moments ahead count. One that has passed would wake the card again and again. */
@@ -1914,6 +2048,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._labelIds = [];
     this._repairs = [];
     this._watched = [];
+    this._readIds = [];
     this._allSources = [];
     this._audience = {};
     this._people = [];
@@ -2116,17 +2251,15 @@ class OrigamiNotificationsCard extends HTMLElement {
       this._recompute();
       return;
     }
-    /* Home Assistant may list its actions after the states, and a NINA warning waits for one of them. */
-    if (localeChanged || formatChanged || hass.services !== old.services) {
+    /* Home Assistant may load its actions, translations and rooms after the states. Warnings and groups need them. */
+    const loaded =
+      hass.services !== old.services || hass.localize !== old.localize || hass.areas !== old.areas || hass.devices !== old.devices;
+    if (localeChanged || formatChanged || loaded) {
       this._recompute();
       return;
     }
-    for (const id of this._watched) {
-      if (old.states[id] !== hass.states[id]) {
-        this._recompute();
-        return;
-      }
-    }
+    const changed = (id) => old.states[id] !== hass.states[id];
+    if (this._watched.some(changed) || this._readIds.some(changed)) this._recompute();
   }
 
   get hass() {
@@ -2359,6 +2492,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const c = this._config || {};
     const now = Date.now();
     const wakes = [];
+    const read = [];
     let items = [];
     const allowed = (source) => this._editMode || visibleTo(this._audience[source], this._viewer);
     const name = (st, override) => {
@@ -2389,6 +2523,13 @@ class OrigamiNotificationsCard extends HTMLElement {
       todos: (id) => (this._todos.get(id) || {}).items || null,
       devicePictures: (id) => this._pictures.get(id) || [],
       ninaDetails: (st) => ninaDetails(h, st, this),
+      /* The members of a group entity change without the group, so they are watched as well. */
+      memberText: (st) => {
+        const ids = groupMembers(st);
+        read.push(...ids);
+        return memberText(h, ids, name, this._t);
+      },
+      alikeTitle: (dc, n) => alikeTitle(this._lang, dc, n, h && h.localize),
       name,
       format: (st) => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state)),
       formatAttribute: (st, path, value) => {
@@ -2451,6 +2592,7 @@ class OrigamiNotificationsCard extends HTMLElement {
         renderEntity(src.entity, st, items, ctx, src);
       }
     }
+    this._readIds = read;
 
     /* Dismissed, but Home Assistant has not removed them yet. */
     if (this._pending.size) {
@@ -2524,6 +2666,11 @@ class OrigamiNotificationsCard extends HTMLElement {
       }
     }
     if (acksDirty) saveAcks(present);
+    items = groupAlike(items, (dc, members) => {
+      const group = alikeGroup(dc, members, ctx);
+      group.dismiss = () => this._dismiss(group.members);
+      return group;
+    });
     this._items = sortItems(items, now);
     const reorder = nextReorder(this._items, now);
     if (reorder !== null) ctx.wake(reorder);
@@ -2713,7 +2860,8 @@ class OrigamiNotificationsCard extends HTMLElement {
   _dismiss(items) {
     const acks = loadAcks();
     let acked = false;
-    for (const it of items) {
+    /* A group stands for its members, and each of them keeps a dismissal of its own. */
+    for (const it of items.flatMap((i) => i.members || [i])) {
       if (it.localDismiss) {
         acks[it.key] = it.ackSig;
         acked = true;
@@ -3715,5 +3863,6 @@ if (window.__origamiTest) {
     percent,
     parseBefore,
     stateActive,
+    alikeTitle,
   });
 }
