@@ -1,4 +1,4 @@
-const { describe, test, afterEach } = require("node:test");
+const { describe, test, afterEach, mock } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
@@ -6,11 +6,48 @@ const { JSDOM, VirtualConsole } = require("jsdom");
 
 const CODE = fs.readFileSync(path.join(__dirname, "..", "dist", "origami-notifications.js"), "utf8");
 
-/* Closing a window stops its timers, so the test process can exit. */
+/* Closing a window stops its timers, so the test process can exit. A mocked clock goes after them. */
 const windows = [];
-afterEach(() => windows.splice(0).forEach((w) => w.close()));
+afterEach(() => {
+  windows.splice(0).forEach((w) => w.close());
+  mock.timers.reset();
+});
 
-function makeWindow() {
+/* What jsdom lacks. fire() tells an IntersectionObserver whether the card shows. */
+function addStubs(window, opts) {
+  window.IntersectionObserver = class {
+    constructor(cb) {
+      Object.assign(this, { cb, targets: [], disconnected: false });
+    }
+    observe(target) {
+      if (!this.targets.includes(target)) this.targets.push(target);
+      this.disconnected = false;
+    }
+    disconnect() {
+      this.targets = [];
+      this.disconnected = true;
+    }
+    fire(isIntersecting) {
+      const entries = this.targets.map((target) => ({ isIntersecting, target }));
+      if (entries.length) this.cb(entries, this);
+    }
+  };
+  if (opts.stateIcon) {
+    window.customElements.define(
+      "ha-state-icon",
+      class extends window.HTMLElement {
+        constructor() {
+          super();
+          Object.assign(this, { hass: null, stateObj: null, stateValue: undefined, icon: undefined });
+        }
+      }
+    );
+  }
+}
+
+/* opts.bare leaves the stubs out, opts.stateIcon defines ha-state-icon, and opts.clock hands the card
+ * the Date of mock.timers. Timers follow mock.timers anyway. */
+function makeWindow(opts = {}) {
   const virtualConsole = new VirtualConsole();
   virtualConsole.on("error", (...args) => console.error(...args));
   virtualConsole.on("warn", (...args) => console.warn(...args));
@@ -25,10 +62,17 @@ function makeWindow() {
     unobserve() {}
     disconnect() {}
   };
+  window.__origamiTest = {};
+  if (!opts.bare) addStubs(window, opts);
+  if (opts.clock) window.Date = Date;
   window.eval(CODE);
   windows.push(window);
   return window;
 }
+
+/* The time of the mocked clock. Inside a test that uses it, await Promise.resolve() instead of tick(). */
+const NOW = Date.parse("2026-10-02T12:00:00Z");
+const useClock = (now = NOW) => mock.timers.enable({ apis: ["Date", "setTimeout", "setInterval"], now });
 
 function st(entity_id, state, attributes = {}) {
   return { entity_id, state, attributes, last_changed: "2026-09-21T10:00:00+00:00" };
@@ -36,25 +80,29 @@ function st(entity_id, state, attributes = {}) {
 
 function makeHass(states = {}, opts = {}) {
   const calls = [];
+  /* Ending a subscription marks it closed, so a test can check that none is left. */
+  const subscribe = (sub) => {
+    (opts.subs || []).push(sub);
+    return Promise.resolve(() => {
+      sub.closed = true;
+    });
+  };
   return {
     calls,
     states,
     entities: opts.entities || {},
+    devices: opts.devices || {},
+    areas: opts.areas || {},
+    services: opts.services || {},
     locale: { language: opts.lang || "en" },
     user: opts.user || { id: "u1", is_admin: true },
     connection: {
-      subscribeMessage: (cb, msg) => {
-        (opts.subs || []).push({ cb, msg });
-        return Promise.resolve(() => {});
-      },
-      subscribeEvents: (cb, ev) => {
-        (opts.subs || []).push({ cb, ev });
-        return Promise.resolve(() => {});
-      },
+      subscribeMessage: (cb, msg) => subscribe({ cb, msg, closed: false }),
+      subscribeEvents: (cb, ev) => subscribe({ cb, ev, closed: false }),
     },
-    callService: (d, s, data) => {
-      calls.push([d + "." + s, data]);
-      return Promise.resolve();
+    callService: (d, s, data, target) => {
+      calls.push(target ? [d + "." + s, data, target] : [d + "." + s, data]);
+      return Promise.resolve(opts.serviceReply ? opts.serviceReply(d, s, data, target) : undefined);
     },
     callWS: (msg) => {
       calls.push(["ws", msg.type, msg]);
@@ -1315,4 +1363,302 @@ test("install and skip are calls to Home Assistant", () => {
     ["update.install", { entity_id: "update.router" }],
     ["update.skip", { entity_id: "update.router" }],
   ]);
+});
+
+/* A persistent notification, created this many minutes from NOW. */
+const noteAt = (id, minutes, extra = {}) => ({
+  notification_id: id,
+  title: id,
+  message: "",
+  created_at: new Date(NOW + minutes * 60000).toISOString(),
+  ...extra,
+});
+
+/* DWD warns ahead of time, so its warnings bring times that lie ahead. Each warning is a title and
+ * its start in minutes from NOW. */
+const dwdAt = (...warnings) => {
+  const attributes = { warning_count: warnings.length };
+  warnings.forEach(([headline, minutes], i) => {
+    attributes["warning_" + (i + 1) + "_headline"] = headline;
+    attributes["warning_" + (i + 1) + "_level"] = 2;
+    attributes["warning_" + (i + 1) + "_start"] = new Date(NOW + minutes * 60000).toISOString();
+  });
+  return { "sensor.dwd": st("sensor.dwd", warnings.length ? "2" : "0", attributes) };
+};
+
+/* A state that changed this many milliseconds from NOW. */
+const changedAt = (id, name, ms) => ({ ...st(id, "on", { friendly_name: name }), last_changed: new Date(NOW + ms).toISOString() });
+
+const whens = (el) => [...el.shadowRoot.querySelectorAll(".row .when")].map((t) => t.textContent);
+
+test("a future time sorts by how close it is to now", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const hass = makeHass(dwdAt(["a", -20], ["b", 5], ["c", -120], ["d", 180]));
+  const el = mount(w, { type: "x", updates: false, entities: ["sensor.dwd"] }, hass);
+  same(rows(el).map((r) => r.title), ["b", "a", "c", "d"], "closest first, ahead or behind");
+  same(head(el).title, "b", "the head shows the closest");
+  const sorted = w.__origamiTest.sortItems(
+    [
+      { key: "far", ts: NOW + 9000000 },
+      { key: "crit", sev: "crit", ts: NOW - 90000000 },
+      { key: "behind", ts: NOW - 60000, seq: 1 },
+      { key: "ahead", ts: NOW + 60000, seq: 2 },
+      { key: "b", ts: NOW + 120000 },
+      { key: "a", ts: NOW - 120000 },
+    ],
+    NOW
+  );
+  same(sorted.map((it) => it.key), ["crit", "ahead", "behind", "a", "b", "far"], "critical first, a tie goes to the latest arrival, then to the key");
+});
+
+test("a time less than a minute away reads in a moment", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const card = (lang, seconds) => mount(w, { type: "x", updates: false, entities: ["sensor.dwd"] }, makeHass(dwdAt(["Frost", seconds / 60]), { lang }));
+  const when = (el) => whens(el)[0];
+  same([when(card("en", 30)), when(card("de", 30)), when(card("fr", 30))], ["in a moment", "gleich", "maintenant"], "other languages say now");
+  same([when(card("en", 0)), when(card("en", 120))], ["just now", "in 2 min."], "now, and minutes ahead");
+  const el = card("en", 30);
+  mock.timers.tick(60000);
+  same(when(el), "just now", "once the moment has passed");
+});
+
+test("what happened stays behind when the clock of Home Assistant runs ahead", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const subs = [];
+  const states = {
+    "binary_sensor.door": changedAt("binary_sensor.door", "Door", 600),
+    "binary_sensor.gate": changedAt("binary_sensor.gate", "Gate", -1000),
+    "binary_sensor.window": changedAt("binary_sensor.window", "Window", 2000),
+  };
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(states, { subs }));
+  same(rows(el).map((r) => r.title), ["Window", "Door", "Gate"], "the newest first, as before");
+  same(whens(el), ["just now", "just now", "just now"], "none of them lies ahead");
+  same([el._clock, el._boundaryTimer], [null, null], "nothing ticks or waits on a closed card");
+  subs[0].cb({ type: "current", notifications: { n: noteAt("Backup", 0.05) } });
+  same([head(el).title, whens(el)[0]], ["Backup", "just now"], "a notification created seconds ahead is the newest");
+  same(w.__origamiTest.sortItems([{ key: "b", ts: NOW + 5000 }, { key: "a", ts: NOW + 2000, past: true }], NOW).map((it) => it.key), ["a", "b"]);
+});
+
+test("an entry ahead takes the top once it is closer to now", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const states = { "binary_sensor.door": changedAt("binary_sensor.door", "Door", -120000), ...dwdAt(["Frost", 10]) };
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(states));
+  same(head(el).title, "Door", "two minutes behind is closer than ten ahead");
+  mock.timers.tick(4 * 60000 + 49);
+  same(head(el).title, "Door", "not before both are as close");
+  mock.timers.tick(1);
+  same([head(el).title, rows(el).map((r) => r.title)], ["Frost", ["Frost", "Door"]], "then the entry ahead comes first");
+  const { nextReorder } = w.__origamiTest;
+  const order = (...items) => nextReorder(items.map(([ts, sev], i) => ({ key: String(i), ts: NOW + ts, sev })), NOW);
+  same(order([60000], [180000]), NOW + 120000, "two entries ahead swap once the first has passed");
+  same(order([60000], [-180000]), null, "an entry behind never moves up");
+  same(order([-60000, "crit"], [120000]), null, "nothing passes a critical entry");
+  same(order([-60000], [60000]), NOW + 1, "a tie right now");
+  same(order([-60000], [600000], [-120000], [240000]), NOW + 60000, "the earliest swap");
+});
+
+test("the clock runs on the minute while a time lies ahead or the list is open", () => {
+  useClock(NOW + 15000);
+  const w = makeWindow({ clock: true });
+  let hass = makeHass(dwdAt(["past", -5]));
+  const el = mount(w, { type: "x", updates: false, entities: ["sensor.dwd"] }, hass);
+  const warnings = (...list) => {
+    hass = { ...hass, states: dwdAt(...list) };
+    el.hass = hass;
+  };
+  const when = () => whens(el)[0];
+  const setHidden = (hidden) => {
+    Object.defineProperty(w.document, "hidden", { configurable: true, get: () => hidden });
+    w.document.dispatchEvent(new w.Event("visibilitychange"));
+  };
+  same(el._clock, null, "nothing changes on a closed card");
+  warnings(["past", -5], ["ahead", 3]);
+  const row = el.shadowRoot.querySelector(".row");
+  same(when(), "in 3 min.");
+  mock.timers.tick(44999);
+  same(when(), "in 3 min.", "not before the minute");
+  mock.timers.tick(1);
+  same([when(), el.shadowRoot.querySelector(".row") === row], ["in 2 min.", true], "on the minute, in place");
+  warnings(["past", -5]);
+  same(el._clock, null, "stops once nothing lies ahead");
+  el.shadowRoot.querySelector(".head").click();
+  same([when(), Boolean(el._clock)], ["6 min. ago", true], "runs while the list is open");
+  el._io.fire(false);
+  mock.timers.tick(120000);
+  same([when(), el._clock], ["6 min. ago", null], "stops off screen");
+  el._io.fire(true);
+  same([when(), Boolean(el._clock)], ["8 min. ago", true], "catches up back on screen");
+  setHidden(true);
+  mock.timers.tick(60000);
+  same([when(), el._clock], ["8 min. ago", null], "stops in a hidden tab");
+  setHidden(false);
+  same([when(), Boolean(el._clock)], ["9 min. ago", true], "catches up when the tab shows again");
+  el.remove();
+  same([el._clock, el._io.disconnected], [null, true], "stops with the card gone");
+  let refreshed = 0;
+  el._refreshTimes = () => refreshed++;
+  setHidden(false);
+  same(refreshed, 0, "a card that is gone no longer follows the tab");
+});
+
+test("a countdown in view ticks by the second, in step with its end", () => {
+  const w = makeWindow();
+  const { nextTick, clockText } = w.__origamiTest;
+  const now = NOW + 200;
+  const timer = { key: "t", clock: true, ts: NOW + 300000 };
+  const later = { key: "l", ts: NOW + 3600000 };
+  const ended = { key: "e", clock: true, ts: NOW };
+  same(nextTick([timer, later], timer, false, now), 800, "in the head");
+  same(nextTick([later, timer], later, false, now), 59800, "out of sight, on the minute");
+  same(nextTick([later, timer], later, true, now), 800, "in the open list");
+  same(nextTick([ended], ended, false, now), 0, "a countdown that has ended");
+  same(nextTick([{ key: "s", ts: NOW + 5000, past: true }], null, false, now), 0, "what happened never lies ahead");
+  same(
+    [299800, 299000, 59000, 3600000, 3723000, 0, -5, NaN].map((ms) => clockText(ms)),
+    ["5:00", "4:59", "0:59", "1:00:00", "1:02:03", "0:00", "0:00", "0:00"],
+    "rounded up, with hours from an hour on"
+  );
+});
+
+test("the card wakes once for the earliest change, at most a day ahead", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const { wakeDelay, dropExpired, waker } = w.__origamiTest;
+  same(wakeDelay([NOW + 9000, NOW + 2000, NOW + 5000], NOW), 2050, "the earliest, 50 ms after");
+  same(wakeDelay([NOW + 3 * 86400000], NOW), 86400050, "a day at most");
+  same(wakeDelay([NOW - 1000], NOW), 50, "a moment missed while the card was away");
+  same(wakeDelay([], NOW), null, "nothing to wait for");
+  const wakes = [];
+  const kept = dropExpired(
+    [
+      { key: "gone", ts: NOW - 60000, expires: NOW },
+      { key: "event", ts: NOW - 60000, expires: NOW + 7000 },
+      { key: "countdown", ts: NOW + 3000, live: true },
+      { key: "ended", ts: NOW, live: true },
+      { key: "plain", ts: NOW + 1000 },
+    ],
+    NOW,
+    waker(wakes, NOW)
+  );
+  same(
+    [kept.map((it) => it.key), wakes],
+    [["event", "countdown", "ended", "plain"], [NOW + 7000, NOW + 3000]],
+    "an expired entry goes, the others name their next change, and an ended countdown has none"
+  );
+
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false }, makeHass({}));
+  const recompute = el._recompute;
+  let runs = 0;
+  el._recompute = () => {
+    runs++;
+    recompute.call(el);
+  };
+  el._scheduleBoundary([NOW + 1000]);
+  mock.timers.tick(1049);
+  same(runs, 0, "not before the moment");
+  mock.timers.tick(1);
+  same(runs, 1, "50 ms after it");
+  el._scheduleBoundary([Date.now() + 5000]);
+  el.remove();
+  mock.timers.tick(10000);
+  same(runs, 1, "not while the card is away");
+  w.document.body.appendChild(el);
+  mock.timers.tick(50);
+  same(runs, 2, "it catches up once it is back");
+});
+
+test("the head shows a running time in place of the message", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const hass = makeHass({ "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }) }, { formatEntityState: () => "Open" });
+  const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.door"] }, hass);
+  const q = (s) => el.shadowRoot.querySelector(s);
+  same([q(".head .eta").hidden, q(".head .msg").hidden, q(".head .msg .t").textContent], [true, false, "Open"], "an entry without a running time shows its message");
+  /* Set by hand, so the test does not depend on a source. */
+  el._items = [{ key: "g:washer", kind: "generic", title: "Washer", message: "Running", ts: NOW + 600000, live: true }];
+  el._render(NOW);
+  same(
+    [q(".head .eta").hidden, q(".head .eta").textContent, q(".head .msg").hidden, q(".head").classList.contains("single")],
+    [false, "in 10 min.", true, false],
+    "a running entry shows its time"
+  );
+  same(q(".head .eta").getAttribute("aria-live"), "off", "the running time is not read out at every change");
+  same(cssRules(el).find((r) => r.selectorText === ".eta").style.getPropertyValue("font-variant-numeric"), "tabular-nums", "digits keep their width");
+
+  el._items = [{ key: "t:pasta", kind: "generic", title: "Pasta", message: "", ts: NOW + 300000, live: true, clock: true }];
+  el._render(NOW);
+  const row = q(".row");
+  const shown = () => [q(".head .eta").textContent, q(".row .when").textContent];
+  same(shown(), ["5:00", "5:00"], "a countdown in the head");
+  mock.timers.tick(999);
+  same(shown(), ["5:00", "5:00"], "not before the second");
+  mock.timers.tick(1);
+  same(shown(), ["4:59", "4:59"], "on the second");
+  mock.timers.tick(1000);
+  same([...shown(), q(".row") === row], ["4:58", "4:58", true], "in place");
+});
+
+test("an entry for a day reads today, tomorrow or its date", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const card = (language) => {
+    const hass = makeHass({});
+    hass.config = { time_zone: "Europe/Berlin" };
+    hass.locale = { language, time_zone: "server" };
+    return mount(w, { type: "x", hide_when_empty: false, updates: false }, hass);
+  };
+  const day = (n) => ({ key: "d", day: true, ts: NOW + n * 86400000 });
+  const en = card("en");
+  same([0, 1, 3].map((n) => en._timeText(day(n), NOW)), ["today", "tomorrow", "on 10/05"]);
+  same([0, 1, 3].map((n) => card("de")._timeText(day(n), NOW)), ["heute", "morgen", "am 05.10."]);
+  same(en._timeText({ clock: true, ts: NOW + 192000 }, NOW), "3:12", "a countdown counts the time left");
+  /* Midnight in Berlin is still the day before in UTC. */
+  en._items = [{ key: "d:bins", kind: "generic", title: "Bins", message: "", day: true, ts: Date.parse("2026-10-03T22:00:00Z") }];
+  en._render(NOW);
+  const when = en.shadowRoot.querySelector(".row .when");
+  same([when.textContent, when.dateTime, when.title], ["on 10/04", "2026-10-04", "Oct 4, 2026"], "a date on the server without a time of day");
+  let runs = 0;
+  en._recompute = () => runs++;
+  en._items = [day(1)];
+  en._scheduleDay();
+  mock.timers.tick(10 * 3600000);
+  same(runs, 0, "not before midnight in Berlin");
+  mock.timers.tick(1000);
+  same(runs, 1, "built again after midnight");
+});
+
+test("a new time keeps the row and writes the time in place", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const subs = [];
+  const el = mount(w, { type: "x", updates: false }, makeHass({}, { subs }));
+  subs[0].cb({ type: "current", notifications: { n: noteAt("n", -10, { message: "Done" }) } });
+  const row = el.shadowRoot.querySelector(".row");
+  subs[0].cb({ type: "updated", notifications: { n: noteAt("n", -2, { message: "Done" }) } });
+  const when = el.shadowRoot.querySelector(".row .when");
+  same([el.shadowRoot.querySelector(".row") === row, when.textContent, when.dateTime], [true, "2 min. ago", new Date(NOW - 120000).toISOString()]);
+});
+
+test("an entry without a usable time shows without one", () => {
+  const w = makeWindow();
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false }, makeHass({}));
+  /* Set by hand, since every source falls back to a time it can read. */
+  el._items = [
+    { key: "g:a", kind: "generic", title: "A", message: "", ts: NaN, live: true },
+    { key: "g:b", kind: "generic", title: "B", message: "", ts: NaN, day: true },
+  ];
+  el._render();
+  same([head(el).title, el.shadowRoot.querySelector(".head .eta").textContent], ["A", ""]);
+  same([rows(el).map((r) => r.title), whens(el)], [["A", "B"], ["", ""]]);
+});
+
+test("without an IntersectionObserver the card counts as in view", () => {
+  const w = makeWindow({ bare: true });
+  const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": st("binary_sensor.door", "on") }));
+  el.shadowRoot.querySelector(".head").click();
+  same([Boolean(el._io), Boolean(el._clock)], [false, true]);
 });

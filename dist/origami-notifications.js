@@ -43,6 +43,7 @@ const STRINGS = {
     installing: "Installing…",
     installing_pct: "Installing {p}%",
     just_now: "just now",
+    soon: "in a moment",
     count_one: "1 notification",
     count_other: "{n} notifications",
     event: "Event",
@@ -65,6 +66,7 @@ const STRINGS = {
     installing: "Wird installiert…",
     installing_pct: "Wird installiert ({p} %)",
     just_now: "gerade eben",
+    soon: "gleich",
     count_one: "1 Benachrichtigung",
     count_other: "{n} Benachrichtigungen",
     event: "Termin",
@@ -93,7 +95,7 @@ const HA_STRINGS = {
 };
 
 const borrowedStrings = (localize) => {
-  const t = { ...STRINGS.en, just_now: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}" };
+  const t = { ...STRINGS.en, just_now: null, soon: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}" };
   if (typeof localize === "function") {
     for (const [key, [id, vars]] of Object.entries(HA_STRINGS)) {
       const text = localize(id, vars);
@@ -247,14 +249,25 @@ const labelled = (hass, label) => {
   return Object.keys(reg).filter((id) => ((reg[id] && reg[id].labels) || []).includes(label));
 };
 
+/* Building a date format takes far longer than using one, and a countdown asks every second. */
+const FORMATS = new Map();
+
+const dateFormat = (lang, opts) => {
+  const key = lang + JSON.stringify(opts);
+  if (!FORMATS.has(key)) FORMATS.set(key, new Intl.DateTimeFormat(lang, opts));
+  return FORMATS.get(key);
+};
+
+const serverZone = (hass) => (hass && hass.config && hass.config.time_zone) || undefined;
+
 /* The date and time of ts in timeZone, or in the browser's zone. */
 const zonedParts = (ts, timeZone) => {
   const opts = { hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" };
   let parts;
   try {
-    parts = new Intl.DateTimeFormat("en-US", { ...opts, timeZone }).formatToParts(ts);
+    parts = dateFormat("en-US", { ...opts, timeZone }).formatToParts(ts);
   } catch (e) {
-    parts = new Intl.DateTimeFormat("en-US", opts).formatToParts(ts);
+    parts = dateFormat("en-US", opts).formatToParts(ts);
   }
   const p = {};
   for (const { type, value } of parts) p[type] = Number(value);
@@ -372,6 +385,7 @@ const renderDwd = (id, st, items, ctx) => {
     if (!title) continue;
     const level = Number(w("level")) || 0;
     const text = w("description") || "";
+    const start = parseTs(w("start"), NaN);
     let key = "w:" + id + ":" + (w("name") || title) + ":" + (w("start") || "");
     while (keys.has(key)) key += "+";
     keys.add(key);
@@ -383,7 +397,8 @@ const renderDwd = (id, st, items, ctx) => {
       entity: id,
       title,
       message: text || fill(ctx.t.level, { l: level }),
-      ts: parseTs(w("start"), parseTs(st.last_changed, Date.now())),
+      ts: isNaN(start) ? parseTs(st.last_changed, ctx.now) : start,
+      past: isNaN(start),
       ack: [title, level, text].join("\u0000"),
     });
   }
@@ -406,11 +421,11 @@ const findThing = (attrs) => {
  * state as the title, for sensors like the dish of the day. */
 const renderThing = (id, st, items, ctx) => {
   const a = st.attributes;
-  const ts = parseTs(st.last_changed, Date.now());
+  const ts = parseTs(st.last_changed, ctx.now);
   /* `type: picture` reads only the attribute it is given, or a recipe as in 0.2. */
   const path = ctx.attribute || (ctx.kind === "picture" ? isThing(a.recipe) && "recipe" : findThing(a));
   const value = path ? attrPath(a, path) : undefined;
-  const item = { key: "r:" + id, kind: ctx.kind, entity: id, ts };
+  const item = { key: "r:" + id, kind: ctx.kind, entity: id, ts, past: true };
   if (isThing(value)) {
     const title = textOf(value, ["name", "title"]);
     const text = textOf(value, THING_TEXT);
@@ -436,7 +451,8 @@ const renderCalendar = (id, st, items, ctx) => {
     entity: id,
     title: st.attributes.message,
     message: ctx.calWhen(st.attributes.start_time, st.attributes.all_day),
-    ts: parseTs(st.last_changed, Date.now()),
+    ts: parseTs(st.last_changed, ctx.now),
+    past: true,
     ack: st.attributes.message + "\u0000" + st.attributes.start_time,
   });
 };
@@ -458,7 +474,8 @@ const renderUpdate = (id, st, items, ctx) => {
     entity: id,
     title: name || t.update,
     message: version ? fill(t.update_msg, { v: version }) : t.update_msg_plain,
-    ts: parseTs(st.last_changed, Date.now()),
+    ts: parseTs(st.last_changed, ctx.now),
+    past: true,
     dismiss: a.auto_update || !ctx.admin ? undefined : () => ctx.hass.callService("update", "skip", { entity_id: id }),
     actions: busy
       ? [{ label: pct === null ? t.installing : fill(t.installing_pct, { p: Math.round(pct) }), disabled: true }]
@@ -483,7 +500,8 @@ const renderAlarm = (id, st, items, ctx) => {
     entity: id,
     title: ctx.name(st),
     message: ctx.format(st),
-    ts: parseTs(st.last_changed, Date.now()),
+    ts: parseTs(st.last_changed, ctx.now),
+    past: true,
   });
 };
 
@@ -497,7 +515,8 @@ const renderAlert = (id, st, items, ctx) => {
     entity: id,
     title: ctx.name(st),
     message: "",
-    ts: parseTs(st.last_changed, Date.now()),
+    ts: parseTs(st.last_changed, ctx.now),
+    past: true,
     ack: "",
   });
 };
@@ -511,7 +530,8 @@ const renderGeneric = (id, st, items, ctx) => {
     entity: id,
     title: ctx.name(st),
     message: ctx.format(st),
-    ts: parseTs(st.last_changed, Date.now()),
+    ts: parseTs(st.last_changed, ctx.now),
+    past: true,
     ack: String(st.state),
   });
 };
@@ -565,7 +585,8 @@ const renderRepair = (issue, items, ctx) => {
     sev: REPAIR_SEV[issue.severity] || "warn",
     title,
     message: issue.breaks_in_ha_version ? fill(ctx.t.breaks_in, { v: issue.breaks_in_ha_version }) : "",
-    ts: parseTs(issue.created, Date.now()),
+    ts: parseTs(issue.created, ctx.now),
+    past: true,
     dismiss: () =>
       h.callWS({
         type: "repairs/ignore_issue",
@@ -639,7 +660,85 @@ const renderEntity = (id, st, items, ctx, src) => {
   }
 };
 
-/* A row is built again only when something it shows has changed. */
+/* A time that says when something happened lies behind, even when Home Assistant's clock runs ahead
+ * of the browser's. */
+const isAhead = (it, now) => !it.past && it.ts > now;
+
+/* Critical first, then what lies closest to now, ahead or behind. What happened keeps the newest
+ * first, even from a clock that runs ahead. Then the latest arrival, and the key keeps the order
+ * stable. */
+const sortItems = (items, now) => {
+  const near = (it) => (!Number.isFinite(it.ts) ? Infinity : it.past ? now - it.ts : Math.abs(it.ts - now));
+  return items.sort((a, b) => {
+    const ra = a.sev === "crit" ? 0 : 1;
+    const rb = b.sev === "crit" ? 0 : 1;
+    if (ra !== rb) return ra - rb;
+    const da = near(a);
+    const db = near(b);
+    if (da !== db) return da < db ? -1 : 1;
+    if ((a.seq || 0) !== (b.seq || 0)) return (b.seq || 0) - (a.seq || 0);
+    return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+  });
+};
+
+/* Only moments ahead count. One that has passed would wake the card again and again. */
+const waker = (times, now) => (ts) => {
+  if (ts > now) times.push(ts);
+};
+
+/* An entry goes at its expiry without a change in Home Assistant. The card wakes for that, and for
+ * the end of a countdown. */
+const dropExpired = (items, now, wake) =>
+  items.filter((it) => {
+    if (it.expires != null && it.expires <= now) return false;
+    if (it.expires != null) wake(it.expires);
+    if (it.live) wake(it.ts);
+    return true;
+  });
+
+/* The order changes on its own once an entry ahead comes as close to now as the one before it.
+ * Neighbours always swap first, so the earliest of their swaps is the next change. */
+const nextReorder = (items, now) => {
+  let next = null;
+  for (let i = 1; i < items.length; i++) {
+    const a = items[i - 1];
+    const b = items[i];
+    if ((a.sev === "crit") !== (b.sev === "crit") || !isAhead(b, now) || !(b.ts > a.ts)) continue;
+    const at = Math.max((a.ts + b.ts) / 2, now + 1);
+    if (next === null || at < next) next = at;
+  }
+  return next;
+};
+
+const DAY_MS = 86400000;
+
+/* One wait for the earliest of times, at most a day. The extra 50 ms make sure the moment has passed. */
+const wakeDelay = (times, now) => {
+  if (!times.length) return null;
+  const next = times.reduce((a, b) => Math.min(a, b), Infinity);
+  return Math.min(Math.max(next - now, 0), DAY_MS) + 50;
+};
+
+/* A countdown rounds up, so it reads 0:00 only once it has ended. */
+const clockText = (ms) => {
+  const total = ms > 0 ? Math.ceil(ms / 1000) : 0;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h ? h + ":" + String(m).padStart(2, "0") + ":" + s : m + ":" + s;
+};
+
+/* Milliseconds until the times on show change, or 0. A countdown in view changes by the second, in
+ * step with its end. Other times change by the minute, while the list is open or an entry lies
+ * ahead. */
+const nextTick = (items, head, open, now) => {
+  const clock = (open ? items : head ? [head] : []).find((it) => it.clock && it.ts > now);
+  if (clock) return (clock.ts - now) % 1000 || 1000;
+  if (open || items.some((it) => isAhead(it, now))) return 60000 - (now % 60000);
+  return 0;
+};
+
+/* A row is built again only when something it shows has changed. Times change in place. */
 const rowSig = (it) =>
   [
     it.kind,
@@ -647,7 +746,6 @@ const rowSig = (it) =>
     it.sev || "",
     it.title,
     it.message,
-    it.ts,
     Boolean(it.dismiss),
     Boolean(it.open || it.entity) && !it.inert,
     (it.actions || []).map((a) => a.label + (a.disabled ? "!" : "")).join("|"),
@@ -1026,7 +1124,7 @@ const STYLES = `
     opacity: var(--opacity-disabled, 0.3);
     pointer-events: none;
   }
-  .msg {
+  .msg, .eta {
     grid-area: hsub;
     align-self: start;
     margin-top: 2px;
@@ -1038,6 +1136,8 @@ const STYLES = `
     white-space: nowrap;
   }
   .msg.fade { mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%); }
+  .eta { min-width: 0; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
+  .msg[hidden], .eta[hidden] { display: none; }
   .track { display: inline-flex; max-width: 100%; }
   .track .t { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .track .dup { display: none; }
@@ -1126,6 +1226,7 @@ const TEMPLATE = `
         <div class="tile"><ha-icon></ha-icon><div class="badge"></div></div>
         <div class="title"></div>
         <div class="msg"><div class="track"><span class="t"></span><span class="t dup" aria-hidden="true"></span></div></div>
+        <div class="eta" aria-live="off" hidden></div>
         <ha-icon class="chev" icon="mdi:chevron-down"></ha-icon>
       </div>
     </div>
@@ -1256,6 +1357,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._unsub = null;
     this._unsubRepairs = null;
     this._clock = null;
+    this._boundaryTimer = null;
+    this._wakes = [];
+    this._visible = true;
+    this._onVisibility = () => {
+      if (!document.hidden) this._refreshTimes();
+      this._tick();
+    };
     this._lastMsg = null;
     this._bgUrl = null;
     this._hostAnim = null;
@@ -1329,21 +1437,30 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (l.time_format === "12") o.hour12 = true;
     else if (l.time_format === "24") o.hour12 = false;
     else if (l.time_format === "system") {
-      const sys = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12;
+      const sys = dateFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12;
       if (sys !== undefined) o.hour12 = sys;
     }
     if (l.time_zone === "server" && h.config && h.config.time_zone) o.timeZone = h.config.time_zone;
     return o;
   }
 
-  _relTime(ts) {
-    const s = Math.round((ts - Date.now()) / 1000);
+  _relTime(ts, now = Date.now()) {
+    const s = Math.round((ts - now) / 1000);
     const m = Math.round(s / 60);
     const h = Math.round(s / 3600);
-    if (Math.abs(s) < 60) return this._t.just_now || this._rel.format(0, "second");
+    if (Math.abs(s) < 60) return (s > 0 ? this._t.soon : this._t.just_now) || this._rel.format(0, "second");
     if (Math.abs(m) < 60) return this._rel.format(m, "minute");
     if (Math.abs(h) < 24) return this._rel.format(h, "hour");
     return this._rel.format(Math.round(s / 86400), "day");
+  }
+
+  /* The one text for the time of an entry. A countdown counts the seconds. A day has no time of day. */
+  _timeText(it, now = Date.now()) {
+    if (!Number.isFinite(it.ts)) return "";
+    if (it.clock) return clockText(it.ts - now);
+    if (!it.day) return this._relTime(it.past ? Math.min(it.ts, now) : it.ts, now);
+    const { near, date } = this._dayOf(it.ts, serverZone(this._hass), now);
+    return near ? date : fill(this._t.on_date, { d: date });
   }
 
   _absTime(ts) {
@@ -1357,31 +1474,45 @@ class OrigamiNotificationsCard extends HTMLElement {
     return this._abs.format(ts);
   }
 
-  _calWhen(start, allDay) {
-    const t = this._t;
-    const h = this._hass;
-    const server = (h && h.config && h.config.time_zone) || undefined;
-    const ts = start ? fromServerTime(start, server) : NaN;
-    if (isNaN(ts)) return t.event;
-    /* An all-day event is a date on the server. Times show in the zone of the profile. */
-    const zone = allDay ? server : this._clockOpts().timeZone;
+  _absDate(ts, zone) {
+    try {
+      return dateFormat(this._lang, { dateStyle: "medium", timeZone: zone }).format(ts);
+    } catch (e) {
+      return dateFormat(undefined, { dateStyle: "medium" }).format(ts);
+    }
+  }
+
+  /* Yesterday, today or tomorrow, else the date of ts in zone. Today is the day in the zone of the profile. */
+  _dayOf(ts, zone, now) {
     const dayOf = (when, timeZone) => {
       const p = zonedParts(when, timeZone);
       return Date.UTC(p.year, p.month - 1, p.day) / 86400000;
     };
-    const diff = dayOf(ts, zone) - dayOf(Date.now(), this._clockOpts().timeZone);
-    const near = Math.abs(diff) <= 1;
+    const diff = dayOf(ts, zone) - dayOf(now, this._clockOpts().timeZone);
+    if (Math.abs(diff) <= 1) return { near: true, date: this._rel.format(diff, "day") };
+    try {
+      return { near: false, date: dateFormat(this._lang, { day: "2-digit", month: "2-digit", timeZone: zone }).format(ts) };
+    } catch (e) {
+      return { near: false, date: dateFormat(undefined, { day: "2-digit", month: "2-digit" }).format(ts) };
+    }
+  }
+
+  _calWhen(start, allDay, now = Date.now()) {
+    const t = this._t;
+    const server = serverZone(this._hass);
+    const ts = start ? fromServerTime(start, server) : NaN;
+    if (isNaN(ts)) return t.event;
+    /* An all-day event is a date on the server. Times show in the zone of the profile. */
+    const zone = allDay ? server : this._clockOpts().timeZone;
+    const { near, date } = this._dayOf(ts, zone, now);
+    if (allDay) return near ? date : fill(t.on_date, { d: date });
     const d = new Date(ts);
-    let date;
     let time;
     try {
-      date = near ? this._rel.format(diff, "day") : d.toLocaleDateString(this._lang, { day: "2-digit", month: "2-digit", timeZone: zone });
       time = d.toLocaleTimeString(this._lang, { hour: "numeric", minute: "2-digit", ...this._clockOpts() });
     } catch (e) {
-      date = near ? this._rel.format(diff, "day") : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" });
       time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     }
-    if (allDay) return near ? date : fill(t.on_date, { d: date });
     return fill(near ? t.day_at : t.date_at, { d: date, t: time });
   }
 
@@ -1457,6 +1588,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       clearTimeout(this._detachReset);
       this._detachReset = null;
     }
+    this._visible = true;
     const root = this.getRootNode();
     this.classList.toggle("docked", Boolean(root && root.host && root.host.localName === "hui-view-footer"));
     /* The card picker sets no preview flag. An empty card stays visible there. */
@@ -1468,14 +1600,15 @@ class OrigamiNotificationsCard extends HTMLElement {
     CARDS.add(this);
     if (this._hass) this._subscribe();
     if (this._hostAnim) this._hostAnim.finish();
-    if (this._expanded) {
-      this._refreshTimes();
-      this._startClock();
-    }
+    document.addEventListener("visibilitychange", this._onVisibility);
     this._scheduleDay();
+    this._scheduleBoundary();
     if (this._dom) {
       this._ro.observe(this._dom.msg);
+      if (this._io) this._io.observe(this);
       this._suppressAnim();
+      this._refreshTimes();
+      this._tick();
     }
   }
 
@@ -1489,7 +1622,11 @@ class OrigamiNotificationsCard extends HTMLElement {
     CARDS.delete(this);
     clearTimeout(this._repairsTimer);
     clearTimeout(this._dayTimer);
+    clearTimeout(this._boundaryTimer);
+    this._boundaryTimer = null;
     if (this._ro) this._ro.disconnect();
+    if (this._io) this._io.disconnect();
+    document.removeEventListener("visibilitychange", this._onVisibility);
     this._stopClock();
     /* Collapse only if the card stays detached. The dashboard editor re-parents it all the time. */
     this._detachReset = setTimeout(() => this._collapse(), 150);
@@ -1608,7 +1745,9 @@ class OrigamiNotificationsCard extends HTMLElement {
   _recompute() {
     const h = this._hass;
     const c = this._config || {};
-    const items = [];
+    const now = Date.now();
+    const wakes = [];
+    let items = [];
     const allowed = (source) => this._editMode || visibleTo(this._audience[source], this._viewer);
     const name = (st, override) => {
       if (typeof override === "string" && override) return override;
@@ -1628,7 +1767,10 @@ class OrigamiNotificationsCard extends HTMLElement {
       t: this._t,
       admin: this._isAdmin(),
       issueLocalize: this._issueLocalize,
-      calWhen: (s, allDay) => this._calWhen(s, allDay),
+      now,
+      /* A renderer names a moment when its entries change on their own, like a reminder that opens. */
+      wake: waker(wakes, now),
+      calWhen: (s, allDay) => this._calWhen(s, allDay, now),
       name,
       format: (st) => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state)),
       formatAttribute: (st, path, value) => {
@@ -1662,7 +1804,8 @@ class OrigamiNotificationsCard extends HTMLElement {
           kind: "system",
           title: plainText(n.title) || this._t.notification,
           message: plainText(message),
-          ts: parseTs(n.created_at, Date.now()),
+          ts: parseTs(n.created_at, now),
+          past: true,
           seq: n.__seq || 0,
           open: link ? linkAction(this, link) : null,
           dismiss: () =>
@@ -1693,7 +1836,6 @@ class OrigamiNotificationsCard extends HTMLElement {
 
     /* Dismissed, but Home Assistant has not removed them yet. */
     if (this._pending.size) {
-      const now = Date.now();
       const present = new Set(items.map((it) => it.key));
       for (const [key, until] of this._pending) {
         if (!present.has(key) || until <= now) this._pending.delete(key);
@@ -1705,6 +1847,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       const next = Math.min(...this._pending.values());
       if (next !== Infinity) this._pendingTimer = setTimeout(() => this._recompute(), next - now + 50);
     }
+    items = dropExpired(items, now, ctx.wake);
 
     /* Without a dismiss in Home Assistant, items are hidden in this browser until they change.
      * An ack stays while its item is gone, so a reload can't bring it back. The signature
@@ -1746,26 +1889,32 @@ class OrigamiNotificationsCard extends HTMLElement {
       }
     }
     if (acksDirty) saveAcks(present);
-    /* Critical first, then newest. */
-    items.sort((a, b) => {
-      const ra = a.sev === "crit" ? 0 : 1;
-      const rb = b.sev === "crit" ? 0 : 1;
-      if (ra !== rb) return ra - rb;
-      if (b.ts !== a.ts) return b.ts - a.ts;
-      return (b.seq || 0) - (a.seq || 0);
-    });
-    this._items = items;
-    this._render();
+    this._items = sortItems(items, now);
+    const reorder = nextReorder(this._items, now);
+    if (reorder !== null) ctx.wake(reorder);
+    this._render(now);
     this._scheduleDay();
+    this._scheduleBoundary(wakes, now);
   }
 
-  /* Calendar rows say today or yesterday, so they are built again after midnight. */
+  /* Calendar rows and entries for a day say today or tomorrow, so they are built again after midnight. */
   _scheduleDay() {
     clearTimeout(this._dayTimer);
-    if (!this.isConnected || !this._items.some((it) => it.kind === "calendar")) return;
+    if (!this.isConnected || !this._items.some((it) => it.kind === "calendar" || it.day)) return;
     const p = zonedParts(Date.now(), this._clockOpts().timeZone);
     const ms = ((23 - p.hour) * 3600 + (59 - p.minute) * 60 + (60 - p.second)) * 1000;
     this._dayTimer = setTimeout(() => this._recompute(), ms + 1000);
+  }
+
+  /* One timer for the earliest moment the list changes on its own. A card that was away catches up
+   * when it comes back. */
+  _scheduleBoundary(wakes = this._wakes, now = Date.now()) {
+    clearTimeout(this._boundaryTimer);
+    this._boundaryTimer = null;
+    this._wakes = wakes;
+    if (!this.isConnected) return;
+    const ms = wakeDelay(wakes, now);
+    if (ms !== null) this._boundaryTimer = setTimeout(() => this._recompute(), ms);
   }
 
   _build() {
@@ -1780,6 +1929,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       icon: q(".head .tile ha-icon"),
       title: q(".head .title"),
       msg: q(".msg"),
+      eta: q(".head .eta"),
       track: q(".track"),
       t1: q(".track .t:not(.dup)"),
       t2: q(".track .dup"),
@@ -1820,7 +1970,21 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (t !== null) this._setMessage(t);
     });
     this._ro.observe(this._dom.msg);
+    if (window.IntersectionObserver) {
+      this._io = new IntersectionObserver((entries) => this._onView(entries), { threshold: 0.01 });
+      if (this.isConnected) this._io.observe(this);
+    }
     this._suppressAnim();
+  }
+
+  /* Off screen nothing ticks. Back in view, the times are brought up to date at once. */
+  _onView(entries) {
+    const entry = entries[entries.length - 1];
+    const visible = Boolean(entry && entry.isIntersecting);
+    if (visible === this._visible) return;
+    this._visible = visible;
+    if (visible) this._refreshTimes();
+    this._tick();
   }
 
   /* No transitions on the first paint after attaching, and none in the dashboard editor. */
@@ -1844,36 +2008,62 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._expanded = !this._expanded;
     d.head.setAttribute("aria-expanded", String(this._expanded));
     if (this._expanded) {
-      this._refreshTimes();
-      this._startClock();
       const cap = getComputedStyle(d.card).getPropertyValue("--origami-max-height").trim();
       this.classList.toggle("capped", cap !== "");
-    } else {
-      this._stopClock();
     }
     this._render();
     if (refocus) (this._expanded ? d.ebar : d.head).focus({ preventScroll: true });
   }
 
-  _startClock() {
-    if (this._clock) return;
-    this._clock = setInterval(() => this._refreshTimes(), 60000);
+  /* One clock per card, and only while a time on show can change. */
+  _tick() {
+    this._stopClock();
+    if (!this._dom || !this.isConnected || !this._visible || document.hidden) return;
+    const ms = nextTick(this._items, this._items[0], this._expanded, Date.now());
+    if (!ms) return;
+    this._clock = setTimeout(() => {
+      this._clock = null;
+      this._refreshTimes();
+      this._tick();
+    }, ms);
   }
 
   _stopClock() {
-    if (this._clock) {
-      clearInterval(this._clock);
-      this._clock = null;
+    clearTimeout(this._clock);
+    this._clock = null;
+  }
+
+  _refreshTimes(now = Date.now()) {
+    if (!this._dom) return;
+    const top = this._items[0];
+    if (top && top.live) setText(this._dom.eta, this._timeText(top, now));
+    for (const it of this._items) {
+      const entry = this._rowCache.get(it.key);
+      if (entry) this._setTime(entry.el, it, now);
     }
   }
 
-  _refreshTimes() {
-    if (!this._dom) return;
-    for (const it of this._items) {
-      const entry = this._rowCache.get(it.key);
-      const when = entry && entry.el.querySelector(".when");
-      if (when) when.textContent = this._relTime(it.ts);
+  /* Rows keep their element while the time changes. The full date is written only for a new time.
+   * An entry for a day has a date on the server and no time of day. */
+  _setTime(row, it, now) {
+    const when = row.querySelector(".when");
+    const stamp = (it.day ? "day " : "") + it.ts;
+    if (when._stamp !== stamp) {
+      when._stamp = stamp;
+      if (!Number.isFinite(it.ts)) {
+        when.removeAttribute("datetime");
+        when.removeAttribute("title");
+      } else if (it.day) {
+        const zone = serverZone(this._hass);
+        const p = zonedParts(it.ts, zone);
+        when.dateTime = [p.year, p.month, p.day].map((n) => String(n).padStart(2, "0")).join("-");
+        when.title = this._absDate(it.ts, zone);
+      } else {
+        when.dateTime = new Date(it.ts).toISOString();
+        when.title = this._absTime(it.ts);
+      }
     }
+    setText(when, this._timeText(it, now));
   }
 
   /* Rows go at once. PENDING_MS covers Home Assistant refusing. */
@@ -2063,7 +2253,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     else next.src = url;
   }
 
-  _render() {
+  _render(now = Date.now()) {
     if (!this._dom || !this._config) return;
     const d = this._dom;
     const items = this._items;
@@ -2073,13 +2263,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (empty && this._config.hide_when_empty && !this._editMode && !this._inPicker) {
       this._setShown(false);
       this._painted = true;
+      this._stopClock();
       return;
     }
     this._setShown(true);
 
     if (empty) {
       this._expanded = false;
-      this._stopClock();
       d.head.setAttribute("aria-expanded", "false");
     }
     const wasOpen = this._shownOpen;
@@ -2112,7 +2302,12 @@ class OrigamiNotificationsCard extends HTMLElement {
       setText(d.badge, badgeText(items.length));
       d.chev.hidden = false;
     }
-    d.head.classList.toggle("single", !empty && !items[0].message);
+    /* A running time takes the place of the message, without the marquee. */
+    const live = !empty && Boolean(items[0].live);
+    d.msg.hidden = live;
+    d.eta.hidden = !live;
+    setText(d.eta, live ? this._timeText(items[0], now) : "");
+    d.head.classList.toggle("single", !empty && !items[0].message && !live);
 
     setImage(d.tile, empty ? null : items[0].image);
     this._setBackdrop(!empty && items[0].backdrop ? items[0].image : null);
@@ -2128,20 +2323,21 @@ class OrigamiNotificationsCard extends HTMLElement {
     } else {
       clearTimeout(this._listTimer);
       this._listTimer = null;
-      this._renderDrawer(wasOpen && this._expanded);
+      this._renderDrawer(wasOpen && this._expanded, now);
     }
     this._painted = true;
     if (this._enterFrom) this._playEnter();
+    this._tick();
   }
 
-  _renderDrawer(animate) {
+  _renderDrawer(animate, now = Date.now()) {
     const d = this._dom;
     const items = this._items;
     animate = animate && this._animOK();
     if (items.length) {
       setText(d.count, fill(items.length === 1 ? this._t.count_one : this._t.count_other, { n: items.length }));
     }
-    this._renderList(items, animate);
+    this._renderList(items, animate, now);
     this._setFoot(items.length > 1 && items.some((it) => it.dismiss), animate);
   }
 
@@ -2186,7 +2382,7 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   /* Rows are keyed and reused while their content stays the same. With animate, rows
    * leave and arrive as in playLeave and playEnter, and moved rows slide. */
-  _renderList(items, animate) {
+  _renderList(items, animate, now) {
     const list = this._dom.list;
     const cache = this._rowCache;
     const active = this.shadowRoot.activeElement;
@@ -2205,11 +2401,10 @@ class OrigamiNotificationsCard extends HTMLElement {
       let el;
       if (hit && hit.sig === sig) {
         el = hit.el;
-        const when = el.querySelector(".when");
-        if (when) when.textContent = this._relTime(it.ts);
+        this._setTime(el, it, now);
         setImage(el.querySelector(".rtile"), it.image);
       } else {
-        el = this._row(it);
+        el = this._row(it, now);
         if (hit) {
           replaced.set(hit.el, el);
           if (hit.el.classList.contains("open")) el.classList.add("open");
@@ -2285,7 +2480,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
   }
 
-  _row(it) {
+  _row(it, now) {
     const row = document.createElement("div");
     row.className = "row" + sevClass(it.sev);
     row.dataset.kind = it.kind;
@@ -2303,9 +2498,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     meta.className = "meta";
     const when = document.createElement("time");
     when.className = "when";
-    when.dateTime = new Date(it.ts).toISOString();
-    when.title = this._absTime(it.ts);
-    when.textContent = this._relTime(it.ts);
     meta.append(when);
     if (it.dismiss) {
       const x = document.createElement("button");
@@ -2329,6 +2521,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     body.className = "body";
     body.textContent = it.message;
     row.append(tile, title, meta, body);
+    this._setTime(row, it, now);
     if (it.actions && it.actions.length) {
       const actions = document.createElement("div");
       actions.className = "actions";
@@ -2844,4 +3037,9 @@ if (!window.customCards.some((c) => c.type === CARD)) {
     preview: true,
     documentationURL: REPO,
   });
+}
+
+/* Tests reach the pure functions through this object, which only they create. */
+if (window.__origamiTest) {
+  Object.assign(window.__origamiTest, { sortItems, waker, dropExpired, nextReorder, wakeDelay, clockText, nextTick });
 }
