@@ -1,139 +1,222 @@
 #!/usr/bin/env python3
-"""Every text in the repository, checked for the marks a writing tool leaves behind.
-
-Runs over the tracked text files and over the commit messages this branch adds on top of main. Prints every hit
-and exits non-zero, so `npm run lint` and with it the CI job go red before any of it reaches a reader.
-"""
+"""Flags the marks of machine-written text in the tracked files and in the commits this
+branch adds on top of main. With --stdin it checks one text, like a pull request body."""
 
 import argparse
 import re
 import subprocess
 import sys
 
-SELF = 'scripts/text-style.py'  # this file holds the patterns themselves, so it is not scanned
-SUBJECT_LIMIT = 72
+SKIP = {'scripts/text-style.py', 'scripts/test_text_style.py'}  # these hold the patterns
+MAX_SUBJECT = 72
+MAX_WORDS = 30
+MAX_COMMENT_LINES = 3
+MAX_README_WORDS = 600
 
-# The long dash is the one character nobody here types by hand. The en dash, the arrow, the ellipsis and the
-# box drawing in the source stay; this is only about that dash and about pictures in text.
-BANNED_CHARS = {
-    '—': 'em dash, write the sentence with a comma, a colon or a full stop instead',
-}
-PICTURES = re.compile('[\U0001f000-\U0001faff☀-➿⬀-⯿️]')
+EMOJI = re.compile(r'[\U0001f000-\U0001faff\u2300-\u23ff\u25a0-\u25ff\u2600-\u27bf\u2b00-\u2bff\ufe0f]')
+BANNER = re.compile(r'[\u2500-\u257f]{3,}|[-=*#/]{8,}')
 
-# Words that sell instead of saying. None of them has ever been the right word here, in either language.
-SALES = re.compile(
+BUZZWORDS = re.compile(
     r'(?i)\b('
     r'seamless(ly)?|effortless(ly)?|delightful|cutting[- ]edge|state[- ]of[- ]the[- ]art|best[- ]in[- ]class|'
-    r'game[- ]chang\w*|supercharge\w*|delve[sd]?|a testament to|worth noting|elevate your|unlock the|'
+    r'game[- ]chang\w*|supercharge\w*|delve[sd]?|testament to|elevate[sd]?|unlock(s|ed)?|unleash\w*|empower\w*|'
+    r'leverag\w*|utiliz\w*|robust|powerful|intuitive(ly)?|sleek|elegant(ly)?|beautiful(ly)?|stunning|'
+    r'comprehensive|streamlin\w*|versatile|lightweight|blazing(ly)?|lightning[- ]fast|out of the box|'
+    r'under the hood|hassle[- ]free|with ease|a breeze|first[- ]class|(fully|highly) customi[sz]able|'
+    r'plethora|myriad|crucial|pivotal|tapestry|embark\w*|holistic|synerg\w*|'
     r'nahtlos\w*|mühelos\w*|revolutionär\w*|kinderleicht|im Handumdrehen|leistungsstark\w*|'
-    r'maßgeschneidert\w*|ganzheitlich\w*|zukunftssicher\w*'
+    r'maßgeschneidert\w*|ganzheitlich\w*|zukunftssicher\w*|intuitiv\w*|spielend leicht|Mehrwert'
     r')\b'
 )
 
-# Phrases that fill a line without adding to it. Say the thing or leave it out.
 FILLER = re.compile(
-    r'(?i)('
-    r'\bnote that\b|\bin essence\b|\bneedless to say\b|\bit is (important|worth) (to note|noting)\b|'
-    r'(^|[.;:!?,]\s*)importantly\b|'
-    r'\bes sei angemerkt\b|\bes ist wichtig zu (beachten|erwähnen)\b'
-    r')'
+    r'(?i)\b('
+    r'note that|please note|in essence|needless to say|it is (important|worth) (to note|noting)|worth noting|'
+    r'worth mentioning|keep in mind|in other words|at the end of the day|let\'s|whether you\'re|not just|'
+    r'not only|simply|easily|basically|essentially|feel free|happy automating|allows you to|enables you to|'
+    r'in order to|moreover|furthermore|additionally|importantly|'
+    r'es sei angemerkt|es ist wichtig zu (beachten|erwähnen)|im Grunde|grundsätzlich'
+    r')\b'
 )
 
-# Lines a tool signs its work with. The first match wins, so one trailer is reported once.
 SIGNATURES = [
     (re.compile(r'(?i)^\s*co-authored-by:'), 'a co-author trailer'),
     (re.compile(r'(?i)^\s*claude[- ]session:'), 'a session trailer'),
     (re.compile(r'(?i)claude\.ai/code/(session|artifact)'), 'a session link'),
-    (re.compile(r'(?i)\b(claude|anthropic)\b'), 'the name of a writing tool or of its vendor'),
+    (re.compile(r'(?i)\b(claude|anthropic)\b(?!\.md)'), 'the name of a writing tool or its vendor'),
     (re.compile(r'(?i)\bgenerated (with|by)\s+\[?(an? )?(ai|llm|language model|chatgpt|copilot|gemini|gpt)\b'), 'a "generated with" line'),
-    (re.compile(r'(?i)\b(ai|machine|llm)[- ](generated|written|authored|assisted)\b'), 'a machine credited as the author'),
-    (re.compile(r'(?i)\b(written|authored|created) by (an? )?(ai|llm|language model|assistant|bot)\b'), 'a machine credited as the author'),
+    (re.compile(r'(?i)\b(ai|machine|llm)[- ](generated|written|authored|assisted)\b'), 'a machine named as the author'),
+    (re.compile(r'(?i)\b(written|authored|created) by (an? )?(ai|llm|language model|assistant|bot)\b'), 'a machine named as the author'),
 ]
 
-
-def tracked_files():
-    out = subprocess.run(['git', 'ls-files', '-z'], capture_output=True, text=True, check=True).stdout
-    return [p for p in out.split('\0') if p and p != SELF]
-
-
-def read(path):
-    try:
-        with open(path, encoding='utf-8') as fh:
-            return fh.read()
-    except (OSError, UnicodeDecodeError):
-        return None  # binary or gone: nothing to read here
+# Prose rules run on Markdown outside code, on comments, and on commit, pull request and release texts.
+MID_COLON = re.compile(r'[^\s:]:\s+\S')
+SPACED_DASH = re.compile(r'\S\s[-–]\s\S')
+EXCLAMATION = re.compile(r'\w!(\s|$)')
+BOLD_LABEL = re.compile(r'^\s*([-*+]|\d+\.)\s+(\*\*|__)')
 
 
-def unique(pattern, line):
-    """Every distinct match in the line, in the order they appear, so one run shows all of them."""
-    return list(dict.fromkeys(m.group(0).strip(' .,;:!?') for m in pattern.finditer(line)))
+def words_only(text):
+    """Prose without inline code, link targets, URLs and tags, so their colons and dashes do not count."""
+    text = re.sub(r'`[^`]*`', 'code', text)
+    text = re.sub(r'!?\[([^\]]*)\]\([^)]*\)', r'\1', text)
+    text = re.sub(r'https?://\S+', 'link', text)
+    return re.sub(r'<[^>]+>', ' ', text)
 
 
-def scan(where, text, hits, subject_limit=None):
-    for number, line in enumerate(text.splitlines(), 1):
-        for char, why in BANNED_CHARS.items():
-            if char in line:
-                hits.append(f'{where}:{number}: {why}')
-        if PICTURES.search(line):
-            hits.append(f'{where}:{number}: an emoji')
-        for word in unique(SALES, line):
-            hits.append(f'{where}:{number}: "{word}" sells instead of saying what is the case')
-        for phrase in unique(FILLER, line):
-            hits.append(f'{where}:{number}: "{phrase}" says nothing, drop it')
-        for pattern, why in SIGNATURES:
-            if pattern.search(line):
-                hits.append(f'{where}:{number}: {why}')
-                break
-    if subject_limit is not None:
-        subject = text.splitlines()[0] if text.splitlines() else ''
-        if len(subject) > subject_limit:
-            hits.append(f'{where}: the subject is {len(subject)} characters, at most {subject_limit} are allowed')
-
-
-def new_commits():
-    """The commits this branch adds on top of main, or just the tip where main is not at hand (a shallow CI checkout)."""
-    for base in ('origin/main', 'main'):
-        if subprocess.run(['git', 'rev-parse', '--verify', '--quiet', base], capture_output=True).returncode:
-            continue
-        out = subprocess.run(['git', 'rev-list', f'{base}..HEAD'], capture_output=True, text=True, check=True).stdout
-        return out.split()
-    return subprocess.run(['git', 'rev-list', '-1', 'HEAD'], capture_output=True, text=True, check=True).stdout.split()
-
-
-def from_stdin(what, limit):
-    """One text that is not in the repository, such as the title or the body of a pull request."""
-    text = sys.stdin.read().strip()
+def check_line(line):
     hits = []
-    scan(what, text, hits)
-    if limit and len(text) > limit:
-        hits.append(f'{what}: {len(text)} characters, at most {limit} are allowed')
+    if '—' in line:
+        hits.append('an em dash, use a comma or a full stop')
+    if EMOJI.search(line):
+        hits.append('an emoji')
+    if BANNER.search(line):
+        hits.append('a banner line, the code is structured enough without it')
+    for m in dict.fromkeys(m.group(0) for m in BUZZWORDS.finditer(line)):
+        hits.append(f'"{m}" is a sales word, say what is the case')
+    for m in dict.fromkeys(m.group(0) for m in FILLER.finditer(line)):
+        hits.append(f'"{m}" adds nothing, drop it')
+    for pattern, why in SIGNATURES:
+        if pattern.search(line):
+            hits.append(why)
+            break
     return hits
 
 
-def from_repository():
-    hits = []
-    for path in tracked_files():
-        text = read(path)
-        if text is not None:
-            scan(path, text, hits)
+def paragraphs(text, markdown):
+    """(line number, paragraph) for the prose in a text. Markdown code, tables and headings stay out."""
+    out, buf, start, fence = [], [], 0, None
+    for number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if markdown and re.match(r'(`{3,}|~{3,})', stripped):
+            marker = stripped[:3]
+            fence = None if fence == marker else fence or marker
+            stripped = ''
+        elif fence or (markdown and (stripped.startswith(('|', '#', '>')) or re.match(r'^</?\w+[^>]*>$', stripped))):
+            stripped = ''
+        new_item = markdown and re.match(r'([-*+]|\d+\.)\s', stripped)
+        if not stripped or new_item:
+            if buf:
+                out.append((start, ' '.join(buf)))
+            buf = []
+        if stripped:
+            if not buf:
+                start = number
+            buf.append(re.sub(r'^([-*+]|\d+\.)\s+', '', stripped) if markdown else stripped)
+    if buf:
+        out.append((start, ' '.join(buf)))
+    return out
 
+
+def check_prose(text, markdown):
+    hits = []
+    if markdown:
+        hits += [(n, 'a list item that starts with a bold label') for n, line in enumerate(text.splitlines(), 1) if BOLD_LABEL.match(line)]
+    for number, paragraph in paragraphs(text, markdown):
+        prose = words_only(paragraph)
+        if MID_COLON.search(prose):
+            hits.append((number, 'a colon in the middle of a sentence, make it two sentences'))
+        if SPACED_DASH.search(prose):
+            hits.append((number, 'a dash between words, use a comma or a full stop'))
+        if EXCLAMATION.search(prose):
+            hits.append((number, 'an exclamation mark'))
+        for sentence in re.split(r'(?<=[.!?])\s+', prose):
+            count = len(sentence.split())
+            if count > MAX_WORDS:
+                hits.append((number, f'a sentence of {count} words, at most {MAX_WORDS}'))
+    return hits
+
+
+def comments(path, text):
+    """(line number, text) of every comment in a code or workflow file."""
+    found = []
+    if path.endswith('.js'):
+        for m in re.finditer(r'/\*(.*?)\*/', text, re.S):
+            body = re.sub(r'(?m)^\s*\*\s?', '', m.group(1))
+            found.append((text.count('\n', 0, m.start()) + 1, body))
+    marker = '//' if path.endswith('.js') else '#' if path.endswith(('.yml', '.yaml', '.py')) else None
+    if marker:
+        run = []
+        for number, line in enumerate(text.splitlines() + [''], 1):
+            stripped = line.strip()
+            if stripped.startswith(marker) and not stripped.startswith('#!'):
+                run.append((number, stripped[len(marker):].strip()))
+                continue
+            if run:
+                found.append((run[0][0], '\n'.join(t for _, t in run)))
+            run = []
+    return found
+
+
+def check_comments(path, text):
+    """Comments in code and workflows are short and follow the prose rules."""
+    hits = []
+    for number, body in comments(path, text):
+        lines = body.strip().count('\n') + 1
+        if lines > MAX_COMMENT_LINES:
+            hits.append((number, f'a comment of {lines} lines, at most {MAX_COMMENT_LINES}'))
+        hits += [(number + n - 1, why) for n, why in check_prose(body, markdown=False)]
+    return hits
+
+
+def check_text(where, text, markdown=False, prose=True, path=None):
+    hits = [(n, why) for n, line in enumerate(text.splitlines(), 1) for why in check_line(line)]
+    if prose:
+        hits += check_prose(text, markdown)
+    if path:
+        hits += check_comments(path, text)
+    return [f'{where}:{n}: {why}' for n, why in sorted(hits)]
+
+
+def git(*args):
+    return subprocess.run(['git', *args], capture_output=True, text=True, check=True).stdout
+
+
+def new_commits():
+    """The commits on top of main, or only the tip where main is missing (a shallow checkout)."""
+    for base in ('origin/main', 'main'):
+        if subprocess.run(['git', 'rev-parse', '--verify', '--quiet', base], capture_output=True).returncode == 0:
+            return git('rev-list', '--no-merges', f'{base}..HEAD').split()
+    return git('rev-list', '--no-merges', '-1', 'HEAD').split()
+
+
+def check_repository():
+    hits = []
+    for path in git('ls-files', '-z').split('\0'):
+        if not path or path in SKIP:
+            continue
+        try:
+            with open(path, encoding='utf-8') as fh:
+                text = fh.read()
+        except (OSError, UnicodeDecodeError):
+            continue
+        markdown = path.endswith('.md')
+        hits += check_text(path, text, markdown=markdown, prose=markdown, path=path)
+        if path == 'README.md':
+            count = sum(len(words_only(p).split()) for _, p in paragraphs(text, True))
+            if count > MAX_README_WORDS:
+                hits.append(f'README.md: {count} words of prose, at most {MAX_README_WORDS}')
     for commit in new_commits():
-        message = subprocess.run(['git', 'log', '-1', '--format=%B', commit], capture_output=True, text=True, check=True).stdout
-        parents = subprocess.run(['git', 'log', '-1', '--format=%P', commit], capture_output=True, text=True, check=True).stdout.split()
-        # A merge subject is written by the forge, not by us, so only its body is held to the length rule. A
-        # checkout without history has no parents to count, which is why the subject decides as well.
-        merge = len(parents) > 1 or message.startswith('Merge ')
-        scan(f'commit {commit[:9]}', message, hits, subject_limit=None if merge else SUBJECT_LIMIT)
+        message = git('log', '-1', '--format=%B', commit).strip()
+        hits += check_text(f'commit {commit[:9]}', message)
+        subject = message.splitlines()[0] if message else ''
+        if len(subject) > MAX_SUBJECT:
+            hits.append(f'commit {commit[:9]}: a subject of {len(subject)} characters, at most {MAX_SUBJECT}')
     return hits
 
 
 def main(argv):
-    parser = argparse.ArgumentParser(description='Check the texts for the marks a writing tool leaves behind.')
-    parser.add_argument('--stdin', metavar='WHAT', help='check one text read from stdin, named WHAT, instead of the repository')
-    parser.add_argument('--limit', type=int, default=0, metavar='N', help='the most characters that text may have')
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--stdin', metavar='NAME', help='check one text from stdin, named NAME in the output')
+    parser.add_argument('--limit', type=int, default=0, metavar='N', help='the most characters the text may have')
     options = parser.parse_args(argv)
-
-    hits = from_stdin(options.stdin, options.limit) if options.stdin else from_repository()
+    if options.stdin:
+        text = sys.stdin.read().strip()
+        hits = check_text(options.stdin, text, markdown=True)
+        if options.limit and len(text) > options.limit:
+            hits.append(f'{options.stdin}: {len(text)} characters, at most {options.limit}')
+    else:
+        hits = check_repository()
     for hit in hits:
         print(hit, file=sys.stderr)
     return 1 if hits else 0

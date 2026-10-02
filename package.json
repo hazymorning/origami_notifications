@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "test": "node --test",
-    "lint": "python3 scripts/text-style.py"
+    "lint": "python3 scripts/text-style.py && python3 -m unittest -q scripts/test_text_style.py"
   },
   "devDependencies": {
     "jsdom": "^29.1.1"
