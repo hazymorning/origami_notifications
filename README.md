@@ -8,7 +8,7 @@ Closed, the card is one row that shows the newest notification, or the newest cr
 
 Home Assistant's notifications, repairs and updates show up without any setup. Add any entity, and the card shows it while it needs attention, like an open door, a triggered alarm or a calendar event that is running.
 
-You style the card with plain CSS in its config, without card-mod.
+**You can style the card with plain CSS in its config.**
 
 ```yaml
 type: custom:origami-notifications
