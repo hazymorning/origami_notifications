@@ -5,38 +5,36 @@ const EDITOR = CARD + "-editor";
 const REPO = "https://github.com/hazymorning/origami_notifications";
 const VERSION = "0.3.0";
 
-const DEFAULTS = Object.freeze({
+const DEFAULTS = {
   hide_when_empty: true,
   updates: true,
   repairs: true,
-  entities: [],
-  label: null,
-  audience: null,
-});
+};
 
 const KEY_ORDER = ["entities", "label", "updates", "repairs", "hide_when_empty", "audience", "css"];
-const ENTITY_KEY_ORDER = ["entity", "type", "attribute", "name", "icon", "image", "background", "tap_action", "actions"];
+const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "tap_action"];
+const ENTITY_KEY_ORDER = ["entity", ...OPTION_KEYS, "actions"];
 
-const TYPES = ["auto", "calendar", "update", "alarm", "alert", "dwd", "attribute", "picture", "generic"];
-
-const ICONS = Object.freeze({
+const ICONS = {
   system: "mdi:bell",
   update: "mdi:rocket-launch",
   repair: "mdi:wrench",
   alarm: "mdi:shield-alert",
   alert: "mdi:alert",
-  weather: "mdi:flash",
+  dwd: "mdi:flash",
   calendar: "mdi:calendar-month",
   attribute: "mdi:card-text-outline",
   picture: "mdi:image-outline",
   generic: "mdi:information-outline",
-});
+};
 
-const typeIcon = (type) => ICONS[type === "dwd" ? "weather" : type] || ICONS.generic;
+const typeIcon = (type) => ICONS[type] || ICONS.generic;
+
+const langOf = (hass) => (hass && ((hass.locale && hass.locale.language) || hass.language)) || "en";
 
 /* Other languages get English, plus what Home Assistant translates (HA_STRINGS). */
-const STRINGS = Object.freeze({
-  en: Object.freeze({
+const STRINGS = {
+  en: {
     idle_title: "All quiet",
     idle_msg: "No notifications",
     clear: "Clear all",
@@ -57,18 +55,18 @@ const STRINGS = Object.freeze({
     day_at: "{d} at {t}",
     date_at: "on {d} at {t}",
     on_date: "on {d}",
-  }),
-  de: Object.freeze({
+  },
+  de: {
     idle_title: "Alles ruhig",
     idle_msg: "Keine Benachrichtigungen",
     clear: "Alle löschen",
     dismiss: "Löschen",
     install: "Installieren",
-    installing: "Installiert…",
-    installing_pct: "Installiert {p} %",
+    installing: "Wird installiert…",
+    installing_pct: "Wird installiert ({p} %)",
     just_now: "gerade eben",
-    count_one: "1 Meldung",
-    count_other: "{n} Meldungen",
+    count_one: "1 Benachrichtigung",
+    count_other: "{n} Benachrichtigungen",
     event: "Termin",
     notification: "Benachrichtigung",
     update: "Update",
@@ -79,20 +77,20 @@ const STRINGS = Object.freeze({
     day_at: "{d} um {t}",
     date_at: "am {d} um {t}",
     on_date: "am {d}",
-  }),
-});
+  },
+};
 
 /* Home Assistant translates these into every language it supports. */
-const HA_STRINGS = Object.freeze({
+const HA_STRINGS = {
   idle_title: ["ui.notification_drawer.title"],
   idle_msg: ["ui.notification_drawer.empty"],
   clear: ["ui.notification_drawer.dismiss_all"],
-  dismiss: ["ui.common.close"],
+  dismiss: ["ui.card.persistent_notification.dismiss"],
   install: ["ui.dialogs.more_info_control.update.install"],
   installing: ["ui.card.update.installing"],
   installing_pct: ["ui.card.update.installing_with_progress", { progress: "{p}" }],
   update: ["ui.dialogs.more_info_control.update.update"],
-});
+};
 
 const borrowedStrings = (localize) => {
   const t = { ...STRINGS.en, just_now: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}" };
@@ -104,13 +102,18 @@ const borrowedStrings = (localize) => {
     const title = localize("ui.notification_drawer.title");
     if (title) t.count_one = t.count_other = title + " ({n})";
   }
-  return Object.freeze(t);
+  return t;
 };
 
-/* Failed login notices are never shown. Older cores lack the id, so the message counts too. */
+/* Home Assistant's notice about a failed login is never shown. */
 const MUTED_NOTIFICATIONS = new Set(["http-login"]);
 
-const INACTIVE = new Set(["off", "unavailable", "unknown", "idle", "none", "0", ""]);
+const INACTIVE = new Set(["off", "unavailable", "unknown", "idle", "none", ""]);
+
+const isInactive = (state) => {
+  const s = String(state).trim().toLowerCase();
+  return INACTIVE.has(s) || Number(s) === 0;
+};
 
 /* UpdateEntityFeature.INSTALL */
 const UPDATE_INSTALL = 1;
@@ -128,8 +131,7 @@ const REDUCED_MOTION = window.matchMedia
 
 const motionOK = () => !(REDUCED_MOTION && REDUCED_MOTION.matches);
 
-/* A leaving box fades, then closes its space. An arriving box opens its space, then
- * fades in. Only one height changes at a time, and everything below follows it. */
+/* A leaving box fades, then closes its space. An arriving box opens its space, then fades in. */
 const FADE_MS = 150;
 const SIZE_MS = 250;
 
@@ -192,7 +194,7 @@ const stopMotion = (el) => {
 };
 
 /* Borders snap to whole pixels, so they go while the box is invisible, not while it shrinks. */
-const NO_BORDER = Object.freeze({ borderTopWidth: "0px", borderBottomWidth: "0px" });
+const NO_BORDER = { borderTopWidth: "0px", borderBottomWidth: "0px" };
 
 /* Holds the closed state until the caller removes the box. */
 const playLeave = (el, gap, slide) => {
@@ -231,7 +233,7 @@ const playEnter = (el, gap) => {
 /* A dismissed item comes back if Home Assistant refuses, or still has it after this long. */
 const PENDING_MS = 10000;
 
-const sevClass = (sev) => (sev === "crit" ? " crit" : sev === "warn" ? " warn" : "");
+const sevClass = (sev) => (sev ? " " + sev : "");
 
 const fill = (template, vars) =>
   template.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ""));
@@ -239,11 +241,45 @@ const fill = (template, vars) =>
 const attrPath = (attrs, path) =>
   path.split(".").reduce((v, k) => (v == null ? v : v[k]), attrs);
 
-const pick = (obj, keys) => {
-  for (const k of keys) {
-    if (obj[k] != null && obj[k] !== "") return obj[k];
+const labelled = (hass, label) => {
+  const reg = hass && hass.entities;
+  if (!label || !reg) return [];
+  return Object.keys(reg).filter((id) => ((reg[id] && reg[id].labels) || []).includes(label));
+};
+
+/* The date and time of ts in timeZone, or in the browser's zone. */
+const zonedParts = (ts, timeZone) => {
+  const opts = { hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" };
+  let parts;
+  try {
+    parts = new Intl.DateTimeFormat("en-US", { ...opts, timeZone }).formatToParts(ts);
+  } catch (e) {
+    parts = new Intl.DateTimeFormat("en-US", opts).formatToParts(ts);
   }
-  return undefined;
+  const p = {};
+  for (const { type, value } of parts) p[type] = Number(value);
+  return p;
+};
+
+/* Calendars give start_time as the server's wall clock time, without an offset. */
+const fromServerTime = (text, timeZone) => {
+  const m = /^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d)(?::(\d\d))?)?$/.exec(String(text));
+  if (!m) return Date.parse(text);
+  const wall = Date.UTC(m[1], m[2] - 1, m[3], m[4] || 0, m[5] || 0, m[6] || 0);
+  const offset = (ts) => {
+    const p = zonedParts(ts, timeZone);
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - ts;
+  };
+  return wall - offset(wall - offset(wall));
+};
+
+/* The first of keys that holds a text or a number. */
+const textOf = (obj, keys) => {
+  for (const k of keys) {
+    const v = obj[k];
+    if ((typeof v === "string" && v) || typeof v === "number") return String(v);
+  }
+  return "";
 };
 
 const isEmpty = (v) =>
@@ -322,81 +358,67 @@ const isUnambiguouslyActive = (state) => {
   return !isNaN(n) && n > 0;
 };
 
-/* dwd_weather_warnings levels go from 0 to 4, from 3 on it is severe weather. */
+/* dwd_weather_warnings levels go from 0 to 4, from 3 on it is severe weather. Home Assistant
+ * renumbers the warnings when one ends, so the key is the warning, not its number. */
 const renderDwd = (id, st, items, ctx) => {
   if (!(Number(st.state) > 0)) return;
   const a = st.attributes;
   const count = Number(a.warning_count) || 0;
   for (let i = 1; i <= count; i++) {
-    const headline = a["warning_" + i + "_headline"];
-    const name = a["warning_" + i + "_name"];
-    if (!headline && !name) continue;
-    const level = Number(a["warning_" + i + "_level"]) || 0;
+    const w = (field) => a["warning_" + i + "_" + field];
+    const title = w("headline") || w("name");
+    if (!title) continue;
+    const level = Number(w("level")) || 0;
+    const text = w("description") || "";
     items.push({
-      key: "w:" + id + ":" + i,
-      kind: "weather",
+      key: "w:" + id + ":" + (w("name") || title) + ":" + (w("start") || ""),
+      kind: "dwd",
       sev: level >= 3 ? "crit" : "warn",
-      source: id,
       entity: id,
-      title: headline || name,
-      message: a["warning_" + i + "_description"] || fill(ctx.t.level, { l: level }),
-      ts: parseTs(a["warning_" + i + "_start"], parseTs(st.last_changed, Date.now())),
+      title,
+      message: text || fill(ctx.t.level, { l: level }),
+      ts: parseTs(w("start"), parseTs(st.last_changed, Date.now())),
+      ack: [title, level, text].join("\u0000"),
     });
   }
 };
 
 /* An attribute object that describes one thing, like a dish or a parcel. */
 const THING_TEXT = ["description", "summary"];
-const THING_PICTURE = ["image", "image_url", "picture", "thumbnail"];
 
-const isThing = (v) =>
-  v != null && typeof v === "object" && !Array.isArray(v) &&
-  ["name", "title"].some((k) => (typeof v[k] === "string" && v[k] !== "") || typeof v[k] === "number");
+const isThing = (v) => v != null && typeof v === "object" && !Array.isArray(v) && textOf(v, ["name", "title"]) !== "";
 
 /* recipe was the only such attribute up to 0.2. Others need a text or picture besides the name. */
 const findThing = (attrs) => {
   if (isThing(attrs.recipe)) return "recipe";
   return Object.keys(attrs).find(
-    (k) => isThing(attrs[k]) && [...THING_TEXT, ...THING_PICTURE].some((f) => !isEmpty(attrs[k][f]))
+    (k) => isThing(attrs[k]) && [...THING_TEXT, ...PICTURE_ATTRS].some((f) => !isEmpty(attrs[k][f]))
   );
 };
 
-/* type: attribute shows the thing, or a plain value as the title. type: picture shows the
+/* `type: attribute` shows the thing, or a plain value as the title. `type: picture` shows the
  * state as the title, for sensors like the dish of the day. */
 const renderThing = (id, st, items, ctx) => {
   const a = st.attributes;
   const ts = parseTs(st.last_changed, Date.now());
-  /* type: picture reads only the attribute it is given, or a recipe as in 0.2. */
+  /* `type: picture` reads only the attribute it is given, or a recipe as in 0.2. */
   const path = ctx.attribute || (ctx.kind === "picture" ? isThing(a.recipe) && "recipe" : findThing(a));
   const value = path ? attrPath(a, path) : undefined;
+  const item = { key: "r:" + id, kind: ctx.kind, entity: id, ts };
   if (isThing(value)) {
-    items.push({
-      key: "r:" + id,
-      kind: ctx.kind,
-      source: id,
-      entity: id,
-      title: String(pick(value, ["name", "title"])),
-      message: String(pick(value, THING_TEXT) || ctx.name(st)),
-      image: pick(value, THING_PICTURE),
-      ts,
-    });
+    const title = textOf(value, ["name", "title"]);
+    const text = textOf(value, THING_TEXT);
+    const image = textOf(value, PICTURE_ATTRS);
+    items.push({ ...item, title, message: text || ctx.name(st), image: URL_LIKE.test(image) ? image : null, ack: title + "\u0000" + text });
     return;
   }
   if (ctx.kind === "attribute") {
-    if (!ctx.attribute || ctx.objectOnly || value == null || value === "" || typeof value === "object") return;
-    items.push({ key: "r:" + id, kind: ctx.kind, source: id, entity: id, title: String(value), message: ctx.name(st), ts });
+    if (!ctx.attribute || ctx.objectOnly || isEmpty(value) || typeof value === "object") return;
+    items.push({ ...item, title: ctx.formatAttribute(st, path, value), message: ctx.name(st), ack: String(value) });
     return;
   }
-  if (INACTIVE.has(String(st.state).toLowerCase())) return;
-  items.push({
-    key: "r:" + id,
-    kind: ctx.kind,
-    source: id,
-    entity: id,
-    title: ctx.format(st),
-    message: ctx.name(st),
-    ts,
-  });
+  if (isInactive(st.state)) return;
+  items.push({ ...item, title: ctx.format(st), message: ctx.name(st), ack: String(st.state) });
 };
 
 const renderCalendar = (id, st, items, ctx) => {
@@ -404,49 +426,44 @@ const renderCalendar = (id, st, items, ctx) => {
   items.push({
     key: "c:" + id,
     kind: "calendar",
-    source: id,
     entity: id,
     title: st.attributes.message,
     message: ctx.calWhen(st.attributes.start_time, st.attributes.all_day),
     ts: parseTs(st.last_changed, Date.now()),
+    ack: st.attributes.message + "\u0000" + st.attributes.start_time,
   });
 };
 
-/* Home Assistant refuses to skip an update with auto_update on, so those are dismissed locally. */
+/* Installing and skipping need an admin, and Home Assistant refuses to skip an update with
+ * auto_update on. Everything else is dismissed locally. */
 const renderUpdate = (id, st, items, ctx) => {
   if (st.state !== "on") return;
   const a = st.attributes;
   const t = ctx.t;
-  const name = a.title || ctx.name(st).replace(/\s*update\s*$/i, "").trim();
+  const name = ctx.named ? ctx.name(st) : a.title || ctx.name(st).replace(/\s*update\s*$/i, "").trim();
   const version = a.latest_version;
   const busy = Boolean(a.in_progress);
-  const pct = !busy
-    ? null
-    : typeof a.update_percentage === "number"
-      ? a.update_percentage
-      : typeof a.in_progress === "number"
-        ? a.in_progress
-        : null;
-  const canInstall = (Number(a.supported_features) & UPDATE_INSTALL) === UPDATE_INSTALL;
+  const pct = busy && typeof a.update_percentage === "number" ? a.update_percentage : null;
+  const canInstall = ctx.admin && (Number(a.supported_features) & UPDATE_INSTALL) === UPDATE_INSTALL;
   items.push({
     key: "u:" + id,
     kind: "update",
-    source: "updates",
     entity: id,
     title: name || t.update,
     message: version ? fill(t.update_msg, { v: version }) : t.update_msg_plain,
     ts: parseTs(st.last_changed, Date.now()),
-    dismiss: a.auto_update ? undefined : () => ctx.hass.callService("update", "skip", { entity_id: id }),
+    dismiss: a.auto_update || !ctx.admin ? undefined : () => ctx.hass.callService("update", "skip", { entity_id: id }),
     actions: busy
       ? [{ label: pct === null ? t.installing : fill(t.installing_pct, { p: Math.round(pct) }), disabled: true }]
       : canInstall
         ? [{ label: t.install, run: () => ctx.hass.callService("update", "install", { entity_id: id }) }]
         : [],
+    ack: String(version),
   });
 };
 
 /* Alarms can't be dismissed, they stay until the panel moves on. */
-const ALARM_SEV = Object.freeze({ triggered: "crit", pending: "warn", arming: "warn" });
+const ALARM_SEV = { triggered: "crit", pending: "warn", arming: "warn" };
 
 const renderAlarm = (id, st, items, ctx) => {
   const sev = ALARM_SEV[st.state];
@@ -456,7 +473,6 @@ const renderAlarm = (id, st, items, ctx) => {
     kind: "alarm",
     sev,
     sticky: true,
-    source: id,
     entity: id,
     title: ctx.name(st),
     message: ctx.format(st),
@@ -471,27 +487,25 @@ const renderAlert = (id, st, items, ctx) => {
     key: "al:" + id,
     kind: "alert",
     sev: "warn",
-    source: id,
     entity: id,
     title: ctx.name(st),
-    message: st.attributes.message || "",
+    message: "",
     ts: parseTs(st.last_changed, Date.now()),
+    ack: "",
   });
 };
 
 const renderGeneric = (id, st, items, ctx) => {
-  const active = ctx.forced
-    ? !INACTIVE.has(String(st.state).toLowerCase())
-    : isUnambiguouslyActive(st.state);
+  const active = ctx.forced ? !isInactive(st.state) : isUnambiguouslyActive(st.state);
   if (!active) return;
   items.push({
     key: "g:" + id,
     kind: "generic",
-    source: id,
     entity: id,
     title: ctx.name(st),
     message: ctx.format(st),
     ts: parseTs(st.last_changed, Date.now()),
+    ack: String(st.state),
   });
 };
 
@@ -507,19 +521,27 @@ const detectType = (id, st) => {
   return "generic";
 };
 
-const RENDERERS = Object.freeze({
-  dwd: renderDwd,
-  attribute: renderThing,
-  picture: renderThing,
+/* The kind an entity shows as. checkConfig has already turned `type: recipe` into an attribute. */
+const kindOf = (src, st) => {
+  if (src.type && src.type !== "auto") return src.type;
+  if (src.attribute) return "attribute";
+  return st ? detectType(st.entity_id, st) : "generic";
+};
+
+/* In the order the editor offers them. */
+const RENDERERS = {
   calendar: renderCalendar,
   update: renderUpdate,
   alarm: renderAlarm,
   alert: renderAlert,
+  dwd: renderDwd,
+  attribute: renderThing,
+  picture: renderThing,
   generic: renderGeneric,
-});
+};
 
 /* Titles come from the integration translations, which _refreshRepairs loads. */
-const REPAIR_SEV = Object.freeze({ critical: "crit", error: "crit", warning: "warn" });
+const REPAIR_SEV = { critical: "crit", error: "crit", warning: "warn" };
 
 const renderRepair = (issue, items, ctx) => {
   const h = ctx.hass;
@@ -534,7 +556,6 @@ const renderRepair = (issue, items, ctx) => {
     key: "i:" + issue.domain + "/" + issue.issue_id,
     kind: "repair",
     sev: REPAIR_SEV[issue.severity] || "warn",
-    source: "repairs",
     title,
     message: issue.breaks_in_ha_version ? fill(ctx.t.breaks_in, { v: issue.breaks_in_ha_version }) : "",
     ts: parseTs(issue.created, Date.now()),
@@ -570,29 +591,29 @@ const linkAction = (host, url) => () =>
 /* A renderer that throws only loses its own entity. Overrides apply to every item it made. */
 const renderEntity = (id, st, items, ctx, src) => {
   if (!st) return;
-  const forced = Boolean(src && src.type && src.type !== "auto");
-  const attribute = (src && src.attribute) || null;
-  const objectOnly = Boolean(src && src.objectOnly);
-  const kind = forced ? src.type : attribute ? "attribute" : detectType(id, st);
+  const forced = Boolean(src.type && src.type !== "auto");
+  const attribute = src.attribute || null;
+  const objectOnly = Boolean(src.objectOnly);
+  const kind = kindOf(src, st);
   const renderer = RENDERERS[kind];
   if (!renderer) return;
+  const named = Boolean(src.name);
+  const name = named ? (s) => ctx.name(s, src.name) : ctx.name;
   const before = items.length;
   try {
-    renderer(id, st, items, { ...ctx, forced, kind, attribute, objectOnly });
+    renderer(id, st, items, { ...ctx, forced, kind, attribute, objectOnly, named, name });
   } catch (e) {
     console.warn(CARD + ": renderer failed for " + id, e);
     items.length = before;
     return;
   }
-  const ref = src && src.image;
+  const ref = src.image;
   const configured = ref && (ref.includes("/") ? ref : attrPath(st.attributes, ref));
-  const backdrop = Boolean(src && src.background);
+  const backdrop = Boolean(src.background);
   for (let i = before; i < items.length; i++) {
-    const image = ref ? configured : items[i].image || findPicture(st.attributes);
-    items[i].image = typeof image === "string" && image ? ctx.hass.hassUrl(image) : null;
+    items[i].image = ctx.url(ref ? configured : items[i].image || findPicture(st.attributes));
     items[i].backdrop = backdrop && Boolean(items[i].image);
   }
-  if (!src) return;
   if (src.tap_action) {
     const openFn = buildTapAction(src.tap_action, ctx.host, id);
     for (let i = before; i < items.length; i++) {
@@ -600,16 +621,12 @@ const renderEntity = (id, st, items, ctx, src) => {
       if (!openFn) items[i].inert = true;
     }
   }
-  if (src.icon || src.name || src.actions) {
-    const title = typeof src.name === "string" ? src.name : src.name ? ctx.name(st, src.name) : null;
-    const extra = (src.actions || [])
-      .map((ac) => ({ label: ac.label, run: buildTapAction(ac.tap_action, ctx.host, id) }))
-      .filter((ac) => ac.label && ac.run);
-    for (let i = before; i < items.length; i++) {
-      if (src.icon) items[i].icon = src.icon;
-      if (title) items[i].title = title;
-      if (extra.length) items[i].actions = [...(items[i].actions || []), ...extra];
-    }
+  const extra = (src.actions || [])
+    .map((ac) => ({ label: ac.label, run: buildTapAction(ac.tap_action, ctx.host, id) }))
+    .filter((ac) => ac.label && ac.run);
+  for (let i = before; i < items.length; i++) {
+    if (src.icon) items[i].icon = src.icon;
+    if (extra.length) items[i].actions = [...(items[i].actions || []), ...extra];
   }
 };
 
@@ -625,7 +642,12 @@ const rowSig = (it) =>
     Boolean(it.dismiss),
     Boolean(it.open || it.entity) && !it.inert,
     (it.actions || []).map((a) => a.label + (a.disabled ? "!" : "")).join("|"),
-  ].join("␟");
+  ].join("\u0000");
+
+/* Writing the same text again would make a screen reader announce it again. */
+const setText = (el, text) => {
+  if (el.textContent !== text) el.textContent = text;
+};
 
 const setImage = (tile, url) => {
   let img = tile.querySelector("img");
@@ -671,7 +693,7 @@ const STYLES = `
     -webkit-tap-highlight-color: transparent;
   }
   :host(.dark) { --origami-bg-auto: 0.32; }
-  /* Sections drop the cell of a hidden card. _setShown animates before that. */
+  /* :host sets display, which would beat [hidden]. */
   :host([hidden]) { display: none !important; }
   :host(.leaving) { pointer-events: none; }
   :host(.no-anim), :host(.no-anim) * {
@@ -679,6 +701,7 @@ const STYLES = `
     animation: none !important;
   }
   ha-card {
+    background: var(--origami-card-bg);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -693,8 +716,8 @@ const STYLES = `
   }
   /* In the sections view footer the list scrolls within a quarter of the screen. */
   :host(.docked) ha-card { max-height: var(--origami-max-height, 25dvh); }
-  /* A fixed height from the layout tab: fill the cell, center the header, scroll the list.
-   * ha-card is stretched rather than sized, so a margin from css stays inside the cell. */
+  /* With a fixed height from the layout tab the card fills its cell, the header centers and the list
+   * scrolls. ha-card is stretched rather than sized, so a margin from css stays inside the cell. */
   :host(.bounded) { height: 100%; }
   :host(.bounded) ha-card:not(.open) .hwrap { flex: 1 1 auto; }
   ha-card.has-items:not(.open):active { transform: scale(0.98); transition-duration: 120ms; }
@@ -732,8 +755,9 @@ const STYLES = `
   }
   ha-card.has-items .head, .ebar { cursor: pointer; }
 
-  .tilewrap { grid-area: htl; align-self: center; }
   .tile {
+    grid-area: htl;
+    align-self: center;
     position: relative;
     width: var(--origami-tile);
     height: var(--origami-tile);
@@ -779,12 +803,8 @@ const STYLES = `
     line-height: var(--ha-line-height-condensed, 1.2);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .subslot {
-    grid-area: hsub;
-    align-self: start;
-    margin-top: 2px;
-    display: grid;
-  }
+  .head.single .title { grid-row: 1 / 3; align-self: center; }
+  .head.single .msg { display: none; }
   /* Header and drawer swap through their grid rows, nothing is measured. */
   .hwrap, .drawer {
     display: grid;
@@ -841,13 +861,15 @@ const STYLES = `
     gap: var(--origami-pad);
     padding: 0 var(--origami-pad);
   }
-  :host(.docked) .list, :host(.bounded) .list {
+  :host(.docked) ha-card.settled .list,
+  :host(.bounded) ha-card.settled .list,
+  :host(.capped) ha-card.settled .list {
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
   }
-  /* Without flex: none an animating row (overflow: hidden) shrinks in a scrolling list. */
+  /* An animating row hides its overflow, so in a scrolling list it would shrink without flex none. */
   .row {
     flex: none;
     display: grid;
@@ -898,7 +920,7 @@ const STYLES = `
     color: var(--primary-text-color);
     font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-bold, 700);
-    line-height: var(--ha-line-height-normal, 1.3);
+    line-height: var(--ha-line-height-normal, 1.6);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .row.open .title { white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
@@ -906,7 +928,7 @@ const STYLES = `
     grid-area: rmeta;
     align-self: start;
     justify-self: end;
-    min-height: calc(var(--ha-font-size-m, 14px) * var(--ha-line-height-normal, 1.3));
+    min-height: calc(var(--ha-font-size-m, 14px) * var(--ha-line-height-normal, 1.6));
     display: flex; align-items: center;
     gap: var(--origami-gap-s);
   }
@@ -943,18 +965,17 @@ const STYLES = `
   .x ha-icon { --mdc-icon-size: var(--icon-size-xs, 18px); display: flex; }
   .row .body {
     grid-area: rbody;
-    margin-top: 0;
     color: var(--primary-text-color);
     opacity: var(--origami-muted);
     font-size: var(--ha-font-size-s, 12px);
-    line-height: var(--ha-line-height-normal, 1.3);
+    line-height: var(--ha-line-height-normal, 1.6);
     overflow-wrap: anywhere;
     text-wrap: pretty;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;
-    max-height: calc(2 * var(--ha-line-height-normal, 1.3) * 1em);
+    max-height: calc(2 * var(--ha-line-height-normal, 1.6) * 1em);
     overflow: hidden;
   }
   /* An opened message can be selected and copied. */
@@ -990,17 +1011,18 @@ const STYLES = `
     transition: box-shadow 150ms ease, transform 150ms ease;
   }
   .act[disabled] {
-    cursor: default;
     opacity: var(--opacity-disabled, 0.3);
     pointer-events: none;
   }
-  .srow { overflow: hidden; min-height: 0; }
   .msg {
+    grid-area: hsub;
+    align-self: start;
+    margin-top: 2px;
     overflow: hidden;
     color: var(--primary-text-color);
     opacity: var(--origami-muted);
     font-size: var(--ha-font-size-s, 12px);
-    line-height: var(--ha-line-height-normal, 1.3);
+    line-height: var(--ha-line-height-normal, 1.6);
     white-space: nowrap;
   }
   .msg.fade { mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%); }
@@ -1019,13 +1041,11 @@ const STYLES = `
   @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   @keyframes marquee-rtl { from { transform: translateX(0); } to { transform: translateX(50%); } }
 
-  .hside {
+  .head .chev {
     grid-area: hsd;
     align-self: center;
     justify-self: end;
     margin-inline-end: var(--origami-gap-s);
-    display: flex; align-items: center;
-    gap: var(--origami-gap-s);
   }
   .chev {
     flex: 0 0 auto;
@@ -1090,29 +1110,100 @@ const TEMPLATE = `
   <ha-card>
     <div class="backdrop" aria-hidden="true"><img alt="" draggable="false"><img alt="" draggable="false"></div>
     <div class="hwrap">
-    <div class="head" role="button" tabindex="0" aria-expanded="false" aria-live="polite">
-      <div class="tilewrap">
+      <div class="head" role="button" tabindex="0" aria-expanded="false" aria-live="polite">
         <div class="tile"><ha-icon></ha-icon><div class="badge"></div></div>
-      </div>
-      <div class="title"></div>
-      <div class="subslot">
-        <div class="srow"><div class="msg"><div class="track"><span class="t"></span><span class="t dup" aria-hidden="true"></span></div></div></div>
-      </div>
-      <div class="hside">
+        <div class="title"></div>
+        <div class="msg"><div class="track"><span class="t"></span><span class="t dup" aria-hidden="true"></span></div></div>
         <ha-icon class="chev" icon="mdi:chevron-down"></ha-icon>
       </div>
-    </div>
     </div>
     <div class="drawer"><div class="inner">
       <div class="ebar" role="button" tabindex="0" aria-expanded="true">
         <span class="count"></span>
         <ha-icon class="chev" icon="mdi:chevron-up"></ha-icon>
       </div>
-      <div class="list"></div>
+      <div class="list" role="list"></div>
       <div class="foot"><button class="clear" type="button"></button></div>
     </div></div>
   </ha-card>
 `;
+
+const isObject = (v) => v != null && typeof v === "object" && !Array.isArray(v);
+
+/* Checks a config and returns its sources. The editor uses it too, so Home Assistant keeps a
+ * broken config in the YAML editor instead of letting the visual editor drop parts of it. */
+const checkConfig = (config) => {
+  const fail = (message) => {
+    throw new Error(CARD + ": " + message);
+  };
+  if (config.entities != null && !Array.isArray(config.entities)) fail("entities must be a list");
+  const sources = [];
+  for (const entry of config.entities || []) {
+    const src =
+      typeof entry === "string"
+        ? { entity: entry, type: "auto" }
+        : {
+            entity: entry && entry.entity,
+            type: (entry && entry.type) || "auto",
+            attribute: entry ? entry.attribute : null,
+            icon: entry ? entry.icon : null,
+            name: entry ? entry.name : null,
+            image: entry ? entry.image : null,
+            background: entry ? entry.background : null,
+            actions: entry ? entry.actions : null,
+            tap_action: entry ? entry.tap_action : null,
+          };
+    if (typeof src.entity !== "string" || !src.entity.includes(".")) {
+      fail("entities must contain entity ids, got " + JSON.stringify(entry));
+    }
+    /* `type: recipe` from 0.2, which showed objects only. */
+    if (src.type === "recipe") {
+      src.type = "attribute";
+      src.attribute = src.attribute || "recipe";
+      src.objectOnly = true;
+    }
+    if (src.type !== "auto" && !RENDERERS[src.type]) fail("unknown source type '" + src.type + "'");
+    if (src.attribute != null && typeof src.attribute !== "string") fail("attribute must be the name of an attribute");
+    if (src.image != null && typeof src.image !== "string") fail("image must be an attribute path or URL");
+    if (src.background != null && typeof src.background !== "boolean") fail("background must be true or false");
+    if (src.tap_action != null && !isObject(src.tap_action)) fail("tap_action must be an action, like action: more-info");
+    if (src.actions != null && !(Array.isArray(src.actions) && src.actions.every(isObject))) {
+      fail("actions must be a list of buttons, each with a label and a tap_action");
+    }
+    if (!sources.some((s) => s.entity === src.entity)) sources.push(src);
+  }
+  if (config.css != null && typeof config.css !== "string") fail("css must be a string");
+  return { sources, audience: checkAudience(config.audience) };
+};
+
+/* Local dismissals live in localStorage, shared by every card on this device. */
+const ACK_STORE = "origami-notifications-ack";
+const CARDS = new Set();
+
+const loadAcks = () => {
+  try {
+    const acks = JSON.parse(localStorage.getItem(ACK_STORE) || "{}");
+    return isObject(acks) ? acks : {};
+  } catch (e) {
+    return {};
+  }
+};
+
+/* At most 64. Those of items that are gone go first, then the oldest. */
+const saveAcks = (acks, present) => {
+  const keys = Object.keys(acks);
+  const order = [...keys.filter((k) => !present.has(k)), ...keys.filter((k) => present.has(k))];
+  for (const k of order.slice(0, keys.length - 64)) delete acks[k];
+  try {
+    localStorage.setItem(ACK_STORE, JSON.stringify(acks));
+  } catch (e) {
+    /* storage blocked */
+  }
+};
+
+window.addEventListener("storage", (e) => {
+  if (e.key === ACK_STORE) for (const card of CARDS) card._recompute();
+});
 
 class OrigamiNotificationsCard extends HTMLElement {
   constructor() {
@@ -1143,56 +1234,15 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._enterFrom = null;
     this._shownOpen = false;
     this._pending = new Map();
-    this._acks = this._loadAcks();
+    this._present = new Set();
+    this._epoch = 0;
     this._painted = false;
     this._seq = 0;
     this._setLang("en");
   }
 
   setConfig(config) {
-    const sources = [];
-    for (const entry of config.entities || []) {
-      const src =
-        typeof entry === "string"
-          ? { entity: entry, type: "auto" }
-          : {
-              entity: entry && entry.entity,
-              type: (entry && entry.type) || "auto",
-              attribute: entry ? entry.attribute : null,
-              icon: entry ? entry.icon : null,
-              name: entry ? entry.name : null,
-              image: entry ? entry.image : null,
-              background: entry ? entry.background : null,
-              actions: entry && Array.isArray(entry.actions) ? entry.actions : null,
-              tap_action: entry ? entry.tap_action : null,
-            };
-      if (typeof src.entity !== "string" || !src.entity.includes(".")) {
-        throw new Error(CARD + ": entities must contain entity ids, got " + JSON.stringify(entry));
-      }
-      /* type: recipe from 0.2, which showed objects only. */
-      if (src.type === "recipe") {
-        src.type = "attribute";
-        src.attribute = src.attribute || "recipe";
-        src.objectOnly = true;
-      }
-      if (src.type !== "auto" && !RENDERERS[src.type]) {
-        throw new Error(CARD + ": unknown source type '" + src.type + "'");
-      }
-      if (src.attribute != null && typeof src.attribute !== "string") {
-        throw new Error(CARD + ": attribute must be the name of an attribute");
-      }
-      if (src.image != null && typeof src.image !== "string") {
-        throw new Error(CARD + ": image must be an attribute path or URL");
-      }
-      if (src.background != null && typeof src.background !== "boolean") {
-        throw new Error(CARD + ": background must be true or false");
-      }
-      if (!sources.some((s) => s.entity === src.entity)) sources.push(src);
-    }
-    const audience = checkAudience(config.audience);
-    if (config.css != null && typeof config.css !== "string") {
-      throw new Error(CARD + ": css must be a string");
-    }
+    const { sources, audience } = checkConfig(config);
     this._config = { ...DEFAULTS, ...config };
     /* Home Assistant reads layout_options only when grid_options is missing. */
     const rows = config.grid_options
@@ -1202,12 +1252,16 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._sources = sources;
     this._audience = audience;
     this._people = [...new Set(Object.values(audience).flatMap((rule) => rule[ruleMode(rule)]))];
-    this._viewer = null;
-    this._rowCache = new Map();
+    this._epoch++;
     this._applyCustomStyles();
-    this._refreshLabelIds();
-    this._refreshWatched();
-    this._refreshRepairs();
+    /* Outside the editor preview, Home Assistant changes the config of a live card without a new hass. */
+    if (!this._hass) return;
+    this._viewer = this._viewerOf(this._hass);
+    const subscribed = Boolean(this._unsubRepairs);
+    if (this.isConnected) this._subscribe();
+    if (subscribed) this._refreshRepairs();
+    this._refreshSources();
+    this._recompute();
   }
 
   _applyCustomStyles() {
@@ -1234,6 +1288,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       this._rel = new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "short" });
     }
     this._abs = null;
+    this._epoch++;
     if (this._dom) this._dom.clear.textContent = this._t.clear;
   }
 
@@ -1254,10 +1309,11 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   _relTime(ts) {
     const s = Math.round((ts - Date.now()) / 1000);
-    const abs = Math.abs(s);
-    if (abs < 60) return this._t.just_now || this._rel.format(0, "second");
-    if (abs < 3600) return this._rel.format(Math.round(s / 60), "minute");
-    if (abs < 86400) return this._rel.format(Math.round(s / 3600), "hour");
+    const m = Math.round(s / 60);
+    const h = Math.round(s / 3600);
+    if (Math.abs(s) < 60) return this._t.just_now || this._rel.format(0, "second");
+    if (Math.abs(m) < 60) return this._rel.format(m, "minute");
+    if (Math.abs(h) < 24) return this._rel.format(h, "hour");
     return this._rel.format(Math.round(s / 86400), "day");
   }
 
@@ -1274,25 +1330,29 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   _calWhen(start, allDay) {
     const t = this._t;
-    if (!start) return t.event;
-    const d = new Date(String(start).replace(" ", "T"));
-    if (isNaN(d)) return t.event;
-    const day = new Date(d);
-    day.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diff = Math.round((day - today) / 86400000);
+    const h = this._hass;
+    const server = (h && h.config && h.config.time_zone) || undefined;
+    const ts = start ? fromServerTime(start, server) : NaN;
+    if (isNaN(ts)) return t.event;
+    /* An all-day event is a date on the server. Times show in the zone of the profile. */
+    const zone = allDay ? server : this._clockOpts().timeZone;
+    const dayOf = (when, timeZone) => {
+      const p = zonedParts(when, timeZone);
+      return Date.UTC(p.year, p.month - 1, p.day) / 86400000;
+    };
+    const diff = dayOf(ts, zone) - dayOf(Date.now(), this._clockOpts().timeZone);
     const near = Math.abs(diff) <= 1;
-    const date = near
-      ? this._rel.format(diff, "day")
-      : d.toLocaleDateString(this._lang, { day: "2-digit", month: "2-digit" });
-    if (allDay) return near ? date : fill(t.on_date, { d: date });
+    const d = new Date(ts);
+    let date;
     let time;
     try {
+      date = near ? this._rel.format(diff, "day") : d.toLocaleDateString(this._lang, { day: "2-digit", month: "2-digit", timeZone: zone });
       time = d.toLocaleTimeString(this._lang, { hour: "numeric", minute: "2-digit", ...this._clockOpts() });
     } catch (e) {
+      date = near ? this._rel.format(diff, "day") : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" });
       time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     }
+    if (allDay) return near ? date : fill(t.on_date, { d: date });
     return fill(near ? t.day_at : t.date_at, { d: date, t: time });
   }
 
@@ -1302,30 +1362,35 @@ class OrigamiNotificationsCard extends HTMLElement {
     const old = this._hass;
     this._hass = hass;
     if (!this._dom) this._build();
-    if (this.isConnected && !this._unsub) this._subscribe();
+    if (this.isConnected) this._subscribe();
     this.classList.toggle("dark", Boolean(hass.themes && hass.themes.darkMode));
-    const lang = (hass.locale && hass.locale.language) || hass.language || "en";
+    const lang = langOf(hass);
     const langSwitched = lang !== this._lang;
     /* Borrowed strings are read again whenever Home Assistant loads more of them. */
     const langChanged =
       langSwitched || (!this._curated && hass.localize && hass.localize !== this._localizeRef);
     if (langChanged) this._setLang(lang, hass.localize);
     const localeChanged = !old || hass.locale !== old.locale || hass.config !== old.config;
-    if (localeChanged) this._abs = null;
+    if (localeChanged) {
+      this._abs = null;
+      this._epoch++;
+    }
+    /* Home Assistant swaps in new formatters once translations or settings have loaded. */
+    const formatChanged =
+      !old || hass.formatEntityState !== old.formatEntityState || hass.formatEntityName !== old.formatEntityName;
+    const userChanged = !old || hass.user !== old.user;
     const registryChanged = hass.entities !== this._entitiesRef;
     const viewer = this._viewerOf(hass);
     const viewerChanged = viewer !== this._viewer;
     this._viewer = viewer;
-    if (!old || registryChanged || langChanged || viewerChanged) {
+    if (!old || registryChanged || langChanged || viewerChanged || userChanged) {
       this._entitiesRef = hass.entities;
-      if (!old || langSwitched) this._refreshRepairs();
-      this._refreshUpdateIds();
-      this._refreshLabelIds();
-      this._refreshWatched();
+      if (old && (langSwitched || userChanged)) this._refreshRepairs();
+      this._refreshSources();
       this._recompute();
       return;
     }
-    if (localeChanged) {
+    if (localeChanged || formatChanged) {
       this._recompute();
       return;
     }
@@ -1341,20 +1406,11 @@ class OrigamiNotificationsCard extends HTMLElement {
     return this._hass;
   }
 
-  /* preview is the current name, editMode the one older cores still set. */
   set preview(v) {
     this._setEditMode(v);
   }
 
   get preview() {
-    return this._editMode;
-  }
-
-  set editMode(v) {
-    this._setEditMode(v);
-  }
-
-  get editMode() {
     return this._editMode;
   }
 
@@ -1380,8 +1436,14 @@ class OrigamiNotificationsCard extends HTMLElement {
       this._inPicker = picker;
       this._recompute();
     }
+    CARDS.add(this);
     if (this._hass) this._subscribe();
     if (this._hostAnim) this._hostAnim.finish();
+    if (this._expanded) {
+      this._refreshTimes();
+      this._startClock();
+    }
+    this._scheduleDay();
     if (this._dom) {
       this._ro.observe(this._dom.msg);
       this._suppressAnim();
@@ -1395,23 +1457,18 @@ class OrigamiNotificationsCard extends HTMLElement {
         this[key] = null;
       }
     }
+    CARDS.delete(this);
     clearTimeout(this._repairsTimer);
+    clearTimeout(this._dayTimer);
     if (this._ro) this._ro.disconnect();
     this._stopClock();
     /* Collapse only if the card stays detached. The dashboard editor re-parents it all the time. */
-    this._detachReset = setTimeout(() => {
-      this._expanded = false;
-      this._shownOpen = false;
-      if (this._dom) {
-        this._dom.card.classList.remove("open");
-        this._dom.head.setAttribute("aria-expanded", "false");
-      }
-    }, 150);
+    this._detachReset = setTimeout(() => this._collapse(), 150);
   }
 
   _isAdmin() {
     const u = this._hass && this._hass.user;
-    return !u || u.is_admin !== false;
+    return Boolean(u && u.is_admin);
   }
 
   _subscribe() {
@@ -1425,8 +1482,9 @@ class OrigamiNotificationsCard extends HTMLElement {
         this._unsub = null;
       });
     }
-    /* Repairs are admin only; asking anyway only writes refusals to the log. */
-    if (!this._unsubRepairs && conn.subscribeEvents && this._isAdmin()) {
+    /* Like the repairs page in Home Assistant's settings, repairs are for admins only. A new
+     * subscription also fetches the list, which may have changed while the card was away. */
+    if (!this._unsubRepairs && conn.subscribeEvents && this._config && this._config.repairs && this._isAdmin()) {
       this._unsubRepairs = conn.subscribeEvents(
         () => {
           clearTimeout(this._repairsTimer);
@@ -1437,14 +1495,12 @@ class OrigamiNotificationsCard extends HTMLElement {
       this._unsubRepairs.catch(() => {
         this._unsubRepairs = null;
       });
+      this._refreshRepairs();
     }
   }
 
   _onNotifications(msg) {
-    const raw = msg.notifications || {};
-    const entries = Array.isArray(raw)
-      ? raw.map((n) => [n.notification_id, n])
-      : Object.entries(raw);
+    const entries = Object.entries(msg.notifications || {});
     if (msg.type === "removed") {
       for (const [id] of entries) this._persistent.delete(id);
     } else {
@@ -1457,14 +1513,21 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._recompute();
   }
 
+  _refreshSources() {
+    this._refreshUpdateIds();
+    this._refreshLabelIds();
+    this._refreshWatched();
+  }
+
+  /* From the registry as well, so an update whose state arrives later is already watched. */
   _refreshUpdateIds() {
-    if (!this._config || !this._config.updates || !this._hass) {
+    const h = this._hass;
+    if (!this._config || !this._config.updates || !h) {
       this._updateIds = [];
       return;
     }
-    this._updateIds = Object.keys(this._hass.states).filter((id) =>
-      id.startsWith("update.")
-    );
+    const ids = [...Object.keys(h.states), ...Object.keys(h.entities || {})];
+    this._updateIds = [...new Set(ids.filter((id) => id.startsWith("update.")))];
   }
 
   _refreshRepairs() {
@@ -1475,7 +1538,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
     h.callWS({ type: "repairs/list_issues" })
       .then((res) => {
-        this._repairs = ((res && res.issues) || []).filter((i) => i.active !== false && !i.ignored);
+        this._repairs = ((res && res.issues) || []).filter((i) => !i.ignored);
         this._recompute();
         const domains = [...new Set(this._repairs.map((i) => i.domain))];
         if (domains.length && typeof h.loadBackendTranslation === "function") {
@@ -1484,23 +1547,12 @@ class OrigamiNotificationsCard extends HTMLElement {
             this._recompute();
           });
         }
-        return undefined;
       })
-      .catch(() => {
-        this._repairs = this._repairs || [];
-      });
+      .catch(() => {});
   }
 
   _refreshLabelIds() {
-    const label = this._config ? this._config.label : null;
-    const reg = this._hass ? this._hass.entities : null;
-    if (!label || !reg) {
-      this._labelIds = [];
-      return;
-    }
-    this._labelIds = Object.keys(reg).filter((id) =>
-      ((reg[id] && reg[id].labels) || []).includes(label)
-    );
+    this._labelIds = labelled(this._hass, this._config && this._config.label);
   }
 
   _viewerOf(hass) {
@@ -1527,34 +1579,55 @@ class OrigamiNotificationsCard extends HTMLElement {
     const items = [];
     const allowed = (source) => this._editMode || visibleTo(this._audience[source], this._viewer);
     const name = (st, override) => {
+      if (typeof override === "string" && override) return override;
       if (h && h.formatEntityName) {
         try {
-          return h.formatEntityName(st, override) || st.entity_id;
+          const text = (override && h.formatEntityName(st, override)) || h.formatEntityName(st);
+          if (text) return text;
         } catch (e) {
           /* use the plain name */
         }
       }
-      return (typeof override === "string" && override) || st.attributes.friendly_name || st.entity_id;
+      return st.attributes.friendly_name || st.entity_id;
     };
     const ctx = {
       hass: h,
       host: this,
       t: this._t,
+      admin: this._isAdmin(),
       issueLocalize: this._issueLocalize,
       calWhen: (s, allDay) => this._calWhen(s, allDay),
       name,
       format: (st) => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state)),
+      formatAttribute: (st, path, value) => {
+        if (h && h.formatEntityAttributeValue && !path.includes(".")) {
+          try {
+            return h.formatEntityAttributeValue(st, path, value) || String(value);
+          } catch (e) {
+            /* use the raw value */
+          }
+        }
+        return String(value);
+      },
+      /* A URL Home Assistant can't parse costs the picture, not the card. */
+      url: (path) => {
+        if (typeof path !== "string" || !path) return null;
+        try {
+          return h.hassUrl(path);
+        } catch (e) {
+          return null;
+        }
+      },
     };
 
     if (allowed("system")) {
       for (const [id, n] of this._persistent) {
         const message = n.message || "";
-        if (MUTED_NOTIFICATIONS.has(id) || message.includes("invalid authentication")) continue;
+        if (MUTED_NOTIFICATIONS.has(id)) continue;
         const link = firstLink(message);
         items.push({
           key: "s:" + id,
           kind: "system",
-          source: "system",
           title: plainText(n.title) || this._t.notification,
           message: plainText(message),
           ts: parseTs(n.created_at, Date.now()),
@@ -1572,19 +1645,17 @@ class OrigamiNotificationsCard extends HTMLElement {
       for (const issue of this._repairs) renderRepair(issue, items, ctx);
     }
 
-    const seen = new Set();
+    const shown = new Set();
     if (h) {
       /* The updates rule covers every update entity, listed or found. */
       const allowedEntity = (id) => allowed(id) && (!id.startsWith("update.") || allowed("updates"));
-      for (const src of this._allSources) {
-        if (seen.has(src.entity) || !allowedEntity(src.entity)) continue;
-        seen.add(src.entity);
-        renderEntity(src.entity, h.states[src.entity], items, ctx, src);
-      }
-      if (c.updates && allowed("updates")) {
-        for (const id of this._updateIds) {
-          if (!seen.has(id) && allowed(id)) renderEntity(id, h.states[id], items, ctx, null);
-        }
+      const listed = new Set(this._allSources.map((src) => src.entity));
+      const found = this._updateIds.filter((id) => !listed.has(id)).map((id) => ({ entity: id }));
+      for (const src of [...this._allSources, ...found]) {
+        if (!allowedEntity(src.entity)) continue;
+        const st = h.states[src.entity];
+        if (st && st.state !== "unavailable" && st.state !== "unknown") shown.add(src.entity);
+        renderEntity(src.entity, st, items, ctx, src);
       }
     }
 
@@ -1604,31 +1675,43 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
 
     /* Without a dismiss in Home Assistant, items are hidden on this device until they change.
-     * An ack stays while its item is gone, so a reload can't bring it back. */
+     * An ack stays while its item is gone, so a reload can't bring it back. The signature
+     * comes from the source data, so a new language or formatter doesn't count as a change. */
+    const acks = loadAcks();
+    const present = new Set(items.map((it) => it.key));
+    this._present = present;
     let acksDirty = false;
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       if (it.dismiss || it.sticky) continue;
-      const said = it.title + "\u0000" + it.message;
-      const sig = it.kind === "attribute" || it.kind === "picture" ? said : said + "\u0000" + it.ts;
-      /* Acks from 0.2 have no time, upgrade them. */
-      if (this._acks[it.key] === said && sig !== said) {
-        this._acks[it.key] = sig;
+      const once = it.kind === "attribute" || it.kind === "picture";
+      const sig = once ? it.ack : it.ack + "\u0000" + it.ts;
+      /* Acks up to 0.3 held the shown text, without the time in 0.2. */
+      const text = it.title + "\u0000" + it.message;
+      if (acks[it.key] !== sig && (acks[it.key] === text || acks[it.key] === text + "\u0000" + it.ts)) {
+        acks[it.key] = sig;
         acksDirty = true;
       }
-      if (this._acks[it.key] === sig) {
+      if (acks[it.key] === sig) {
         items.splice(i, 1);
       } else {
-        if (this._acks[it.key] !== undefined) {
-          delete this._acks[it.key];
+        if (acks[it.key] !== undefined) {
+          delete acks[it.key];
           acksDirty = true;
         }
         it.ackSig = sig;
-        it.dismiss = () => this._ack(it.key, sig);
+        it.dismiss = () => this._dismiss([it]);
         it.localDismiss = true;
       }
     }
-    if (acksDirty) this._saveAcks();
+    /* An attribute row has no time, so it counts as new once its attribute was empty. */
+    for (const id of shown) {
+      if (!present.has("r:" + id) && acks["r:" + id] !== undefined) {
+        delete acks["r:" + id];
+        acksDirty = true;
+      }
+    }
+    if (acksDirty) saveAcks(acks, present);
     /* Critical first, then newest. */
     items.sort((a, b) => {
       const ra = a.sev === "crit" ? 0 : 1;
@@ -1639,6 +1722,16 @@ class OrigamiNotificationsCard extends HTMLElement {
     });
     this._items = items;
     this._render();
+    this._scheduleDay();
+  }
+
+  /* Calendar rows say today or yesterday, so they are built again after midnight. */
+  _scheduleDay() {
+    clearTimeout(this._dayTimer);
+    if (!this.isConnected || !this._items.some((it) => it.kind === "calendar")) return;
+    const p = zonedParts(Date.now(), this._clockOpts().timeZone);
+    const ms = ((23 - p.hour) * 3600 + (59 - p.minute) * 60 + (60 - p.second)) * 1000;
+    this._dayTimer = setTimeout(() => this._recompute(), ms + 1000);
   }
 
   _build() {
@@ -1683,7 +1776,10 @@ class OrigamiNotificationsCard extends HTMLElement {
       this._toggle();
       this._dom.head.focus({ preventScroll: true });
     });
-    this._dom.clear.addEventListener("click", () => this._clearAll());
+    this._dom.clear.addEventListener("click", (e) => {
+      this._clearAll();
+      if (e.detail === 0) this._focusAfter(0);
+    });
     this._ro = new ResizeObserver(() => {
       const t = this._lastMsg;
       this._lastMsg = null;
@@ -1716,11 +1812,9 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (this._expanded) {
       this._refreshTimes();
       this._startClock();
+      this.classList.toggle("capped", getComputedStyle(this).getPropertyValue("--origami-max-height").trim() !== "");
     } else {
       this._stopClock();
-      const t = this._lastMsg;
-      this._lastMsg = null;
-      if (t !== null) this._setMessage(t);
     }
     this._render();
     if (refocus) (this._expanded ? d.ebar : d.head).focus({ preventScroll: true });
@@ -1747,50 +1841,20 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
   }
 
-  _loadAcks() {
-    try {
-      return JSON.parse(localStorage.getItem("origami-notifications-ack") || "{}");
-    } catch (e) {
-      return {};
-    }
-  }
-
-  /* At most 64 acks, the oldest go first. */
-  _saveAcks() {
-    const keys = Object.keys(this._acks);
-    for (let i = 0; i < keys.length - 64; i++) delete this._acks[keys[i]];
-    try {
-      localStorage.setItem("origami-notifications-ack", JSON.stringify(this._acks));
-    } catch (e) {
-      /* storage blocked */
-    }
-  }
-
-  _ack(key, sig) {
-    this._acks[key] = sig;
-    this._saveAcks();
-    this._recompute();
-  }
-
   /* Rows go at once. PENDING_MS covers Home Assistant refusing. */
   _dismiss(items) {
+    const acks = loadAcks();
     let acked = false;
     for (const it of items) {
       if (it.localDismiss) {
-        this._acks[it.key] = it.ackSig;
+        acks[it.key] = it.ackSig;
         acked = true;
         continue;
       }
       if (!it.dismiss) continue;
       const key = it.key;
       this._pending.set(key, Infinity);
-      let done;
-      try {
-        done = Promise.resolve(it.dismiss());
-      } catch (e) {
-        done = Promise.reject(e);
-      }
-      done.then(
+      new Promise((resolve) => resolve(it.dismiss())).then(
         () => {
           if (this._pending.get(key) !== Infinity) return;
           this._pending.set(key, Date.now() + PENDING_MS);
@@ -1802,7 +1866,10 @@ class OrigamiNotificationsCard extends HTMLElement {
         }
       );
     }
-    if (acked) this._saveAcks();
+    if (acked) {
+      saveAcks(acks, this._present);
+      for (const card of CARDS) if (card !== this) card._recompute();
+    }
     this._recompute();
   }
 
@@ -1811,8 +1878,12 @@ class OrigamiNotificationsCard extends HTMLElement {
   }
 
   /* After a dismissal by keyboard, focus the row that took its place. */
+  _hiding() {
+    return this.hidden || Boolean(this._hostAnim && !this._hostAnim.showing);
+  }
+
   _focusAfter(index) {
-    if (this.hidden || (this._hostAnim && !this._hostAnim.showing)) return;
+    if (this._hiding()) return;
     const it = this._items[Math.min(Math.max(index, 0), this._items.length - 1)];
     const entry = it && this._rowCache.get(it.key);
     const target =
@@ -1821,11 +1892,11 @@ class OrigamiNotificationsCard extends HTMLElement {
     target.focus({ preventScroll: true });
   }
 
-  /* The hidden attribute plus card-visibility-changed make Home Assistant drop the slot.
-   * A slot with a fixed height keeps its size, so then the card only fades. */
+  /* The hidden attribute plus card-visibility-changed make Home Assistant drop the slot. A slot
+   * with a fixed height can't shrink, so then the card only fades and the slot goes at once. */
   _setShown(show) {
+    if (show !== this._hiding()) return;
     const running = this._hostAnim;
-    if (show ? !this.hidden && !(running && !running.showing) : this.hidden || (running && !running.showing)) return;
     const now = getComputedStyle(this);
     const from = { height: now.height, opacity: now.opacity };
     if (running) {
@@ -1901,21 +1972,27 @@ class OrigamiNotificationsCard extends HTMLElement {
     };
   }
 
+  _collapse() {
+    this._expanded = false;
+    this._shownOpen = false;
+    clearTimeout(this._settleTimer);
+    if (!this._dom) return;
+    this._dom.card.classList.remove("open", "settled");
+    this._dom.head.setAttribute("aria-expanded", "false");
+  }
+
   /* A hidden card comes back closed, with a fresh list. */
   _gone() {
     const d = this._dom;
     this.classList.remove("leaving");
     this.hidden = true;
     fire(this, "card-visibility-changed", { value: false });
-    this._expanded = false;
-    this._shownOpen = false;
+    this._collapse();
     this._stopClock();
     this._lastMsg = null;
     clearTimeout(this._listTimer);
     this._listTimer = null;
     if (!d) return;
-    d.card.classList.remove("open");
-    d.head.setAttribute("aria-expanded", "false");
     for (const el of d.list.children) stopMotion(el);
     stopMotion(d.foot);
     d.list.replaceChildren();
@@ -1973,13 +2050,20 @@ class OrigamiNotificationsCard extends HTMLElement {
     const wasOpen = this._shownOpen;
     this._shownOpen = this._expanded;
     d.card.classList.toggle("open", this._expanded);
+    /* A list that scrolls while the drawer still moves would flash a scrollbar. */
+    if (this._expanded !== wasOpen) {
+      clearTimeout(this._settleTimer);
+      d.card.classList.remove("settled");
+      if (this._expanded && !this._animOK()) d.card.classList.add("settled");
+      else if (this._expanded) this._settleTimer = setTimeout(() => d.card.classList.add("settled"), 300);
+    }
     d.card.classList.toggle("has-items", !empty);
     d.head.setAttribute("aria-disabled", String(empty));
 
     if (empty) {
       d.icon.setAttribute("icon", "mdi:bell-outline");
       d.tile.className = "tile idle";
-      d.title.textContent = this._t.idle_title;
+      setText(d.title, this._t.idle_title);
       this._setMessage(this._t.idle_msg);
       d.badge.hidden = true;
       d.chev.hidden = true;
@@ -1987,12 +2071,13 @@ class OrigamiNotificationsCard extends HTMLElement {
       const top = items[0];
       d.icon.setAttribute("icon", top.icon || ICONS[top.kind]);
       d.tile.className = "tile" + sevClass(top.sev);
-      d.title.textContent = top.title;
-      this._setMessage(top.message || top.title);
+      setText(d.title, top.title);
+      this._setMessage(top.message || "");
       d.badge.hidden = false;
-      d.badge.textContent = badgeText(items.length);
+      setText(d.badge, badgeText(items.length));
       d.chev.hidden = false;
     }
+    d.head.classList.toggle("single", !empty && !items[0].message);
 
     setImage(d.tile, empty ? null : items[0].image);
     this._setBackdrop(!empty && items[0].backdrop ? items[0].image : null);
@@ -2019,7 +2104,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const items = this._items;
     animate = animate && this._animOK();
     if (items.length) {
-      d.count.textContent = fill(items.length === 1 ? this._t.count_one : this._t.count_other, { n: items.length });
+      setText(d.count, fill(items.length === 1 ? this._t.count_one : this._t.count_other, { n: items.length }));
     }
     this._renderList(items, animate);
     this._setFoot(items.length > 1 && items.some((it) => it.dismiss), animate);
@@ -2060,8 +2145,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       this.isConnected &&
       this.getClientRects().length > 0 &&
       !this.classList.contains("no-anim") &&
-      motionOK() &&
-      typeof this.animate === "function"
+      motionOK()
     );
   }
 
@@ -2070,7 +2154,8 @@ class OrigamiNotificationsCard extends HTMLElement {
   _renderList(items, animate) {
     const list = this._dom.list;
     const cache = this._rowCache;
-    animate = animate && this._animOK();
+    const active = this.shadowRoot.activeElement;
+    let refocus = null;
     const before = new Map();
     if (animate) {
       for (const [key, entry] of cache) before.set(key, entry.el.offsetTop);
@@ -2080,7 +2165,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const next = new Map();
     const els = [];
     for (const it of items) {
-      const sig = rowSig(it);
+      const sig = rowSig(it) + "\u0000" + this._epoch;
       const hit = cache.get(it.key);
       let el;
       if (hit && hit.sig === sig) {
@@ -2090,17 +2175,30 @@ class OrigamiNotificationsCard extends HTMLElement {
         setImage(el.querySelector(".rtile"), it.image);
       } else {
         el = this._row(it);
-        if (hit) replaced.set(hit.el, el);
+        if (hit) {
+          replaced.set(hit.el, el);
+          if (hit.el.classList.contains("open")) el.classList.add("open");
+          /* Keep keyboard focus on the same control of the rebuilt row. */
+          if (active && hit.el.contains(active)) {
+            const cls = "." + active.classList[0];
+            refocus = [el, cls, [...hit.el.querySelectorAll(cls)].indexOf(active)];
+          }
+        }
       }
       next.set(it.key, { sig, el });
       els.push(el);
     }
     this._rowCache = next;
     const kept = new Set(els);
-    const gone = old.filter((el) => !kept.has(el) && !replaced.has(el));
+    const gone = new Set(old.filter((el) => !kept.has(el) && !replaced.has(el)));
+    const focus = () => {
+      const target = refocus && refocus[0].querySelectorAll(refocus[1])[refocus[2]];
+      if (target) target.focus({ preventScroll: true });
+    };
     if (!animate) {
       for (const el of old) stopMotion(el);
       list.replaceChildren(...els);
+      focus();
       return;
     }
 
@@ -2108,7 +2206,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const after = new Map();
     let anchor = null;
     for (const el of old) {
-      if (gone.includes(el)) {
+      if (gone.has(el)) {
         if (!after.has(anchor)) after.set(anchor, []);
         after.get(anchor).push(el);
       } else {
@@ -2127,6 +2225,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       cursor.remove();
       cursor = n;
     }
+    focus();
 
     const gap = parseFloat(getComputedStyle(list).rowGap) || 0;
     const slide = getComputedStyle(this).direction === "rtl" ? -16 : 16;
@@ -2153,7 +2252,9 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   _row(it) {
     const row = document.createElement("div");
-    row.className = "row";
+    row.className = "row" + sevClass(it.sev);
+    row.dataset.kind = it.kind;
+    row.setAttribute("role", "listitem");
     const tile = document.createElement("div");
     tile.className = "rtile" + sevClass(it.sev);
     const ic = document.createElement("ha-icon");
@@ -2192,7 +2293,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     const body = document.createElement("div");
     body.className = "body";
     body.textContent = it.message;
-    if (!it.message) body.hidden = true;
     row.append(tile, title, meta, body);
     if (it.actions && it.actions.length) {
       const actions = document.createElement("div");
@@ -2253,14 +2353,14 @@ class OrigamiNotificationsCard extends HTMLElement {
     const d = this._dom;
     if (this._expanded) {
       this._lastMsg = null;
-      d.t1.textContent = text;
-      d.t2.textContent = text;
+      setText(d.t1, text);
+      setText(d.t2, text);
       return;
     }
     if (text === this._lastMsg) return;
     this._lastMsg = text;
-    d.t1.textContent = text;
-    d.t2.textContent = text;
+    setText(d.t1, text);
+    setText(d.t2, text);
     d.track.classList.remove("scroll");
     d.msg.classList.remove("fade");
     d.track.style.removeProperty("--scroll-s");
@@ -2288,14 +2388,15 @@ class OrigamiNotificationsCard extends HTMLElement {
 }
 
 /* Generic labels come from Home Assistant, in the user's language. */
-const HA_EDITOR = Object.freeze({
+const HA_EDITOR = {
   entities: "ui.panel.lovelace.editor.card.generic.entities",
   name: "ui.panel.lovelace.editor.card.generic.name",
   icon: "ui.panel.lovelace.editor.card.generic.icon",
+  attribute: "ui.panel.lovelace.editor.card.generic.attribute",
   tap_action: "ui.panel.lovelace.editor.card.generic.tap_action",
-});
+};
 
-const EDITOR_STRINGS = Object.freeze({
+const EDITOR_STRINGS = {
   en: {
     entities: "Entities",
     label: "Include entities by label",
@@ -2364,34 +2465,37 @@ const EDITOR_STRINGS = Object.freeze({
     type_picture: "Zustand als Titel",
     type_generic: "Einfache Entität",
   },
-});
+};
 
-const EDITOR_HELPERS = Object.freeze({
+const EDITOR_HELPERS = {
   en: {
     label: "Every entity with this label is added and detected automatically.",
     visible: "Applies outside edit mode, like Home Assistant's own card visibility.",
     people: "Matches the user account linked to each person in Settings → People.",
-    attribute:
-      "Shown as the notification: an object with a name or title, a description and an image, or a plain value. Empty: found on its own.",
-    image: "An attribute, a path into one like book.cover, or a URL. Empty: found on its own.",
-    background: "Shown softly blurred behind the card while this entity is the notification on top.",
+    attribute: "An object with a name or title, a description and an image, or a plain value. Leave empty to find one.",
+    attribute_picture: "An attribute that holds an object with a name or title, shown instead of the state.",
+    image: "An attribute, a path into one like book.cover, or a URL. Leave empty to use the entity's picture.",
+    background: "Blurred behind the card while this entity is on top.",
   },
   de: {
     label: "Jede Entität mit diesem Label kommt dazu und wird automatisch erkannt.",
     visible: "Gilt außerhalb des Bearbeitungsmodus, wie die Sichtbarkeit von Home Assistant selbst.",
     people: "Verglichen wird das Benutzerkonto, das unter Einstellungen → Personen verknüpft ist.",
-    attribute:
-      "Wird zur Benachrichtigung: ein Objekt mit name oder title, description und image, oder ein einfacher Wert. Leer: wird selbst gefunden.",
-    image: "Ein Attribut, ein Pfad hinein wie book.cover, oder eine URL. Leer: wird selbst gefunden.",
-    background: "Weich und unscharf hinter der Karte, solange diese Entität oben steht.",
+    attribute: "Ein Objekt mit name oder title, description und image, oder ein einfacher Wert. Leer lassen, um eins zu finden.",
+    attribute_picture: "Ein Attribut mit einem Objekt mit name oder title, das statt des Zustands erscheint.",
+    image: "Ein Attribut, ein Pfad hinein wie book.cover, oder eine URL. Leer lassen für das Bild der Entität.",
+    background: "Unscharf hinter der Karte, solange diese Entität oben steht.",
   },
-});
+};
 
-const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "tap_action"];
+const TYPES = ["auto", ...Object.keys(RENDERERS)];
+
+/* The kinds that read an attribute, so only they show the field. */
+const USES_ATTRIBUTE = ["auto", "attribute", "picture", "recipe"];
 
 class OrigamiNotificationsEditor extends HTMLElement {
   setConfig(config) {
-    checkAudience(config.audience);
+    checkConfig(config);
     this._config = { ...config };
     this._renderForm();
   }
@@ -2402,8 +2506,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
   }
 
   _lang() {
-    const h = this._hass;
-    return String((h && ((h.locale && h.locale.language) || h.language)) || "en").split("-")[0];
+    return langOf(this._hass).split("-")[0];
   }
 
   _label(key) {
@@ -2414,8 +2517,8 @@ class OrigamiNotificationsEditor extends HTMLElement {
     return borrowed || EDITOR_STRINGS.en[key] || key;
   }
 
-  _helper(key) {
-    return (EDITOR_HELPERS[this._lang()] || EDITOR_HELPERS.en)[key];
+  _helper(schema) {
+    return (EDITOR_HELPERS[this._lang()] || EDITOR_HELPERS.en)[schema.helper || schema.name];
   }
 
   _name(id) {
@@ -2423,28 +2526,27 @@ class OrigamiNotificationsEditor extends HTMLElement {
     return (st && st.attributes.friendly_name) || id;
   }
 
-  _entries() {
-    return (this._config.entities || [])
-      .map((e) => (typeof e === "string" ? { entity: e } : e || {}))
-      .filter((e) => typeof e.entity === "string");
+  _title(entry) {
+    return typeof entry.name === "string" && entry.name ? entry.name : this._name(entry.entity);
   }
 
-  _sources() {
-    const c = this._config || {};
-    const h = this._hass;
-    const reg = h ? h.entities : null;
-    const labelled =
-      c.label && reg
-        ? Object.keys(reg).filter((id) => ((reg[id] && reg[id].labels) || []).includes(c.label))
-        : [];
+  /* Like the card, the first entry of an entity counts. */
+  _entries(c = this._config) {
+    const seen = new Set();
+    return (c.entities || [])
+      .map((e) => (typeof e === "string" ? { entity: e } : e || {}))
+      .filter((e) => typeof e.entity === "string" && !seen.has(e.entity) && seen.add(e.entity));
+  }
+
+  _sources(c = this._config || {}) {
     const sources = [{ key: "system", name: this._label("system"), icon: ICONS.system }];
     if (c.updates !== false) sources.push({ key: "updates", name: this._label("updates"), icon: ICONS.update });
     if (c.repairs !== false) sources.push({ key: "repairs", name: this._label("repairs"), icon: ICONS.repair });
-    for (const src of [...this._entries(), ...labelled.map((entity) => ({ entity }))]) {
+    for (const src of [...this._entries(c), ...labelled(this._hass, c.label).map((entity) => ({ entity }))]) {
       if (sources.some((s) => s.key === src.entity)) continue;
       sources.push({
         key: src.entity,
-        name: typeof src.name === "string" && src.name ? src.name : this._name(src.entity),
+        name: this._title(src),
         icon: src.icon || typeIcon(this._typeOf(src)),
       });
     }
@@ -2452,11 +2554,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
   }
 
   _typeOf(src) {
-    if (src.type === "recipe") return "attribute";
-    if (src.type && src.type !== "auto") return src.type;
-    if (src.attribute) return "attribute";
-    const st = this._hass && this._hass.states[src.entity];
-    return st ? detectType(src.entity, st) : "generic";
+    return src.type === "recipe" ? "attribute" : kindOf(src, this._hass && this._hass.states[src.entity]);
   }
 
   _summary(rule) {
@@ -2495,7 +2593,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
                 return {
                   name: e.entity,
                   type: "expandable",
-                  title: typeof e.name === "string" && e.name ? e.name : this._name(e.entity),
+                  title: this._title(e),
                   icon: e.icon || icon,
                   schema: [
                     {
@@ -2507,8 +2605,14 @@ class OrigamiNotificationsEditor extends HTMLElement {
                         },
                       },
                     },
-                    ...(["auto", "attribute", "picture", "recipe"].includes(e.type || "auto")
-                      ? [{ name: "attribute", selector: { attribute: { entity_id: e.entity } } }]
+                    ...(USES_ATTRIBUTE.includes(e.type || "auto")
+                      ? [
+                          {
+                            name: "attribute",
+                            helper: e.type === "picture" ? "attribute_picture" : undefined,
+                            selector: { attribute: { entity_id: e.entity } },
+                          },
+                        ]
                       : []),
                     {
                       name: "",
@@ -2575,11 +2679,16 @@ class OrigamiNotificationsEditor extends HTMLElement {
     return data;
   }
 
-  /* Picked entities keep what only YAML can set (actions, name parts). */
+  /* Picked entities keep what only YAML can set (actions, name parts). The entity picker swaps
+   * an entity in place, and its options move along, as in Home Assistant's own row editors. */
   _mergeEntities(ids, options) {
-    const prev = new Map(this._entries().map((e) => [e.entity, e]));
-    return (ids || []).map((id) => {
-      const base = prev.get(id) || { entity: id };
+    const entries = this._entries();
+    const prev = new Map(entries.map((e) => [e.entity, e]));
+    const changed = ids.map((id, i) => (entries[i] && id !== entries[i].entity ? i : -1)).filter((i) => i >= 0);
+    const swap = ids.length === entries.length && changed.length === 1 && !prev.has(ids[changed[0]]) ? changed[0] : -1;
+    this._swapped = swap < 0 ? null : [entries[swap].entity, ids[swap]];
+    return ids.map((id, i) => {
+      const base = prev.get(id) || (i === swap ? { ...entries[i], entity: id } : { entity: id });
       const opt = (options && options[id]) || {};
       const merged = { ...base, entity: id };
       for (const key of OPTION_KEYS) {
@@ -2589,10 +2698,11 @@ class OrigamiNotificationsEditor extends HTMLElement {
         if (isEmpty(v) || (key === "type" && v === "auto")) delete merged[key];
         else merged[key] = v;
       }
-      /* type: recipe is shown as attribute recipe and written back as it was. */
-      if (base.type === "recipe" && !("attribute" in base) && merged.type === "attribute" && merged.attribute === "recipe") {
+      if (!USES_ATTRIBUTE.includes(merged.type || "auto")) delete merged.attribute;
+      /* `type: recipe` is shown as an attribute and written back as it was. */
+      if (base.type === "recipe" && merged.type === "attribute" && merged.attribute === (base.attribute || "recipe")) {
         merged.type = "recipe";
-        delete merged.attribute;
+        if (!base.attribute) delete merged.attribute;
       }
       const ordered = {};
       for (const key of [...ENTITY_KEY_ORDER, ...Object.keys(merged)]) {
@@ -2605,21 +2715,27 @@ class OrigamiNotificationsEditor extends HTMLElement {
   _onChange(e) {
     e.stopPropagation();
     const value = { ...(e.detail.value || {}) };
+    const before = this._sources().map((s) => s.key);
+    this._swapped = null;
     if (Array.isArray(value.entities)) {
       value.entities = this._mergeEntities(value.entities, value.options);
     }
     delete value.options;
-    if (value.audience) {
-      const audience = { ...(this._config.audience || {}) };
-      for (const [key, v] of Object.entries(value.audience)) {
-        if (v && (v.visible === "only" || v.visible === "except")) {
-          audience[key] = { [v.visible]: v.people || [] };
-        } else {
-          delete audience[key];
-        }
+    const audience = { ...(this._config.audience || {}) };
+    for (const [key, v] of Object.entries(value.audience || {})) {
+      if (v && (v.visible === "only" || v.visible === "except")) {
+        audience[key] = { [v.visible]: v.people || [] };
+      } else {
+        delete audience[key];
       }
-      value.audience = Object.keys(audience).length ? audience : null;
     }
+    if (this._swapped && audience[this._swapped[0]] && !audience[this._swapped[1]]) {
+      audience[this._swapped[1]] = audience[this._swapped[0]];
+    }
+    /* A rule goes when its source leaves the list, since the editor could no longer show it. */
+    const after = new Set(this._sources({ ...this._config, ...value }).map((s) => s.key));
+    for (const key of before) if (!after.has(key)) delete audience[key];
+    value.audience = Object.keys(audience).length ? audience : null;
     /* Only what differs from the defaults is written, in a fixed order. */
     const merged = { ...this._config, ...value };
     const config = { type: "custom:" + CARD };
@@ -2655,7 +2771,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
       this._formLang = lang;
       this._formLocalize = this._hass && this._hass.localize;
       this._form.computeLabel = (s) => this._label(s.name);
-      this._form.computeHelper = (s) => this._helper(s.name);
+      this._form.computeHelper = (s) => this._helper(s);
       this._schemaKey = null;
     }
     const sources = this._sources();

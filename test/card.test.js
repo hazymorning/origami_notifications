@@ -1,4 +1,4 @@
-const { test, afterEach } = require("node:test");
+const { describe, test, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
@@ -25,17 +25,6 @@ function makeWindow() {
     unobserve() {}
     disconnect() {}
   };
-  /* Animations end at once. */
-  window.Element.prototype.animate = () => ({
-    cancel() {},
-    set onfinish(fn) {
-      this._f = fn;
-      if (fn) fn();
-    },
-    get onfinish() {
-      return this._f;
-    },
-  });
   window.eval(CODE);
   windows.push(window);
   return window;
@@ -163,7 +152,7 @@ test("update entity", () => {
   const elAuto = mount(w, { type: "x" }, auto);
   elAuto.shadowRoot.querySelector(".row .x").click();
   same(
-    [elAuto._items.length, auto.calls.some((c) => c[0] === "update.skip")],
+    [rows(elAuto).length, auto.calls.some((c) => c[0] === "update.skip")],
     [0, false],
     "auto update is dismissed locally, not skipped"
   );
@@ -335,18 +324,15 @@ test("pictures from attributes, the picture type and the background", () => {
       entity_picture: "/api/media_player_proxy/media_player.tv",
     }),
   });
-  const el = mount(
-    w,
-    {
-      type: "x",
-      entities: [
-        { entity: "sensor.dinner", background: true },
-        { entity: "sensor.book", type: "picture", image: "cover" },
-        { entity: "media_player.tv", type: "generic" },
-      ],
-    },
-    hass
-  );
+  const config = {
+    type: "x",
+    entities: [
+      { entity: "sensor.dinner", background: true },
+      { entity: "sensor.book", type: "picture", image: "cover" },
+      { entity: "media_player.tv", type: "generic" },
+    ],
+  };
+  const el = mount(w, config, hass);
   const byTitle = Object.fromEntries(rows(el).map((r) => [r.title, r]));
   same(byTitle.Lasagne.body, "Dinner", "recipe falls back to the entity name");
   same(byTitle.Dune.body, "Book of the day", "picture type: the state is the title");
@@ -360,13 +346,11 @@ test("pictures from attributes, the picture type and the background", () => {
     "https://img.test/dune.jpg",
     "http://ha.local/api/media_player_proxy/media_player.tv",
   ], "images from any source");
-  const bg = () => [...el.shadowRoot.querySelectorAll(".backdrop img")].map((i) => i.getAttribute("src"));
-  el._items.sort((a, b) => (a.title === "Lasagne" ? -1 : b.title === "Lasagne" ? 1 : 0));
-  el._render();
-  same(bg().includes("http://ha.local/local/food/lasagne.jpg"), true, "background from the item on top");
-  el._items.sort((a, b) => (a.title === "Dune" ? -1 : b.title === "Dune" ? 1 : 0));
-  el._render();
-  same(el._bgUrl, null, "no background for sources without it");
+  const bg = (card) => [...card.shadowRoot.querySelectorAll(".backdrop img")].map((i) => i.getAttribute("src")).filter(Boolean);
+  const later = (s) => ({ ...s, last_changed: "2026-09-21T11:00:00+00:00" });
+  const onTop = (id) => mount(w, config, makeHass({ ...hass.states, [id]: later(hass.states[id]) }));
+  same(bg(onTop("sensor.dinner")), ["http://ha.local/local/food/lasagne.jpg"], "background from the item on top");
+  same(bg(onTop("sensor.book")), [], "no background for sources without it");
 });
 
 test("any attribute can describe the notification", () => {
@@ -631,7 +615,6 @@ test("repairs", async () => {
     },
     { domain: "cloud", issue_id: "legacy", severity: "critical", created: "2026-09-21T07:00:00+00:00" },
     { domain: "hue", issue_id: "ignored_one", severity: "error", created: "2026-09-21T07:00:00+00:00", ignored: true },
-    { domain: "hue", issue_id: "gone", severity: "error", created: "2026-09-21T07:00:00+00:00", active: false },
   ];
   const asked = [];
   const hass = makeHass({}, {
@@ -649,7 +632,7 @@ test("repairs", async () => {
   ], "repair rows");
   same(asked, [["issues", ["zwave_js", "cloud"]]], "issue translations are requested");
   el.shadowRoot.querySelectorAll(".row .x")[0].click();
-  same(hass.calls.filter((c) => c[0] === "ws").length > 0, true, "ignore issue");
+  same(hass.calls.some((c) => c[1] === "repairs/ignore_issue"), true, "ignore issue");
 
   const guest = makeHass({}, { wsReply: () => ({ issues }), user: { id: "u2", is_admin: false } });
   mount(w, { type: "x" }, guest);
@@ -710,7 +693,7 @@ test("a card that hid itself comes back closed", () => {
   const w = makeWindow();
   const on = st("binary_sensor.door", "on", { friendly_name: "Door" });
   const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": on }));
-  el._toggle();
+  el.shadowRoot.querySelector(".head").click();
   same(el.shadowRoot.querySelector("ha-card").classList.contains("open"), true, "open");
   el.hass = makeHass({ "binary_sensor.door": { ...on, state: "off" } });
   el.hass = makeHass({ "binary_sensor.door": on });
@@ -724,10 +707,402 @@ test("keyboard focus moves to the next row after a dismissal", () => {
     "binary_sensor.b": st("binary_sensor.b", "on", { friendly_name: "B" }),
   });
   const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.a", "binary_sensor.b"] }, hass);
-  el._toggle();
+  el.shadowRoot.querySelector(".head").click();
   const x = el.shadowRoot.querySelector(".row .x");
   x.focus();
   x.click();
   const focused = el.shadowRoot.activeElement;
   same(focused && focused.closest(".row").querySelector(".title").textContent, "B");
+});
+
+test("a calendar shows only while an event runs", () => {
+  const w = makeWindow();
+  const hass = makeHass({ "calendar.family": st("calendar.family", "off", { message: "Dentist", start_time: "2030-01-01 09:00:00" }) });
+  same(rows(mount(w, { type: "x", hide_when_empty: false, updates: false, entities: ["calendar.family"] }, hass)).length, 0);
+});
+
+test("calendar times are read in the server's time zone", () => {
+  const w = makeWindow();
+  const hass = makeHass({
+    "calendar.trip": st("calendar.trip", "on", { message: "Flight", start_time: "2020-01-15 09:30:00", all_day: false }),
+  });
+  hass.config = { time_zone: "Pacific/Auckland" };
+  hass.locale = { language: "en", time_format: "24", time_zone: "server" };
+  const el = mount(w, { type: "x", entities: ["calendar.trip"] }, hass);
+  same(rows(el)[0].body, "on 01/15 at 09:30");
+});
+
+test("non-admins can't install or skip updates, they hide them on this device", () => {
+  const w = makeWindow();
+  const hass = makeHass(
+    { "update.router": st("update.router", "on", { title: "RouterOS", latest_version: "7.15", supported_features: 1 }) },
+    { user: { id: "u2", is_admin: false } }
+  );
+  const el = mount(w, { type: "x" }, hass);
+  same(rows(el)[0].actions, [], "no install button");
+  el.shadowRoot.querySelector(".row .x").click();
+  same([rows(el).length, hass.calls.some((c) => c[0] === "update.skip")], [0, false], "hidden, not skipped");
+});
+
+test("a picture URL Home Assistant can't parse costs only the picture", () => {
+  const w = makeWindow();
+  const hass = makeHass({
+    "sensor.cam": st("sensor.cam", "on", { friendly_name: "Camera", entity_picture: "https://:8123/snap.jpg" }),
+    "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }),
+  });
+  hass.hassUrl = (p) => new w.URL(p, "http://ha.local").toString();
+  const el = mount(w, { type: "x", updates: false, entities: ["sensor.cam", "binary_sensor.door"] }, hass);
+  same(rows(el).map((r) => r.title).sort(), ["Camera", "Door"]);
+});
+
+test("a local dismissal survives a new language and a new formatter", () => {
+  const w = makeWindow();
+  const door = st("binary_sensor.door", "on", { friendly_name: "Door" });
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["binary_sensor.door"] };
+  const el = mount(w, config, makeHass({ "binary_sensor.door": door }, { formatEntityState: () => "Open" }));
+  el.shadowRoot.querySelector(".row .x").click();
+  el.hass = makeHass({ "binary_sensor.door": door }, { lang: "de", formatEntityState: () => "Offen" });
+  same(rows(el).length, 0, "after switching to German");
+  el.hass = makeHass({ "binary_sensor.door": door }, { lang: "de", formatEntityState: (s) => s.state });
+  same(rows(el).length, 0, "with Home Assistant's placeholder formatter");
+});
+
+test("a dismissal from 0.3 still holds", () => {
+  const w = makeWindow();
+  const door = st("binary_sensor.door", "on", { friendly_name: "Door" });
+  const ts = Date.parse(door.last_changed);
+  w.localStorage.setItem("origami-notifications-ack", JSON.stringify({ "g:binary_sensor.door": "Door\u0000Open\u0000" + ts }));
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": door }, { formatEntityState: () => "Open" }));
+  same(rows(el).length, 0);
+});
+
+test("new formatters from Home Assistant are picked up", () => {
+  const w = makeWindow();
+  const states = { "alarm_control_panel.house": st("alarm_control_panel.house", "triggered", { friendly_name: "House" }) };
+  const hass = makeHass(states, { formatEntityState: (s) => s.state });
+  const el = mount(w, { type: "x", entities: ["alarm_control_panel.house"] }, hass);
+  same(rows(el)[0].body, "triggered", "placeholder");
+  el.hass = { ...hass, formatEntityState: () => "Triggered" };
+  same(rows(el)[0].body, "Triggered", "real formatter");
+});
+
+test("an update whose state arrives after the card loaded shows up", () => {
+  const w = makeWindow();
+  const entities = { "update.hacs": { entity_id: "update.hacs", labels: [] } };
+  const hass = makeHass({}, { entities });
+  const el = mount(w, { type: "x", hide_when_empty: false }, hass);
+  same(rows(el).length, 0);
+  el.hass = { ...hass, states: { "update.hacs": st("update.hacs", "on", { title: "HACS", latest_version: "2.1" }) } };
+  same(rows(el).map((r) => r.title), ["HACS"]);
+});
+
+test("repairs are fetched again when the card comes back", async () => {
+  const w = makeWindow();
+  let issues = [];
+  const hass = makeHass({}, { wsReply: () => ({ issues }) });
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false }, hass);
+  await tick();
+  el.remove();
+  issues = [{ domain: "hue", issue_id: "bridge_offline", severity: "error", created: "2026-09-21T07:00:00+00:00" }];
+  w.document.body.appendChild(el);
+  await tick();
+  same(rows(el).map((r) => r.title), ["Bridge offline"]);
+});
+
+test("repairs are for admins only, also when the user arrives late", async () => {
+  const w = makeWindow();
+  const issues = [{ domain: "hue", issue_id: "bridge_offline", severity: "error", created: "2026-09-21T07:00:00+00:00" }];
+  const hass = makeHass({}, { wsReply: () => ({ issues }) });
+  hass.user = null;
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false }, hass);
+  await tick();
+  same(rows(el).length, 0, "no user yet");
+  el.hass = { ...hass, user: { id: "u1", is_admin: true } };
+  await tick();
+  same(rows(el).length, 1, "an admin");
+});
+
+test("a dismissed DWD warning stays dismissed when an earlier one ends", () => {
+  const w = makeWindow();
+  const warning = (i, name, start) => ({
+    ["warning_" + i + "_name"]: name,
+    ["warning_" + i + "_headline"]: name,
+    ["warning_" + i + "_level"]: 2,
+    ["warning_" + i + "_start"]: start,
+  });
+  const storm = warning(1, "Storm", "2026-09-21T08:00:00+00:00");
+  const frost = (i) => warning(i, "Frost", "2026-09-21T09:00:00+00:00");
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["sensor.dwd"] };
+  const el = mount(w, config, makeHass({ "sensor.dwd": st("sensor.dwd", "2", { warning_count: 2, ...storm, ...frost(2) }) }));
+  for (const x of el.shadowRoot.querySelectorAll(".row .x")) x.click();
+  el.hass = makeHass({ "sensor.dwd": st("sensor.dwd", "1", { warning_count: 1, ...frost(1) }) });
+  same(rows(el).length, 0);
+});
+
+test("name replaces the entity's name, not what the row is about", () => {
+  const w = makeWindow();
+  const hass = makeHass({
+    "calendar.family": st("calendar.family", "on", { message: "Dentist", start_time: "2020-01-15 09:30:00" }),
+    "sensor.dish": st("sensor.dish", "Lasagne", { friendly_name: "Dish of the day" }),
+    "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "binary_sensor.door" }),
+  });
+  const el = mount(
+    w,
+    {
+      type: "x",
+      updates: false,
+      entities: [
+        { entity: "calendar.family", name: "Family" },
+        { entity: "sensor.dish", type: "picture", name: "Dinner" },
+        { entity: "binary_sensor.door", name: "Front door" },
+      ],
+    },
+    hass
+  );
+  const byTitle = Object.fromEntries(rows(el).map((r) => [r.title, r.body]));
+  same(Object.keys(byTitle).sort(), ["Dentist", "Front door", "Lasagne"]);
+  same(byTitle.Lasagne, "Dinner");
+});
+
+test("a name that resolves to nothing falls back to the entity's own name", () => {
+  const w = makeWindow();
+  const hass = makeHass({ "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }) });
+  hass.formatEntityName = (s, name) => (name ? "" : s.attributes.friendly_name);
+  const el = mount(w, { type: "x", updates: false, entities: [{ entity: "binary_sensor.door", name: [{ type: "area" }] }] }, hass);
+  same(rows(el)[0].title, "Door");
+});
+
+test("cards on one device share their dismissals", () => {
+  const w = makeWindow();
+  const states = {
+    "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }),
+    "binary_sensor.window": st("binary_sensor.window", "on", { friendly_name: "Window" }),
+  };
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["binary_sensor.door", "binary_sensor.window"] };
+  const a = mount(w, config, makeHass(states));
+  const b = mount(w, config, makeHass(states));
+  const x = (el, title) =>
+    [...el.shadowRoot.querySelectorAll(".row")].find((r) => r.querySelector(".title").textContent === title).querySelector(".x");
+  x(a, "Door").click();
+  same(rows(b).map((r) => r.title), ["Window"], "gone in the other card at once");
+  x(b, "Window").click();
+  same(rows(mount(w, config, makeHass(states))).length, 0, "both stay dismissed after a reload");
+});
+
+test("the dismissals of rows that are gone are dropped first", () => {
+  const w = makeWindow();
+  const door = st("binary_sensor.door", "on", { friendly_name: "Door" });
+  const acks = { "g:binary_sensor.door": "on\u0000" + Date.parse(door.last_changed) };
+  for (let i = 0; i < 63; i++) acks["g:sensor.gone_" + i] = "x";
+  w.localStorage.setItem("origami-notifications-ack", JSON.stringify(acks));
+  const states = { "binary_sensor.door": door, "binary_sensor.window": st("binary_sensor.window", "on", { friendly_name: "Window" }) };
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["binary_sensor.door", "binary_sensor.window"] };
+  const el = mount(w, config, makeHass(states));
+  same(rows(el).map((r) => r.title), ["Window"], "the door was dismissed long ago");
+  el.shadowRoot.querySelector(".row .x").click();
+  same(rows(el).length, 0, "the door stays dismissed once there are more than 64");
+});
+
+test("a dismissed attribute row comes back after its attribute was empty", () => {
+  const w = makeWindow();
+  const bins = (next) => st("sensor.bins", "1", { friendly_name: "Bins", next });
+  const paper = { name: "Paper", description: "Put it out tonight" };
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["sensor.bins"] };
+  const el = mount(w, config, makeHass({ "sensor.bins": bins(paper) }));
+  el.shadowRoot.querySelector(".row .x").click();
+  el.hass = makeHass({ "sensor.bins": bins(paper) });
+  same(rows(el).length, 0, "still hidden");
+  el.hass = makeHass({ "sensor.bins": bins(null) });
+  el.hass = makeHass({ "sensor.bins": bins(paper) });
+  same(rows(el).length, 1, "back two weeks later");
+});
+
+test("type: generic treats 0.0 as off", () => {
+  const w = makeWindow();
+  const hass = makeHass({ "sensor.rain": st("sensor.rain", "0.0", { friendly_name: "Rain" }) });
+  same(rows(mount(w, { type: "x", hide_when_empty: false, updates: false, entities: [{ entity: "sensor.rain", type: "generic" }] }, hass)).length, 0);
+});
+
+test("attribute values are formatted by Home Assistant, objects are never shown raw", () => {
+  const w = makeWindow();
+  const hass = makeHass({
+    "sensor.bins": st("sensor.bins", "1", { friendly_name: "Bins", next: "2026-10-05T06:00:00+00:00" }),
+    "sensor.parcel": st("sensor.parcel", "1", { friendly_name: "Parcel", item: { name: "Shoes", description: { text: "x" } } }),
+  });
+  hass.formatEntityAttributeValue = (s, attr, value) => (attr === "next" ? "October 5" : String(value));
+  const el = mount(w, { type: "x", updates: false, entities: [{ entity: "sensor.bins", attribute: "next" }, { entity: "sensor.parcel", attribute: "item" }] }, hass);
+  same(rows(el).map((r) => [r.title, r.body]).sort(), [["October 5", "Bins"], ["Shoes", "Parcel"]]);
+});
+
+test("a broken config gets a clear error", () => {
+  const w = makeWindow();
+  const error = (config) => {
+    try {
+      w.document.createElement("origami-notifications").setConfig({ type: "x", ...config });
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  };
+  same(error({ entities: "sensor.door" }), "origami-notifications: entities must be a list");
+  same(error({ entities: [{ entity: "sensor.door", actions: [null] }] }), "origami-notifications: actions must be a list of buttons, each with a label and a tap_action");
+  same(error({ entities: [{ entity: "sensor.door", tap_action: "more-info" }] }), "origami-notifications: tap_action must be an action, like action: more-info");
+});
+
+test("Home Assistant's failed login notice is left out, nothing else", () => {
+  const w = makeWindow();
+  const subs = [];
+  const el = mount(w, { type: "x", updates: false }, makeHass({}, { subs }));
+  subs[0].cb({
+    type: "current",
+    notifications: {
+      "http-login": { notification_id: "http-login", title: "Login attempt failed", message: "Login attempt or request with invalid authentication from 10.0.0.9." },
+      n1: { notification_id: "n1", title: "Mail", message: "IMAP login failed: invalid authentication." },
+    },
+  });
+  same(rows(el).map((r) => r.title), ["Mail"]);
+});
+
+test("an alert has no text, and the header shows its name once", () => {
+  const w = makeWindow();
+  const hass = makeHass({ "alert.garage": st("alert.garage", "on", { friendly_name: "Garage open" }) });
+  const el = mount(w, { type: "x", updates: false, entities: ["alert.garage"] }, hass);
+  same(rows(el)[0].body, "");
+  same([el.shadowRoot.querySelector(".head").classList.contains("single"), el.shadowRoot.querySelector(".msg .t").textContent], [true, ""]);
+});
+
+test("other languages borrow Home Assistant's word for dismiss", () => {
+  const w = makeWindow();
+  const localize = (k) => (k === "ui.card.persistent_notification.dismiss" ? "Ignorer" : "");
+  const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": st("binary_sensor.door", "on") }, { lang: "fr", localize }));
+  same(el.shadowRoot.querySelector(".row .x").getAttribute("aria-label"), "Ignorer");
+});
+
+test("relative times round before they pick a unit", () => {
+  const w = makeWindow();
+  const ago = (s) => ({ ...st("binary_sensor.door", "on", { friendly_name: "Door" }), last_changed: new Date(Date.now() - s * 1000).toISOString() });
+  const when = (s) => {
+    const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": ago(s) }));
+    return el.shadowRoot.querySelector(".row .when").textContent;
+  };
+  same([when(3580), when(23.8 * 3600)], ["1 hr. ago", "yesterday"]);
+});
+
+test("an open card that is moved keeps its times up to date", () => {
+  const w = makeWindow();
+  const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": st("binary_sensor.door", "on") }));
+  el.shadowRoot.querySelector(".head").click();
+  el.remove();
+  w.document.body.appendChild(el);
+  same(Boolean(el._clock), true);
+});
+
+test("a new config shows at once, without waiting for Home Assistant", () => {
+  const w = makeWindow();
+  const states = { "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }) };
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false }, makeHass(states));
+  el.setConfig({ type: "x", hide_when_empty: false, updates: false, entities: ["binary_sensor.door"] });
+  same(rows(el).map((r) => r.title), ["Door"]);
+});
+
+test("rows can be styled by kind and severity", () => {
+  const w = makeWindow();
+  const hass = makeHass({ "alarm_control_panel.house": st("alarm_control_panel.house", "triggered", { friendly_name: "House" }) });
+  const el = mount(w, { type: "x", updates: false, entities: ["alarm_control_panel.house"] }, hass);
+  const row = el.shadowRoot.querySelector(".row");
+  same([row.className, row.dataset.kind, row.getAttribute("role")], ["row crit link", "alarm", "listitem"]);
+});
+
+test("keyboard focus stays on a row that is built again", () => {
+  const w = makeWindow();
+  const update = (pct) =>
+    makeHass({ "update.nas": st("update.nas", "on", { title: "NAS", latest_version: "2", in_progress: true, update_percentage: pct }) });
+  const el = mount(w, { type: "x" }, update(10));
+  el.shadowRoot.querySelector(".head").click();
+  el.shadowRoot.querySelector(".row .x").focus();
+  el.hass = update(11);
+  same(el.shadowRoot.activeElement && el.shadowRoot.activeElement.className, "x");
+});
+
+test("a height limit from css makes the open list scroll", () => {
+  const w = makeWindow();
+  const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.door"], css: ":host { --origami-max-height: 200px; }" }, makeHass({ "binary_sensor.door": st("binary_sensor.door", "on") }));
+  el.style.setProperty("--origami-max-height", "200px");
+  el.shadowRoot.querySelector(".head").click();
+  same([el.classList.contains("capped"), el.shadowRoot.querySelector("ha-card").classList.contains("settled")], [true, true]);
+});
+
+describe("editor", () => {
+  const edit = (w, config, hass, change) => {
+    const ed = w.document.createElement("origami-notifications-editor");
+    ed.setConfig({ type: "custom:origami-notifications", ...config });
+    ed.hass = hass;
+    let written = null;
+    ed.addEventListener("config-changed", (e) => (written = e.detail.config));
+    const form = ed.querySelector("ha-form");
+    const value = JSON.parse(JSON.stringify(form.data));
+    change(value);
+    form.dispatchEvent(new w.CustomEvent("value-changed", { detail: { value } }));
+    return { ed, form, written };
+  };
+
+  test("a rule leaves with its entity", () => {
+    const w = makeWindow();
+    const { written } = edit(w, { entities: ["binary_sensor.door"], audience: { "binary_sensor.door": { only: ["person.anna"] } } }, makeHass({}), (v) => {
+      v.entities = [];
+    });
+    same(written, { type: "custom:origami-notifications" });
+  });
+
+  test("swapping an entity keeps its options and its rule", () => {
+    const w = makeWindow();
+    const door = { entity: "binary_sensor.door", icon: "mdi:door", actions: [{ label: "Open", tap_action: { action: "toggle" } }] };
+    const { written } = edit(w, { entities: [door], audience: { "binary_sensor.door": { only: ["person.anna"] } } }, makeHass({}), (v) => {
+      v.entities = ["binary_sensor.door_2"];
+    });
+    same(written, {
+      type: "custom:origami-notifications",
+      entities: [{ ...door, entity: "binary_sensor.door_2" }],
+      audience: { "binary_sensor.door_2": { only: ["person.anna"] } },
+    });
+  });
+
+  test("duplicate entries show and keep the first, like the card", () => {
+    const w = makeWindow();
+    const { form, written } = edit(w, { entities: [{ entity: "binary_sensor.door", name: "Front" }, { entity: "binary_sensor.door", name: "Back" }] }, makeHass({}), (v) => {
+      v.hide_when_empty = false;
+    });
+    same(form.data.options["binary_sensor.door"].name, "Front");
+    same(written.entities, [{ entity: "binary_sensor.door", name: "Front" }]);
+  });
+
+  test("a config the card rejects is rejected by the editor too", () => {
+    const w = makeWindow();
+    const ed = w.document.createElement("origami-notifications-editor");
+    assert.throws(() => ed.setConfig({ type: "x", entities: [{ name: "Washer" }] }), /entities must contain entity ids/);
+  });
+
+  test("type: recipe with an attribute is written back as it was", () => {
+    const w = makeWindow();
+    const meal = { entity: "sensor.meal", type: "recipe", attribute: "dish" };
+    const { written } = edit(w, { entities: [meal] }, makeHass({}), (v) => {
+      v.repairs = false;
+    });
+    same(written.entities, [meal]);
+  });
+
+  test("a kind without an attribute drops the attribute", () => {
+    const w = makeWindow();
+    const { written } = edit(w, { entities: [{ entity: "binary_sensor.door", attribute: "zone" }] }, makeHass({}), (v) => {
+      v.options["binary_sensor.door"].type = "generic";
+    });
+    same(written.entities, [{ entity: "binary_sensor.door", type: "generic" }]);
+  });
+
+  test("the attribute field explains what it does for a picture", () => {
+    const w = makeWindow();
+    const { form } = edit(w, { entities: [{ entity: "sensor.book", type: "picture" }] }, makeHass({}), () => {});
+    const field = form.schema.find((s) => s.name === "options").schema[0].schema.find((s) => s.name === "attribute");
+    assert.notEqual(form.computeHelper(field), form.computeHelper({ name: "attribute" }));
+  });
 });
