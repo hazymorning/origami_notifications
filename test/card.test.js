@@ -419,6 +419,13 @@ console.log("\n# any attribute can describe the notification");
   check("an empty attribute shows nothing", Object.keys(byTitle).includes("Parcel"), false);
   check("type: recipe from 0.2 still works", byTitle.Lasagne.body, "Dinner");
 
+  const empty = makeHass({
+    "sensor.dinner": st("sensor.dinner", "2", { friendly_name: "Dinner", recipe: null }),
+    "sensor.lunch": st("sensor.lunch", "none", { friendly_name: "Lunch", recipe: "none" }),
+  });
+  const quiet = mount(w, { type: "x", updates: false, hide_when_empty: false, entities: ["sensor.dinner", { entity: "sensor.lunch", type: "recipe" }] }, empty);
+  check("an empty recipe shows nothing, as in 0.2", rows(quiet).length, 0);
+
   const ed = w.document.createElement("origami-notifications-editor");
   ed.setConfig({ type: "x", entities: [{ entity: "sensor.dinner", type: "recipe" }] });
   ed.hass = hass;

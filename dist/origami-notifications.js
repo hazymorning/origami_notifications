@@ -162,7 +162,7 @@ const FRAME_MS = 1000 / 60;
 
 const gapPace = (host, height) => {
   const gap = parseFloat(getComputedStyle(host).getPropertyValue("--row-gap")) || 8;
-  return Math.min(2, (gap * SIZE_MS) / (FRAME_MS * Math.max(height, 1)));
+  return Math.min(2, (gap * SIZE_MS) / (FRAME_MS * Math.max(height || 0, 1)));
 };
 
 const easeClose = (pace) => "cubic-bezier(0.4, 0, 0.6, " + (1 - 0.4 * pace).toFixed(3) + ")";
@@ -400,7 +400,7 @@ const renderThing = (id, st, items, ctx) => {
     return;
   }
   if (ctx.kind === "attribute") {
-    if (!ctx.attribute || value == null || value === "" || typeof value === "object") return;
+    if (!ctx.attribute || ctx.objectOnly || value == null || value === "" || typeof value === "object") return;
     items.push({ key: "r:" + id, kind: ctx.kind, source: id, entity: id, title: String(value), message: ctx.name(st), ts });
     return;
   }
@@ -516,7 +516,8 @@ const renderGeneric = (id, st, items, ctx) => {
 };
 
 /* Detection order: the DWD attribute shape, the domain, an attribute that
- * describes one thing, then generic. */
+ * describes one thing, then generic. A recipe attribute claims the entity
+ * even while it is empty, as it did up to 0.2. */
 const detectType = (id, st) => {
   const a = st.attributes;
   if (a.warning_count !== undefined) return "dwd";
@@ -524,7 +525,7 @@ const detectType = (id, st) => {
   if (id.startsWith("update.")) return "update";
   if (id.startsWith("alarm_control_panel.")) return "alarm";
   if (id.startsWith("alert.")) return "alert";
-  if (findThing(a)) return "attribute";
+  if (findThing(a) || "recipe" in a) return "attribute";
   return "generic";
 };
 
@@ -596,12 +597,13 @@ const renderEntity = (id, st, items, ctx, src) => {
   if (!st) return;
   const forced = Boolean(src && src.type && src.type !== "auto");
   const attribute = (src && src.attribute) || null;
+  const objectOnly = Boolean(src && src.objectOnly);
   const kind = forced ? src.type : attribute ? "attribute" : detectType(id, st);
   const renderer = RENDERERS[kind];
   if (!renderer) return;
   const before = items.length;
   try {
-    renderer(id, st, items, { ...ctx, forced, kind, attribute });
+    renderer(id, st, items, { ...ctx, forced, kind, attribute, objectOnly });
   } catch (e) {
     console.warn(CARD + ": renderer failed for " + id, e);
     items.length = before;
@@ -1201,10 +1203,11 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (typeof src.entity !== "string" || !src.entity.includes(".")) {
         throw new Error(CARD + ": entities must contain entity ids, got " + JSON.stringify(entry));
       }
-      /* The name the attribute type had up to 0.2. */
+      /* The name the attribute type had up to 0.2, which showed objects only. */
       if (src.type === "recipe") {
         src.type = "attribute";
         src.attribute = src.attribute || "recipe";
+        src.objectOnly = true;
       }
       if (src.type !== "auto" && !RENDERERS[src.type]) {
         throw new Error(CARD + ": unknown source type '" + src.type + "'");
@@ -1949,6 +1952,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._stopClock();
     this._lastMsg = null;
     clearTimeout(this._listTimer);
+    this._listTimer = null;
     if (!d) return;
     d.card.classList.remove("open");
     d.head.setAttribute("aria-expanded", "false");
@@ -2035,9 +2039,18 @@ class OrigamiNotificationsCard extends HTMLElement {
 
     /* The list is only seen while the drawer is open, so only then does it
      * move. A closing drawer keeps its rows until it is shut. */
-    clearTimeout(this._listTimer);
-    if (this._expanded || !wasOpen) this._renderDrawer(wasOpen && this._expanded);
-    else this._listTimer = setTimeout(() => this._expanded || this._renderDrawer(false), 400);
+    if (!this._expanded && (wasOpen || this._listTimer)) {
+      this._listTimer =
+        this._listTimer ||
+        setTimeout(() => {
+          this._listTimer = null;
+          if (!this._expanded) this._renderDrawer(false);
+        }, 400);
+    } else {
+      clearTimeout(this._listTimer);
+      this._listTimer = null;
+      this._renderDrawer(wasOpen && this._expanded);
+    }
     this._painted = true;
     if (this._enterFrom) this._playEnter();
   }
@@ -2045,6 +2058,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   _renderDrawer(animate) {
     const d = this._dom;
     const items = this._items;
+    animate = animate && this._animOK();
     if (items.length) {
       d.count.textContent = fill(items.length === 1 ? this._t.count_one : this._t.count_other, { n: items.length });
     }
@@ -2079,11 +2093,14 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
   }
 
+  /* A card that is connected but not laid out, like one a visibility
+   * condition hides, has nothing to animate and no height to measure. */
   _animOK() {
     return (
       this._painted &&
       !this._editMode &&
       this.isConnected &&
+      this.getClientRects().length > 0 &&
       !this.classList.contains("no-anim") &&
       motionOK() &&
       typeof this.animate === "function"
