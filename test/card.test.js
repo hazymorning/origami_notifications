@@ -523,6 +523,27 @@ console.log("\n# persistent notification markdown");
   check("the link is the tap target", actions, [{ action: "navigate", navigation_path: "/config/integrations/dashboard" }]);
 }
 
+console.log("\n# a picture is never the link");
+{
+  const w = makeWindow();
+  const subs = [];
+  const el = mount(w, { type: "x" }, makeHass({}, { subs }));
+  const actions = [];
+  el.addEventListener("hass-action", (e) => actions.push(e.detail.config.tap_action.navigation_path));
+  subs[0].cb({ type: "current", notifications: { n1: { notification_id: "n1", message: "[![cam](/api/cam.jpg)](/lovelace/cams) Someone rang." } } });
+  el.shadowRoot.querySelector(".row .rtile").click();
+  check("a linked picture leads to its link", actions, ["/lovelace/cams"]);
+}
+
+console.log("\n# a fixed height, also from the older layout_options");
+{
+  const w = makeWindow();
+  const bounded = (extra) => mount(w, { type: "x", ...extra }, makeHass({})).classList.contains("bounded");
+  check("grid_options.rows", bounded({ grid_options: { rows: 4 } }), true);
+  check("layout_options.grid_rows", bounded({ layout_options: { grid_rows: 4 } }), true);
+  check("grid_options wins, as in Home Assistant", bounded({ grid_options: { columns: 6 }, layout_options: { grid_rows: 4 } }), false);
+}
+
 console.log("\n# tap actions go through Home Assistant");
 {
   const w = makeWindow();

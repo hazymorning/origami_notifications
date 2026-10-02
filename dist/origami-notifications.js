@@ -157,16 +157,28 @@ const EASE_FADE_IN = "cubic-bezier(0, 0, 0.2, 1)";
  * still moves at the end, at about one gap per frame, and that step reads as
  * the last bit of the motion instead of a jolt after it. Coming back, the gap
  * appears first and the card starts opening at that pace. Sections set the
- * gap as --row-gap; masonry and the view footer use about the same. */
+ * gap as --row-gap and masonry leaves about the same; the view footer goes
+ * as a whole, with its padding, so there the step is measured. */
 const FRAME_MS = 1000 / 60;
 
 const gapPace = (host, height) => {
-  const gap = parseFloat(getComputedStyle(host).getPropertyValue("--row-gap")) || 8;
-  return Math.min(2, (gap * SIZE_MS) / (FRAME_MS * Math.max(height || 0, 1)));
+  const footer = host.classList.contains("docked") && host.getRootNode().host;
+  const gap = footer
+    ? Math.max(footer.getBoundingClientRect().height - host.getBoundingClientRect().height, 0) || 8
+    : parseFloat(getComputedStyle(host).getPropertyValue("--row-gap")) || 8;
+  return Math.min(4, (gap * SIZE_MS) / (FRAME_MS * Math.max(height || 0, 1)));
 };
 
-const easeClose = (pace) => "cubic-bezier(0.4, 0, 0.6, " + (1 - 0.4 * pace).toFixed(3) + ")";
-const easeOpen = (pace) => "cubic-bezier(0.4, " + (0.4 * pace).toFixed(3) + ", 0.6, 1)";
+/* The end (or start) slope of each curve is the pace; above 2.5 the second
+ * form keeps the curve from overshooting. Both forms meet at 2.5. */
+const easeClose = (pace) =>
+  pace <= 2.5
+    ? "cubic-bezier(0.4, 0, 0.6, " + (1 - 0.4 * pace).toFixed(3) + ")"
+    : "cubic-bezier(0.4, 0, " + (1 - 1 / pace).toFixed(3) + ", 0)";
+const easeOpen = (pace) =>
+  pace <= 2.5
+    ? "cubic-bezier(0.4, " + (0.4 * pace).toFixed(3) + ", 0.6, 1)"
+    : "cubic-bezier(" + (1 / pace).toFixed(3) + ", 1, 0.6, 1)";
 
 /* Everything that makes up the height of a box in the flow. */
 const FLOW = ["height", "paddingTop", "paddingBottom", "marginTop", "marginBottom", "borderTopWidth", "borderBottomWidth"];
@@ -292,7 +304,8 @@ const plainText = (md) =>
 const SAFE_LINK = /^(https?:\/\/|\/(?!\/))/i;
 
 const firstLink = (md) => {
-  const m = /(?:^|[^!])\[[^\]]*\]\(([^)\s]+)[^)]*\)/.exec(String(md || ""));
+  const text = String(md || "").replace(/!\[[^\]]*\]\([^)]*\)/g, "");
+  const m = /\[[^\]]*\]\(([^)\s]+)[^)]*\)/.exec(text);
   return m && SAFE_LINK.test(m[1]) ? m[1] : null;
 };
 
@@ -889,7 +902,10 @@ const STYLES = `
     overscroll-behavior: contain;
     scrollbar-width: thin;
   }
+  /* A row in a list that scrolls must not give way while it animates;
+   * overflow: hidden would otherwise let it shrink to its padding. */
   .row {
+    flex: none;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas: "rtile rtitle rmeta" "rtile rbody rbody";
@@ -1239,7 +1255,10 @@ class OrigamiNotificationsCard extends HTMLElement {
       throw new Error(CARD + ": css must be a string");
     }
     this._config = { ...DEFAULTS, ...config };
-    const rows = config.grid_options && config.grid_options.rows;
+    /* Home Assistant reads layout_options only when grid_options is missing. */
+    const rows = config.grid_options
+      ? config.grid_options.rows
+      : config.layout_options && config.layout_options.grid_rows;
     this.classList.toggle("bounded", typeof rows === "number");
     this._sources = sources;
     this._audience = audience;
