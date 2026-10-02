@@ -3,7 +3,7 @@
 const CARD = "origami-notifications";
 const EDITOR = CARD + "-editor";
 const REPO = "https://github.com/hazymorning/origami_notifications";
-const VERSION = "0.4.0";
+const VERSION = "0.4.1";
 
 const DEFAULTS = {
   hide_when_empty: true,
@@ -771,12 +771,12 @@ const STYLES = `
     width: var(--origami-tile);
     height: var(--origami-tile);
     display: flex; align-items: center; justify-content: center;
-    background: var(--accent-color);
-    color: var(--text-color-active, var(--primary-background-color));
+    background: var(--fill-active, var(--primary-text-color));
+    color: var(--text-color-active, var(--origami-card-bg));
     border-radius: var(--origami-radius);
   }
-  .tile.warn { background: var(--warning-color); }
-  .tile.crit { background: var(--error-color); }
+  .tile.warn { background: var(--warning-color); color: var(--text-color-active, var(--primary-background-color)); }
+  .tile.crit { background: var(--error-color); color: var(--text-color-active, var(--primary-background-color)); }
   .tile.idle {
     background: var(--origami-row-bg);
     color: var(--primary-text-color);
@@ -934,7 +934,8 @@ const STYLES = `
     line-height: var(--ha-line-height-normal, 1.6);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .row.open .title { white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
+  /* Only a pointer can open a row, so keyboard focus on its buttons shows all of the text. */
+  .row:is(.open, :has(:focus-visible)) .title { white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
   .meta {
     grid-area: rmeta;
     align-self: start;
@@ -990,7 +991,7 @@ const STYLES = `
     overflow: hidden;
   }
   /* An opened message can be selected and copied. */
-  .row.open .body {
+  .row:is(.open, :has(:focus-visible)) .body {
     display: block;
     -webkit-line-clamp: unset;
     line-clamp: none;
