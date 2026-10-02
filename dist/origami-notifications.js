@@ -28,6 +28,7 @@ const ICONS = {
   event: "mdi:eye-check",
   todo: "mdi:clipboard-check-outline",
   device: "mdi:devices",
+  warning: "mdi:alert-circle",
   attribute: "mdi:card-text-outline",
   picture: "mdi:image-outline",
   generic: "mdi:information-outline",
@@ -780,6 +781,8 @@ const renderTimer = (id, st, items, ctx) => {
     const end = parseTs(a.finishes_at, NaN);
     items.push({
       ...item,
+      oldKey: "g:" + id,
+      oldRow: { ack: "active", ts: parseTs(st.last_changed, ctx.now) },
       message: ctx.format(st),
       ts: end,
       live: true,
@@ -897,6 +900,78 @@ const renderDevice = (id, st, items, ctx) => {
   });
 };
 
+const CAP_SEV = { extreme: "crit", severe: "crit", moderate: "warn" };
+
+const isCap = (a) => Boolean(textOf(a, ["severity"]) && textOf(a, ["headline", "event"]));
+
+const platformOf = (reg, id) => (reg && reg[id] && reg[id].platform) || "";
+
+/* From Home Assistant 2026.11, NINA keeps a warning out of its attributes and answers its get_details action
+ * instead. A slot can switch warnings while it stays on, so answers are kept per slot and warning. */
+const NINA_DETAILS = new Map();
+
+/* The details of a warning, null without them, or undefined while they are not known yet. That includes the time
+ * before Home Assistant lists the action, which may come after the states. */
+const ninaDetails = (hass, st, card) => {
+  const id = st.entity_id;
+  const warning = st.attributes.id || st.last_updated || st.last_changed;
+  const known = NINA_DETAILS.get(id) || new Map();
+  let entry = known.get(warning);
+  if (!entry) {
+    const nina = hass.services && hass.services.nina;
+    if (!nina || !nina.get_details) return undefined;
+    /* A slot keeps the answer before this one, which a card away from the page may still show. */
+    for (const [old, e] of [...known].slice(0, -1)) if (e.data !== undefined) known.delete(old);
+    entry = { data: undefined, cards: new Set() };
+    known.set(warning, entry);
+    NINA_DETAILS.set(id, known);
+    const answer = (data) => {
+      entry.data = isObject(data) ? data : null;
+      for (const c of entry.cards) c._recompute();
+      entry.cards.clear();
+    };
+    new Promise((resolve) => resolve(hass.callService("nina", "get_details", {}, { entity_id: id }, false, true))).then(
+      (res) => answer(res && res.response && res.response[id]),
+      () => answer(null)
+    );
+  }
+  if (entry.data === undefined) entry.cards.add(card);
+  return entry.data;
+};
+
+/* NINA and Meteoalarm send warnings in the Common Alerting Protocol, and severity sets the urgency. Meteoalarm
+ * writes neither start nor sent, and its onset is optional, so effective counts as a start too. */
+const renderWarning = (id, st, items, ctx) => {
+  if (st.state !== "on") return;
+  const a = st.attributes;
+  const cap = isCap(a);
+  const details = cap || platformOf(ctx.hass.entities, id) !== "nina" ? null : ctx.ninaDetails(st);
+  const w = cap ? a : details || {};
+  const zone = serverZone(ctx.hass);
+  const start = ["start", "onset", "effective"].map((k) => isoTime(w[k], zone)).find(Number.isFinite);
+  const sent = isoTime(w.sent, zone);
+  const expires = isoTime(w.expires, zone);
+  const title = textOf(w, ["headline", "event"]);
+  const text = textOf(w, ["description"]);
+  const changed = parseTs(st.last_changed, ctx.now);
+  const item = {
+    key: "wn:" + id,
+    oldKey: "g:" + id,
+    oldRow: { ack: "on", ts: changed },
+    kind: "warning",
+    sev: CAP_SEV[String(w.severity).toLowerCase()],
+    entity: id,
+    title: title || ctx.name(st),
+    message: plainText(text),
+    ts: start !== undefined ? start : Number.isFinite(sent) ? sent : changed,
+    past: start === undefined,
+    ack: title ? [title, w.severity, text].join("\u0000") : String(a.id || ""),
+  };
+  if (details === undefined) item.waiting = true;
+  if (Number.isFinite(expires)) item.expires = expires;
+  items.push(item);
+};
+
 /* Home Assistant's default theme shows these classes in red while they are on. The worst are critical. */
 const DEVICE_CLASS_SEV = {
   smoke: "crit",
@@ -928,7 +1003,7 @@ const renderGeneric = (id, st, items, ctx) => {
 };
 
 /* A recipe attribute claims the entity even while it is empty, as up to 0.2. */
-const detectType = (id, st) => {
+const detectType = (id, st, reg) => {
   const a = st.attributes;
   if (a.warning_count !== undefined) return "dwd";
   if (id.startsWith("calendar.")) return "calendar";
@@ -941,16 +1016,17 @@ const detectType = (id, st) => {
    * attributes to a device. An event or a device with a thing there keeps the row it had in 0.4. */
   if (id.startsWith("event.")) return "event";
   if (DEVICES[id.split(".")[0]]) return "device";
+  if (id.startsWith("binary_sensor.") && (isCap(a) || platformOf(reg, id) === "nina")) return "warning";
   /* A duration may count up as well, so it stays a plain number unless its kind is set, as in 0.4. */
   if (id.startsWith("sensor.") && a.device_class === "timestamp") return "countdown";
   return "generic";
 };
 
 /* The kind an entity shows as. checkConfig has already turned `type: recipe` into an attribute. */
-const kindOf = (src, st) => {
+const kindOf = (src, st, hass) => {
   if (src.type && src.type !== "auto") return src.type;
   if (src.attribute) return "attribute";
-  return st ? detectType(st.entity_id, st) : "generic";
+  return st ? detectType(st.entity_id, st, hass && hass.entities) : "generic";
 };
 
 /* In the order the editor offers them. */
@@ -965,6 +1041,7 @@ const RENDERERS = {
   event: renderEvent,
   todo: renderTodo,
   device: renderDevice,
+  warning: renderWarning,
   attribute: renderThing,
   picture: renderThing,
   generic: renderGeneric,
@@ -1042,7 +1119,7 @@ const renderEntity = (id, st, items, ctx, src) => {
   const forced = Boolean(src.type && src.type !== "auto");
   const attribute = src.attribute || null;
   const objectOnly = Boolean(src.objectOnly);
-  const kind = kindOf(src, st);
+  const kind = kindOf(src, st, ctx.hass);
   const renderer = RENDERERS[kind];
   if (!renderer) return;
   const named = Boolean(src.name);
@@ -1721,6 +1798,9 @@ const isOldAck = (ack, it, once) => {
   return ack.endsWith("\u0000" + it.ts) || ack === it.title + "\u0000" + it.message;
 };
 
+/* Whether ack hid the plain row this entry had up to 0.4, saved as in 0.4 or in 0.3. */
+const heldAs = (ack, row) => ack === ACK_MARK + row.ack + "\u0000" + row.ts || isOldAck(ack, row, false);
+
 const loadAcks = () => {
   if (!memory.acks) {
     try {
@@ -1967,7 +2047,8 @@ class OrigamiNotificationsCard extends HTMLElement {
       this._recompute();
       return;
     }
-    if (localeChanged || formatChanged) {
+    /* Home Assistant may list its actions after the states, and a NINA warning waits for one of them. */
+    if (localeChanged || formatChanged || hass.services !== old.services) {
       this._recompute();
       return;
     }
@@ -2235,6 +2316,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       zone: this._clockOpts().timeZone,
       todos: (id) => (this._todos.get(id) || {}).items || null,
       devicePictures: (id) => this._pictures.get(id) || [],
+      ninaDetails: (st) => ninaDetails(h, st, this),
       name,
       format: (st) => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state)),
       formatAttribute: (st, path, value) => {
@@ -2323,10 +2405,17 @@ class OrigamiNotificationsCard extends HTMLElement {
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       if (it.dismiss || it.sticky) continue;
+      const oldKey = acks[it.key] === undefined && it.oldKey ? it.oldKey : it.key;
+      const heldBefore = oldKey !== it.key && it.oldRow !== undefined && heldAs(acks[oldKey], it.oldRow);
+      /* A NINA warning without its details has no signature yet. A dismissal stays as it is and hides it meanwhile. */
+      if (it.waiting) {
+        if (acks[it.key] !== undefined || heldBefore) items.splice(i, 1);
+        continue;
+      }
       const once = it.kind === "attribute" || it.kind === "picture";
       const sig = ACK_MARK + (once ? it.ack : it.ack + "\u0000" + it.ts);
-      const oldKey = acks[it.key] === undefined && it.oldKey ? it.oldKey : it.key;
-      if (isOldAck(acks[oldKey], it, once)) {
+      /* A dismissal from an older version moves to the new key, so it can't hide the entry again once it changes. */
+      if (heldBefore || isOldAck(acks[oldKey], it, once)) {
         delete acks[oldKey];
         acks[it.key] = sig;
         acksDirty = true;
@@ -3133,6 +3222,7 @@ const EDITOR_STRINGS = {
     type_event: "Event",
     type_todo: "To-do list",
     type_device: "Device",
+    type_warning: "Warning",
     type_attribute: "Details from an attribute",
     type_picture: "State as title",
     type_generic: "Plain entity",
@@ -3172,6 +3262,7 @@ const EDITOR_STRINGS = {
     type_event: "Ereignis",
     type_todo: "To-do-Liste",
     type_device: "Gerät",
+    type_warning: "Warnung",
     type_attribute: "Details aus einem Attribut",
     type_picture: "Zustand als Titel",
     type_generic: "Einfache Entität",
@@ -3265,7 +3356,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
   }
 
   _typeOf(src) {
-    return src.type === "recipe" ? "attribute" : kindOf(src, this._hass && this._hass.states[src.entity]);
+    return src.type === "recipe" ? "attribute" : kindOf(src, this._hass && this._hass.states[src.entity], this._hass);
   }
 
   _summary(rule) {

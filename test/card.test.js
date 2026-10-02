@@ -108,9 +108,10 @@ function makeHass(states = {}, opts = {}) {
       subscribeMessage: (cb, msg) => subscribe({ cb, msg, closed: false }),
       subscribeEvents: (cb, ev) => subscribe({ cb, ev, closed: false }),
     },
-    callService: (d, s, data, target) => {
+    /* Like Home Assistant's, the last two arguments can turn off its error notice and ask for the response. */
+    callService: (d, s, data, target, notifyOnError, returnResponse) => {
       calls.push(target ? [d + "." + s, data, target] : [d + "." + s, data]);
-      return Promise.resolve(opts.serviceReply ? opts.serviceReply(d, s, data, target) : undefined);
+      return Promise.resolve(opts.serviceReply ? opts.serviceReply(d, s, data, target, notifyOnError, returnResponse) : undefined);
     },
     callWS: (msg) => {
       calls.push(["ws", msg.type, msg]);
@@ -1909,6 +1910,17 @@ test("the list changes on its own when a countdown ends", () => {
   same([head(el).title, rows(el).map((r) => r.title)], ["Door", ["Door"]], "and the dishwasher at its end");
 });
 
+test("a dismissal from 0.4 of a running timer still holds", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const timer = { ...running(600), last_changed: new Date(NOW - 60000).toISOString() };
+  w.localStorage.setItem("origami-notifications-ack", JSON.stringify({ "g:timer.kitchen": "#active\u0000" + (NOW - 60000) }));
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false, entities: ["timer.kitchen"] }, makeHass({ "timer.kitchen": timer }));
+  same(rows(el).length, 0, "0.4 showed it as a plain entity until it stopped");
+  el.hass = makeHass({ "timer.kitchen": { ...running(900), last_changed: new Date(NOW).toISOString() } });
+  same(rows(el).map((r) => r.title), ["Kitchen"], "a new run brings it back");
+});
+
 test("the editor offers timers and countdowns as kinds", () => {
   const w = makeWindow();
   const ed = w.document.createElement("origami-notifications-editor");
@@ -2559,6 +2571,287 @@ test("smoke is critical and a low battery is a warning", () => {
   );
   const asDevice = mount(w, { type: "x", updates: false, entities: [{ entity: "binary_sensor.smoke", type: "device" }] }, makeHass(states));
   same(rows(asDevice).map((r) => [r.title, r.tile]), [["smoke", "rtile"]], "a binary sensor set to another kind gets no urgency from its class");
+});
+
+/* A time as Meteoalarm and NINA write it, this many minutes from NOW. */
+const capTime = (minutes) => new Date(NOW + minutes * 60000).toISOString().replace(".000Z", "+00:00");
+
+/* A warning as Meteoalarm writes it, every text of a CAP info block copied into the attributes. */
+const meteoalarm = (extra = {}) =>
+  st("binary_sensor.meteoalarm", "on", {
+    attribution: "Information provided by MeteoAlarm",
+    language: "en-GB",
+    category: "Met",
+    event: "Severe forest-fire warning",
+    responseType: "Monitor",
+    urgency: "Immediate",
+    severity: "Severe",
+    certainty: "Likely",
+    effective: capTime(-60),
+    onset: capTime(120),
+    expires: capTime(180),
+    senderName: "Stig Carlsson",
+    headline: "Orange forest-fire for Hedmark, Oppland",
+    description: "High grass and heather fire hazard.",
+    instruction: "Be very careful with open fire.",
+    awareness_level: "3; orange; Severe",
+    awareness_type: "8; forest-fire",
+    device_class: "safety",
+    friendly_name: "meteoalarm",
+    ...extra,
+  });
+
+test("a Meteoalarm warning follows its severity and expires", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const config = { type: "x", updates: false, entities: ["binary_sensor.meteoalarm"] };
+  const el = mount(w, config, makeHass({ "binary_sensor.meteoalarm": meteoalarm() }));
+  const q = (s) => el.shadowRoot.querySelector(s);
+  same(
+    [rows(el).map((r) => [r.title, r.body, r.tile, r.icon, r.x]), q(".row").dataset.kind, whens(el)],
+    [[["Orange forest-fire for Hedmark, Oppland", "High grass and heather fire hazard.", "rtile crit", "mdi:alert-circle", true]], "warning", ["in 2 hr."]],
+    "found on its own, with its headline, its text and its onset, and severe is critical"
+  );
+  same([head(el).title, q(".head .tile").className, q(".head .msg .t").textContent], ["Orange forest-fire for Hedmark, Oppland", "tile crit", "High grass and heather fire hazard."]);
+
+  /* Cards in one browser share their dismissals, so the others go in a window of their own. */
+  const other = makeWindow({ clock: true });
+  const card = (state, entity = "binary_sensor.meteoalarm") =>
+    mount(other, { type: "x", hide_when_empty: false, updates: false, entities: [entity] }, makeHass({ "binary_sensor.meteoalarm": state }));
+  same(
+    ["Extreme", "Severe", "Moderate", "moderate", "Minor", "Unknown"].map((severity) => rows(card(meteoalarm({ severity }))).map((r) => r.tile)),
+    [["rtile crit"], ["rtile crit"], ["rtile warn"], ["rtile warn"], ["rtile"], ["rtile"]],
+    "extreme and severe are critical, moderate is a warning, and the safety class adds nothing"
+  );
+  same(
+    rows(card(meteoalarm({ severity: "Minor" }), { entity: "binary_sensor.meteoalarm", type: "generic" })).map((r) => [r.title, r.tile]),
+    [["meteoalarm", "rtile crit"]],
+    "set to show as a plain entity, it is a safety sensor again"
+  );
+  const bare = card(meteoalarm({ headline: undefined, onset: undefined }));
+  same([rows(bare).map((r) => [r.title, r.tile]), whens(bare)], [[["Severe forest-fire warning", "rtile crit"]], ["1 hr. ago"]], "without a headline the event names it, and without an onset it starts when it takes effect");
+  const off = st("binary_sensor.meteoalarm", "off", { attribution: "Information provided by MeteoAlarm", device_class: "safety", friendly_name: "meteoalarm" });
+  same(rows(card(off)).length, 0, "nothing while it is off");
+  const door = (state) => ({ "binary_sensor.door": st("binary_sensor.door", state, { friendly_name: "Door", device_class: "door" }) });
+  const forced = (state) =>
+    rows(mount(other, { type: "x", hide_when_empty: false, updates: false, entities: [{ entity: "binary_sensor.door", type: "warning" }] }, makeHass(door(state)))).map((r) => [r.title, r.tile]);
+  same([forced("on"), forced("off")], [[["Door", "rtile"]], []], "set to show as a warning, any binary sensor shows by its name while it is on");
+
+  q(".row .x").click();
+  el.hass = makeHass({ "binary_sensor.meteoalarm": meteoalarm() });
+  same(rows(el).length, 0, "dismissed in this browser");
+  el.hass = makeHass({ "binary_sensor.meteoalarm": meteoalarm({ severity: "Extreme", headline: "Red forest-fire for Hedmark, Oppland" }) });
+  same(rows(el).map((r) => [r.title, r.tile]), [["Red forest-fire for Hedmark, Oppland", "rtile crit"]], "back once the warning changes");
+  mock.timers.tick(180 * 60000 + 49);
+  same([rows(el).length, el.hidden], [1, false], "not before it expires");
+  mock.timers.tick(1);
+  same([rows(el).length, el.hidden], [0, true], "then it goes by itself, although Home Assistant has not changed it yet");
+});
+
+test("a dismissal from 0.4 of a warning still holds", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const ts = Date.parse(meteoalarm().last_changed);
+  w.localStorage.setItem("origami-notifications-ack", JSON.stringify({ "g:binary_sensor.meteoalarm": "#on\u0000" + ts }));
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["binary_sensor.meteoalarm"] };
+  const el = mount(w, config, makeHass({ "binary_sensor.meteoalarm": meteoalarm() }));
+  same(rows(el).length, 0, "0.4 showed it as a plain entity, dismissed until its state changes");
+  const red = () => makeHass({ "binary_sensor.meteoalarm": meteoalarm({ severity: "Extreme", headline: "Red forest-fire for Hedmark, Oppland" }) });
+  el.hass = red();
+  same(rows(el).map((r) => r.title), ["Red forest-fire for Hedmark, Oppland"], "now a new warning shows, although the sensor stayed on");
+  el.hass = red();
+  same(rows(el).length, 1, "and the old dismissal does not hide it again");
+  const older = makeWindow({ clock: true });
+  older.localStorage.setItem("origami-notifications-ack", JSON.stringify({ "g:binary_sensor.meteoalarm": "meteoalarm\u0000On\u0000" + ts }));
+  same(rows(mount(older, config, makeHass({ "binary_sensor.meteoalarm": meteoalarm() }))).length, 0, "a dismissal from 0.3 holds as well");
+});
+
+/* A NINA warning slot as Home Assistant writes it from 2026.11, with only the id of its warning left, and what
+ * get_details answers for a warning. */
+const NINA = "binary_sensor.berlin_warning_1";
+const ninaSlot = (id, extra = {}) => st(NINA, "on", { id, device_class: "safety", friendly_name: "Berlin Warning 1", ...extra });
+const ninaAnswer = (headline, severity) => ({
+  headline,
+  description: "Am Freitag wird eine starke Wärmebelastung erwartet.<br/><br/>Am Samstag lässt sie nach.",
+  sender: "Deutscher Wetterdienst",
+  severity,
+  recommended_actions: "",
+  affected_areas: "Berlin",
+  web: "https://www.dwd.de/warnungen",
+  id: "dwd.2.49.0.0.276.0.DWD.PVW." + headline.length,
+  sent: "2026-10-02T09:59:50+02:00",
+  start: "2026-10-02T10:00:00+02:00",
+  expires: "",
+});
+const NINA_REGISTRY = { [NINA]: { entity_id: NINA, platform: "nina", labels: [] } };
+
+test("a NINA warning without attributes asks Home Assistant once", async () => {
+  const w = makeWindow();
+  const answers = { heat: ninaAnswer("Amtliche WARNUNG vor HITZE", "Severe"), gusts: ninaAnswer("Amtliche WARNUNG vor STURMBÖEN", "Moderate") };
+  /* What Home Assistant has now. It refuses get_details without a request for the response, and answers per entity. */
+  let states = { [NINA]: ninaSlot("heat") };
+  const flags = [];
+  const reply = (d, s, data, target, notifyOnError, returnResponse) => {
+    flags.push([notifyOnError, returnResponse]);
+    return returnResponse
+      ? { context: { id: "c" }, response: { [target.entity_id]: answers[states[target.entity_id].attributes.id] || null } }
+      : Promise.reject(new Error("service_lacks_response_request"));
+  };
+  const opts = { entities: NINA_REGISTRY, services: { nina: { get_details: {} } }, serviceReply: reply };
+  let hass = makeHass(states, opts);
+  const update = (card, slot) => {
+    states = { [NINA]: ninaSlot(slot) };
+    hass = { ...hass, states };
+    card.hass = hass;
+  };
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: [NINA] };
+  const el = mount(w, config, hass);
+  const asked = () => services(hass).filter((c) => c[0] === "nina.get_details");
+  const shown = (card = el) => [...rows(card).map((r) => [r.title, r.body, r.tile]), card.shadowRoot.querySelector(".row .when").dateTime];
+  same(
+    [rows(el).map((r) => [r.title, r.body, r.tile, r.x]), el.shadowRoot.querySelector(".row").dataset.kind, asked(), flags],
+    [[["Berlin Warning 1", "", "rtile", false]], "warning", [["nina.get_details", {}, { entity_id: NINA }]], [[false, true]]],
+    "found by its platform, it shows its name while Home Assistant looks up the details, without a notice for an error"
+  );
+  await tick();
+  const heat = ["Amtliche WARNUNG vor HITZE", "Am Freitag wird eine starke Wärmebelastung erwartet.\n\nAm Samstag lässt sie nach.", "rtile crit"];
+  same([shown(), head(el).title], [[heat, "2026-10-02T08:00:00.000Z"], "Amtliche WARNUNG vor HITZE"], "then the warning, with its text as plain text and its start");
+  update(el, "heat");
+  const second = mount(w, config, hass);
+  same([shown(second), asked().length], [[heat, "2026-10-02T08:00:00.000Z"], 1], "an update of the same warning and another card ask nothing");
+  second.remove();
+  const earlier = hass;
+  update(el, "gusts");
+  same([rows(el).map((r) => r.title), asked().length], [["Berlin Warning 1"], 2], "a slot that switches to another warning asks again");
+  await tick();
+  same(rows(el).map((r) => [r.title, r.tile]), [["Amtliche WARNUNG vor STURMBÖEN", "rtile warn"]]);
+  second.hass = { ...earlier, states: { [NINA]: ninaSlot("heat") } };
+  await tick();
+  same(
+    [rows(second).map((r) => r.title), rows(el).map((r) => r.title), asked().length],
+    [["Amtliche WARNUNG vor HITZE"], ["Amtliche WARNUNG vor STURMBÖEN"], 2],
+    "a card away from the page that still has the earlier warning keeps its answer and asks nothing"
+  );
+
+  const refused = makeWindow();
+  const warnings = [];
+  refused.console.warn = (...args) => warnings.push(args.join(" "));
+  states = { [NINA]: ninaSlot("heat") };
+  hass = makeHass(states, { ...opts, serviceReply: () => Promise.reject(new Error("home_assistant_error")) });
+  const failed = mount(refused, config, hass);
+  await tick();
+  update(failed, "heat");
+  same(
+    [rows(failed).map((r) => [r.title, r.x]), asked().length, warnings],
+    [[["Berlin Warning 1", true]], 1, []],
+    "an error is dropped quietly and not asked again, and the name can be dismissed"
+  );
+
+  /* Home Assistant's list of actions is null until it has loaded. */
+  hass = { ...makeHass(states, opts), services: null };
+  const late = mount(makeWindow(), config, hass);
+  same([rows(late).map((r) => [r.title, r.x]), asked().length], [[["Berlin Warning 1", false]], 0], "nothing to ask before Home Assistant has loaded its actions");
+  hass = { ...hass, services: opts.services };
+  late.hass = hass;
+  await tick();
+  same([rows(late).map((r) => r.title), asked().length], [["Amtliche WARNUNG vor HITZE"], 1], "asked once it has");
+  hass = makeHass(states, { ...opts, services: { nina: {} } });
+  same([rows(mount(makeWindow(), config, hass)).map((r) => [r.title, r.x]), asked().length], [[["Berlin Warning 1", false]], 0], "and while the list lacks the action");
+
+  const before = makeWindow();
+  const frost = ninaSlot("x", { ...ninaAnswer("Amtliche WARNUNG vor FROST", "Minor"), start: "", sent: "2026-10-02T06:00:00+02:00" });
+  hass = makeHass({ [NINA]: frost }, opts);
+  same(
+    [shown(mount(before, config, hass)), asked().length],
+    [[["Amtliche WARNUNG vor FROST", "Am Freitag wird eine starke Wärmebelastung erwartet.\n\nAm Samstag lässt sie nach.", "rtile"], "2026-10-02T04:00:00.000Z"], 0],
+    "up to 2026.10 the attributes say it all, and a warning without a start shows when it was sent"
+  );
+  hass = makeHass({ [NINA]: st(NINA, "off", { device_class: "safety", friendly_name: "Berlin Warning 1" }) }, opts);
+  same([rows(mount(before, config, hass)).length, asked().length], [0, 0], "an empty slot shows and asks nothing");
+
+  /* A storm can fill many slots in several regions at once. */
+  const slots = {};
+  const registry = {};
+  for (let i = 1; i <= 51; i++) {
+    const id = "binary_sensor.berlin_warning_" + i;
+    slots[id] = st(id, "on", { id: "w" + i, device_class: "safety", friendly_name: "Berlin Warning " + i });
+    registry[id] = { entity_id: id, platform: "nina", labels: [] };
+  }
+  /* Each answer comes as a message of its own, like over the websocket. After 100 questions none comes, so a loop
+   * of questions fails the test instead of hanging it. */
+  let questions = 0;
+  const answer = (d, s, data, target) =>
+    ++questions > 100
+      ? new Promise(() => {})
+      : new Promise((resolve) => setTimeout(() => resolve({ response: { [target.entity_id]: ninaAnswer("Warning " + target.entity_id.split("_").pop(), "Minor") } })));
+  hass = makeHass(slots, { entities: registry, services: opts.services, serviceReply: answer });
+  const storm = mount(makeWindow(), { ...config, entities: Object.keys(slots) }, hass);
+  await tick();
+  await tick();
+  same(
+    [asked().length, rows(storm).filter((r) => /^Warning \d+$/.test(r.title)).length],
+    [51, 51],
+    "every slot is asked once, however many there are"
+  );
+});
+
+test("a dismissed NINA warning stays dismissed after a reload", async () => {
+  const answer = ninaAnswer("Amtliche WARNUNG vor HITZE", "Severe");
+  const opts = { entities: NINA_REGISTRY, services: { nina: { get_details: {} } }, serviceReply: (d, s, data, target) => ({ response: { [target.entity_id]: answer } }) };
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: [NINA] };
+  const KEY = "origami-notifications-ack";
+  const first = makeWindow();
+  const el = mount(first, config, makeHass({ [NINA]: ninaSlot("heat") }, opts));
+  await tick();
+  el.shadowRoot.querySelector(".row .x").click();
+  const stored = first.localStorage.getItem(KEY);
+  /* A new window with the same storage is the page after a reload. */
+  const reload = (hass, acks = stored) => {
+    const w = makeWindow();
+    w.localStorage.setItem(KEY, acks);
+    return [mount(w, config, hass), () => w.localStorage.getItem(KEY)];
+  };
+  const [again, kept] = reload(makeHass({ [NINA]: ninaSlot("heat") }, opts));
+  same([rows(again).length, kept()], [0, stored], "hidden while Home Assistant looks up the details");
+  await tick();
+  same([rows(again).length, kept()], [0, stored], "and still once they are there");
+
+  const early = { ...makeHass({ [NINA]: ninaSlot("heat") }, opts), services: null };
+  const [late, lateKept] = reload(early);
+  same([rows(late).length, lateKept()], [0, stored], "also before Home Assistant has loaded its actions");
+  late.hass = { ...early, services: opts.services };
+  await tick();
+  same(rows(late).length, 0, "and after");
+
+  const full = makeHass({ [NINA]: ninaSlot("heat", { ...answer, id: "heat" }) }, opts);
+  const upgraded = mount(makeWindow(), config, full);
+  upgraded.shadowRoot.querySelector(".row .x").click();
+  upgraded.hass = { ...full, states: { [NINA]: ninaSlot("heat") } };
+  await tick();
+  same([rows(upgraded).length, services(full).length], [0, 1], "a dismissal from before 2026.11, when the details were attributes, holds after it");
+
+  const [plain, plainKept] = reload(makeHass({ [NINA]: ninaSlot("heat") }, opts), JSON.stringify({ ["g:" + NINA]: "#on\u0000" + Date.parse(ninaSlot("heat").last_changed) }));
+  same(rows(plain).length, 0, "a dismissal from 0.4, when it showed as a plain entity, hides it while it waits");
+  await tick();
+  same([rows(plain).length, JSON.parse(plainKept())], [0, { ["wn:" + NINA]: JSON.parse(stored)["wn:" + NINA] }], "and then moves to the warning");
+});
+
+test("the editor offers warnings as a kind", () => {
+  const w = makeWindow();
+  const ed = w.document.createElement("origami-notifications-editor");
+  /* One of the sensors NINA adds to each slot. */
+  const HEADLINE = "sensor.berlin_warning_1_headline";
+  ed.setConfig({ type: "x", entities: ["binary_sensor.meteoalarm", NINA, HEADLINE] });
+  const registry = { ...NINA_REGISTRY, [HEADLINE]: { entity_id: HEADLINE, platform: "nina", labels: [] } };
+  const headline = st(HEADLINE, "Amtliche WARNUNG vor HITZE", { friendly_name: "Berlin Warning 1 Headline" });
+  ed.hass = makeHass({ "binary_sensor.meteoalarm": meteoalarm(), [NINA]: ninaSlot("heat"), [HEADLINE]: headline }, { entities: registry });
+  const [meteo, nina, sensor] = ed.querySelector("ha-form").schema.find((s) => s.name === "options").schema;
+  const options = meteo.schema.find((s) => s.name === "type").selector.select.options;
+  same(
+    [options.find((o) => o.value === "warning").label, meteo.icon, nina.icon, sensor.icon],
+    ["Warning", "mdi:alert-circle", "mdi:alert-circle", "mdi:information-outline"],
+    "Meteoalarm by its attributes and NINA by its platform, while the sensors of NINA stay plain entities"
+  );
 });
 
 test("action labels borrow Home Assistant's words in other languages", () => {
