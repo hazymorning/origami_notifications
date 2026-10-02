@@ -292,7 +292,7 @@ const plainText = (md) =>
 const SAFE_LINK = /^(https?:\/\/|\/(?!\/))/i;
 
 const firstLink = (md) => {
-  const m = /\[[^\]]*\]\(([^)\s]+)[^)]*\)/.exec(String(md || ""));
+  const m = /(?:^|[^!])\[[^\]]*\]\(([^)\s]+)[^)]*\)/.exec(String(md || ""));
   return m && SAFE_LINK.test(m[1]) ? m[1] : null;
 };
 
@@ -370,11 +370,21 @@ const renderDwd = (id, st, items, ctx) => {
 /* An attribute that describes one thing: a dish, a book, a parcel, a film
  * tonight. It holds an object with a name or a title, and maybe a text and
  * a picture. */
+const THING_TEXT = ["description", "summary"];
+const THING_PICTURE = ["image", "image_url", "picture", "thumbnail"];
+
 const isThing = (v) =>
   v != null && typeof v === "object" && !Array.isArray(v) &&
   ["name", "title"].some((k) => (typeof v[k] === "string" && v[k] !== "") || typeof v[k] === "number");
 
-const findThing = (attrs) => Object.keys(attrs).find((k) => isThing(attrs[k]));
+/* Found without being named: a recipe, the one attribute the card knew up to
+ * 0.2, or any object that has a text or a picture besides its name. */
+const findThing = (attrs) => {
+  if (isThing(attrs.recipe)) return "recipe";
+  return Object.keys(attrs).find(
+    (k) => isThing(attrs[k]) && [...THING_TEXT, ...THING_PICTURE].some((f) => !isEmpty(attrs[k][f]))
+  );
+};
 
 /* type: attribute shows what an attribute holds: the object of isThing, or a
  * plain value as the title. Set to an attribute that is empty, it shows
@@ -384,7 +394,8 @@ const findThing = (attrs) => Object.keys(attrs).find((k) => isThing(attrs[k]));
 const renderThing = (id, st, items, ctx) => {
   const a = st.attributes;
   const ts = parseTs(st.last_changed, Date.now());
-  const path = ctx.attribute || findThing(a);
+  /* type: picture reads only the attribute it is given, or a recipe as in 0.2. */
+  const path = ctx.attribute || (ctx.kind === "picture" ? isThing(a.recipe) && "recipe" : findThing(a));
   const value = path ? attrPath(a, path) : undefined;
   if (isThing(value)) {
     items.push({
@@ -393,8 +404,8 @@ const renderThing = (id, st, items, ctx) => {
       source: id,
       entity: id,
       title: String(pick(value, ["name", "title"])),
-      message: String(pick(value, ["description", "summary"]) || ctx.name(st)),
-      image: pick(value, ["image", "image_url", "picture", "thumbnail"]),
+      message: String(pick(value, THING_TEXT) || ctx.name(st)),
+      image: pick(value, THING_PICTURE),
       ts,
     });
     return;
@@ -1250,7 +1261,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { hide_when_empty: false };
+    return {};
   }
 
   /* -- language --------------------------------------------------------- */
@@ -1409,6 +1420,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
     const root = this.getRootNode();
     this.classList.toggle("docked", Boolean(root && root.host && root.host.localName === "hui-view-footer"));
+    /* The card picker shows a preview without preview mode; an empty card
+     * stays visible there so the picker has something to show. */
+    const picker = Boolean(root && root.host && root.host.localName === "hui-card-picker");
+    if (picker !== Boolean(this._inPicker)) {
+      this._inPicker = picker;
+      this._recompute();
+    }
     if (this._hass) this._subscribe();
     if (this._hostAnim) this._hostAnim.finish();
     if (this._dom) {
@@ -1609,14 +1627,16 @@ class OrigamiNotificationsCard extends HTMLElement {
 
     const seen = new Set();
     if (h) {
+      /* The updates rule covers every update entity, listed or found. */
+      const allowedEntity = (id) => allowed(id) && (!id.startsWith("update.") || allowed("updates"));
       for (const src of this._allSources) {
-        if (seen.has(src.entity) || !allowed(src.entity)) continue;
+        if (seen.has(src.entity) || !allowedEntity(src.entity)) continue;
         seen.add(src.entity);
         renderEntity(src.entity, h.states[src.entity], items, ctx, src);
       }
       if (c.updates && allowed("updates")) {
         for (const id of this._updateIds) {
-          if (!seen.has(id)) renderEntity(id, h.states[id], items, ctx, null);
+          if (!seen.has(id) && allowed(id)) renderEntity(id, h.states[id], items, ctx, null);
         }
       }
     }
@@ -1646,7 +1666,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       if (it.dismiss || it.sticky) continue;
-      const sig = it.title + "\u0000" + it.message;
+      const said = it.title + "\u0000" + it.message;
+      const sig = it.kind === "attribute" || it.kind === "picture" ? said : said + "\u0000" + it.ts;
+      /* 0.2 kept no time; such a dismissal turns into one that does. */
+      if (this._acks[it.key] === said && sig !== said) {
+        this._acks[it.key] = sig;
+        acksDirty = true;
+      }
       if (this._acks[it.key] === sig) {
         items.splice(i, 1);
       } else {
@@ -1998,7 +2024,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const empty = items.length === 0;
 
     /* The card keeps showing what it showed while it fades away. */
-    if (empty && this._config.hide_when_empty && !this._editMode) {
+    if (empty && this._config.hide_when_empty && !this._editMode && !this._inPicker) {
       this._setShown(false);
       this._painted = true;
       return;
@@ -2422,7 +2448,7 @@ const EDITOR_HELPERS = Object.freeze({
     people: "Matches the user account linked to each person in Settings → People.",
     attribute:
       "Shown as the notification: an object with a name or title, a description and an image, or a plain value. Empty: found on its own.",
-    image: "An attribute, a path into one like book.cover, or a URL. Empty: the entity's own picture.",
+    image: "An attribute, a path into one like book.cover, or a URL. Empty: found on its own.",
     background: "Shown softly blurred behind the card while this entity is the notification on top.",
   },
   de: {
@@ -2431,7 +2457,7 @@ const EDITOR_HELPERS = Object.freeze({
     people: "Verglichen wird das Benutzerkonto, das unter Einstellungen → Personen verknüpft ist.",
     attribute:
       "Wird zur Benachrichtigung: ein Objekt mit name oder title, description und image, oder ein einfacher Wert. Leer: wird selbst gefunden.",
-    image: "Ein Attribut, ein Pfad hinein wie book.cover, oder eine URL. Leer: das eigene Bild der Entität.",
+    image: "Ein Attribut, ein Pfad hinein wie book.cover, oder eine URL. Leer: wird selbst gefunden.",
     background: "Weich und unscharf hinter der Karte, solange diese Entität oben steht.",
   },
 });
@@ -2556,7 +2582,9 @@ class OrigamiNotificationsEditor extends HTMLElement {
                         },
                       },
                     },
-                    { name: "attribute", selector: { attribute: { entity_id: e.entity } } },
+                    ...(["auto", "attribute", "picture", "recipe"].includes(e.type || "auto")
+                      ? [{ name: "attribute", selector: { attribute: { entity_id: e.entity } } }]
+                      : []),
                     {
                       name: "",
                       type: "grid",
@@ -2635,6 +2663,11 @@ class OrigamiNotificationsEditor extends HTMLElement {
         if (key === "name" && isEmpty(v) && base.name != null && typeof base.name !== "string") continue;
         if (isEmpty(v) || (key === "type" && v === "auto")) delete merged[key];
         else merged[key] = v;
+      }
+      /* type: recipe is shown as attribute recipe and written back as it was. */
+      if (base.type === "recipe" && !("attribute" in base) && merged.type === "attribute" && merged.attribute === "recipe") {
+        merged.type = "recipe";
+        delete merged.attribute;
       }
       const ordered = {};
       for (const key of [...ENTITY_KEY_ORDER, ...Object.keys(merged)]) {

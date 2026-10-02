@@ -261,6 +261,23 @@ console.log("\n# audience");
   check("viewer excluded", rows(el).length, 0);
 }
 
+console.log("\n# audience: the updates rule covers every update entity");
+{
+  const w = makeWindow();
+  const hass = makeHass(
+    {
+      "person.anna": st("person.anna", "home", { user_id: "u1" }),
+      "update.router": st("update.router", "on", { title: "RouterOS", latest_version: "7.15" }),
+      "update.nas": st("update.nas", "on", { title: "NAS", latest_version: "2" }),
+    },
+    { user: { id: "u1" } }
+  );
+  const el = mount(w, { type: "x", hide_when_empty: false, entities: ["update.router"], audience: { updates: { except: ["person.anna"] } } }, hass);
+  check("listed and found updates are both hidden", rows(el).length, 0);
+  const el2 = mount(w, { type: "x", hide_when_empty: false, audience: { "update.nas": { except: ["person.anna"] } } }, hass);
+  check("a rule for one found update applies", rows(el2).map((r) => r.title), ["RouterOS"]);
+}
+
 console.log("\n# dwd + sorting");
 {
   const w = makeWindow();
@@ -433,6 +450,61 @@ console.log("\n# any attribute can describe the notification");
   check("the editor shows type: recipe as an attribute", [opts.type, opts.attribute], ["attribute", "recipe"]);
 }
 
+console.log("\n# found on its own only where an attribute describes something");
+{
+  const w = makeWindow();
+  const hass = makeHass({
+    "binary_sensor.door": st("binary_sensor.door", "off", { friendly_name: "Door", zone: { name: "Hall" } }),
+    "sensor.book": st("sensor.book", "Dune", { friendly_name: "Book", shelf: { title: "Sci-fi", image: "/local/shelf.jpg" } }),
+  });
+  const el = mount(w, { type: "x", updates: false, hide_when_empty: false, entities: ["binary_sensor.door", { entity: "sensor.book", type: "picture" }] }, hass);
+  check("a bare name in an attribute does not make a row", rows(el).some((r) => r.title === "Hall"), false);
+  check("type: picture keeps the state as its title", rows(el).map((r) => [r.title, r.body]), [["Dune", "Book"]]);
+
+  const ed = w.document.createElement("origami-notifications-editor");
+  ed.setConfig({ type: "custom:origami-notifications", entities: [{ entity: "sensor.book", type: "recipe" }] });
+  ed.hass = hass;
+  let written = null;
+  ed.addEventListener("config-changed", (e) => (written = e.detail.config));
+  const form = ed.querySelector("ha-form");
+  const value = JSON.parse(JSON.stringify(form.data));
+  value.options["sensor.book"].background = true;
+  form.dispatchEvent(new w.CustomEvent("value-changed", { detail: { value } }));
+  check("the editor writes type: recipe back as it was", written.entities, [{ entity: "sensor.book", type: "recipe", background: true }]);
+}
+
+console.log("\n# a dismissed entity comes back the next time it happens");
+{
+  const w = makeWindow();
+  w.localStorage.clear();
+  const door = (state, at) => ({ ...st("binary_sensor.door", state, { friendly_name: "Door" }), last_changed: at });
+  const el = mount(w, { type: "x", updates: false, hide_when_empty: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": door("on", "2026-09-21T10:00:00+00:00") }));
+  el.shadowRoot.querySelector(".row .x").click();
+  check("gone", rows(el).length, 0);
+  el.hass = makeHass({ "binary_sensor.door": door("off", "2026-09-21T10:05:00+00:00") });
+  el.hass = makeHass({ "binary_sensor.door": door("on", "2026-09-21T11:00:00+00:00") });
+  check("back when the door opens again", rows(el).length, 1);
+
+  const w2 = makeWindow();
+  w2.localStorage.setItem("origami-notifications-ack", JSON.stringify({ "g:binary_sensor.door": "Door\u0000on" }));
+  const el2 = mount(w2, { type: "x", updates: false, hide_when_empty: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": door("on", "2026-09-21T10:00:00+00:00") }));
+  check("a dismissal from 0.2 still holds", rows(el2).length, 0);
+}
+
+console.log("\n# the card picker");
+{
+  const w = makeWindow();
+  check("adds the card with the defaults", w.customElements.get("origami-notifications").getStubConfig(), {});
+  const picker = w.document.createElement("hui-card-picker");
+  picker.attachShadow({ mode: "open" });
+  w.document.body.appendChild(picker);
+  const el = w.document.createElement("origami-notifications");
+  el.setConfig({ type: "x", updates: false });
+  el.hass = makeHass({});
+  picker.shadowRoot.appendChild(el);
+  check("shows an empty card as a preview", [el.hidden, el.shadowRoot.querySelector(".head .title").textContent], [false, "All quiet"]);
+}
+
 console.log("\n# persistent notification markdown");
 {
   const w = makeWindow();
@@ -443,7 +515,7 @@ console.log("\n# persistent notification markdown");
   subs[0].cb({
     type: "current",
     notifications: {
-      n1: { notification_id: "n1", title: "**New devices**", message: "We found [2 devices](/config/integrations/dashboard).\n\n- Hue\n- `Z-Wave`" },
+      n1: { notification_id: "n1", title: "**New devices**", message: "![logo](/static/logo.png) We found [2 devices](/config/integrations/dashboard).\n\n- Hue\n- `Z-Wave`" },
     },
   });
   check("plain text", rows(el).map((r) => [r.title, r.body]), [["New devices", "We found 2 devices.\n\nHue\nZ-Wave"]]);
