@@ -1,13 +1,9 @@
-/* origami-notifications
- * Stateless notification card for Home Assistant.
- */
+/* Origami Notifications, https://github.com/hazymorning/origami_notifications */
 
 const CARD = "origami-notifications";
 const EDITOR = CARD + "-editor";
 const REPO = "https://github.com/hazymorning/origami_notifications";
 const VERSION = "0.3.0";
-
-/* ── configuration ──────────────────────────────────────────────────── */
 
 const DEFAULTS = Object.freeze({
   hide_when_empty: true,
@@ -18,7 +14,6 @@ const DEFAULTS = Object.freeze({
   audience: null,
 });
 
-/* The order the editor writes keys in, so the YAML reads top to bottom. */
 const KEY_ORDER = ["entities", "label", "updates", "repairs", "hide_when_empty", "audience", "css"];
 const ENTITY_KEY_ORDER = ["entity", "type", "attribute", "name", "icon", "image", "background", "tap_action", "actions"];
 
@@ -39,8 +34,7 @@ const ICONS = Object.freeze({
 
 const typeIcon = (type) => ICONS[type === "dwd" ? "weather" : type] || ICONS.generic;
 
-/* UI strings keyed by hass.locale.language (base tag). Other languages start
- * from en and take what Home Assistant already translates, see HA_STRINGS. */
+/* Other languages get English, plus what Home Assistant translates (HA_STRINGS). */
 const STRINGS = Object.freeze({
   en: Object.freeze({
     idle_title: "All quiet",
@@ -88,7 +82,7 @@ const STRINGS = Object.freeze({
   }),
 });
 
-/* Frontend strings Home Assistant ships in every language it supports. */
+/* Home Assistant translates these into every language it supports. */
 const HA_STRINGS = Object.freeze({
   idle_title: ["ui.notification_drawer.title"],
   idle_msg: ["ui.notification_drawer.empty"],
@@ -113,16 +107,13 @@ const borrowedStrings = (localize) => {
   return Object.freeze(t);
 };
 
-/* Never shown. The message match covers cores without the stable id. */
+/* Failed login notices are never shown. Older cores lack the id, so the message counts too. */
 const MUTED_NOTIFICATIONS = new Set(["http-login"]);
 
-/* Generic entities with one of these states are considered inactive. */
 const INACTIVE = new Set(["off", "unavailable", "unknown", "idle", "none", "0", ""]);
 
-/* update.install exists only with this feature bit (UpdateEntityFeature.INSTALL). */
+/* UpdateEntityFeature.INSTALL */
 const UPDATE_INSTALL = 1;
-
-/* ── helpers ────────────────────────────────────────────────────────── */
 
 const parseTs = (value, fallback) => {
   const t = value ? Date.parse(value) : NaN;
@@ -137,28 +128,19 @@ const REDUCED_MOTION = window.matchMedia
 
 const motionOK = () => !(REDUCED_MOTION && REDUCED_MOTION.matches);
 
-/* ── motion ─────────────────────────────────────────────────────────── */
-/* Whatever leaves first fades, then the space it took closes; whatever
- * arrives first gets its space, then fades in. Android's list animator plays
- * them in the same order, so two motions never run into each other. Only one
- * height changes at a time, and the rest of the card and of the dashboard
- * below follows it through layout, in step by construction. */
+/* A leaving box fades, then closes its space. An arriving box opens its space, then
+ * fades in. Only one height changes at a time, and everything below follows it. */
 const FADE_MS = 150;
 const SIZE_MS = 250;
 
-/* Material's standard, accelerate and decelerate curves. Home Assistant's
- * expansion panels open and close on the standard one. */
+/* Material's standard, accelerate and decelerate curves. */
 const EASE_STANDARD = "cubic-bezier(0.4, 0, 0.2, 1)";
 const EASE_FADE_OUT = "cubic-bezier(0.4, 0, 1, 1)";
 const EASE_FADE_IN = "cubic-bezier(0, 0, 0.2, 1)";
 
-/* When the card hides, Home Assistant takes the gap after it away in a
- * single step, once the card is gone. So the card closes on a curve that
- * still moves at the end, at about one gap per frame, and that step reads as
- * the last bit of the motion instead of a jolt after it. Coming back, the gap
- * appears first and the card starts opening at that pace. Sections set the
- * gap as --row-gap and masonry leaves about the same; the view footer goes
- * as a whole, with its padding, so there the step is measured. */
+/* Home Assistant removes the gap after a hidden card in one step. Closing ends at about
+ * one gap per frame, so that step reads as part of the motion. The view footer hides
+ * with its padding, so there the step is measured. */
 const FRAME_MS = 1000 / 60;
 
 const gapPace = (host, height) => {
@@ -169,8 +151,7 @@ const gapPace = (host, height) => {
   return Math.min(4, (gap * SIZE_MS) / (FRAME_MS * Math.max(height || 0, 1)));
 };
 
-/* The end (or start) slope of each curve is the pace; above 2.5 the second
- * form keeps the curve from overshooting. Both forms meet at 2.5. */
+/* The curve ends (or starts) with the slope pace. Above 2.5 the second form avoids overshoot. */
 const easeClose = (pace) =>
   pace <= 2.5
     ? "cubic-bezier(0.4, 0, 0.6, " + (1 - 0.4 * pace).toFixed(3) + ")"
@@ -180,7 +161,6 @@ const easeOpen = (pace) =>
     ? "cubic-bezier(0.4, " + (0.4 * pace).toFixed(3) + ", 0.6, 1)"
     : "cubic-bezier(" + (1 / pace).toFixed(3) + ", 1, 0.6, 1)";
 
-/* Everything that makes up the height of a box in the flow. */
 const FLOW = ["height", "paddingTop", "paddingBottom", "marginTop", "marginBottom", "borderTopWidth", "borderBottomWidth"];
 
 const flowBox = (el) => {
@@ -191,8 +171,7 @@ const flowBox = (el) => {
   return box;
 };
 
-/* No space at all. A row in the list also gives back the gap next to it,
- * through a negative margin on the side that has a neighbour. */
+/* A row also gives back the list gap, with a negative margin towards a neighbour. */
 const noBox = (gapSide, gap) => {
   const box = {};
   for (const k of FLOW) box[k] = "0px";
@@ -212,12 +191,10 @@ const stopMotion = (el) => {
   el.classList.remove("moving", "leaving");
 };
 
-/* Browsers round a border to whole device pixels, so one shrinking with the
- * box would hold a pixel to the end and let it go in one step. Borders come
- * and go while the box is invisible and keeps its height instead. */
+/* Borders snap to whole pixels, so they go while the box is invisible, not while it shrinks. */
 const NO_BORDER = Object.freeze({ borderTopWidth: "0px", borderBottomWidth: "0px" });
 
-/* Fade, then close the space. Holds the closed state until the caller removes the box. */
+/* Holds the closed state until the caller removes the box. */
 const playLeave = (el, gap, slide) => {
   const full = flowBox(el);
   const opacity = getComputedStyle(el).opacity;
@@ -235,7 +212,6 @@ const playLeave = (el, gap, slide) => {
   return el._motion;
 };
 
-/* Open the space, then fade in. */
 const playEnter = (el, gap) => {
   stopMotion(el);
   const full = flowBox(el);
@@ -252,8 +228,7 @@ const playEnter = (el, gap) => {
   return el._motion;
 };
 
-/* A dismissal shows at once. Home Assistant confirms it a moment later; if it
- * refuses, or the item is still there after this long, the item comes back. */
+/* A dismissed item comes back if Home Assistant refuses, or still has it after this long. */
 const PENDING_MS = 10000;
 
 const sevClass = (sev) => (sev === "crit" ? " crit" : sev === "warn" ? " warn" : "");
@@ -275,8 +250,7 @@ const isEmpty = (v) =>
   v == null || v === "" || v === false || (Array.isArray(v) && v.length === 0) ||
   (typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0);
 
-/* Where entities keep a picture. entity_picture is Home Assistant's own; the
- * others are common on template and REST sensors and count only as a URL. */
+/* Common on template and REST sensors. Unlike entity_picture, only URLs count. */
 const PICTURE_ATTRS = ["image", "image_url", "picture", "thumbnail"];
 const URL_LIKE = /^(https?:\/\/|\/|data:image\/)/i;
 
@@ -288,8 +262,7 @@ const findPicture = (attrs) => {
   return null;
 };
 
-/* Persistent notifications are Markdown. The card shows them as plain text
- * and lets the first link decide where a tap goes. */
+/* Persistent notifications are Markdown. The card shows plain text, a tap follows the first link. */
 const plainText = (md) =>
   String(md == null ? "" : md)
     .replace(/<br\s*\/?>/gi, "\n")
@@ -341,9 +314,7 @@ const checkAudience = (audience) => {
   return audience;
 };
 
-/* Under auto-detection only unambiguous activity may notify: binary "on",
- * timer "active", or a numeric state above zero. Text states (e.g. a sensor
- * whose empty state is a sentence) stay silent unless type: generic is set. */
+/* Text states can mean anything, so detected entities need on, active or a number above 0. */
 const isUnambiguouslyActive = (state) => {
   const s = String(state).toLowerCase();
   if (s === "on" || s === "active") return true;
@@ -351,13 +322,7 @@ const isUnambiguouslyActive = (state) => {
   return !isNaN(n) && n > 0;
 };
 
-/* ── entity renderers (auto-detected) ───────────────────────────────── */
-/* Each renderer receives (id, state, items, ctx) where ctx carries hass, the
- * language dictionary t, the resolved kind, whether it was forced in config,
- * and name(st) / format(st) that go through Home Assistant's formatters. */
-
-/* DWD weather warnings (dwd_weather_warnings integration): one item per
- * warning_<x>, level 0-4 per the docs, level >= 3 (Unwetter) is critical. */
+/* dwd_weather_warnings levels go from 0 to 4, from 3 on it is severe weather. */
 const renderDwd = (id, st, items, ctx) => {
   if (!(Number(st.state) > 0)) return;
   const a = st.attributes;
@@ -380,9 +345,7 @@ const renderDwd = (id, st, items, ctx) => {
   }
 };
 
-/* An attribute that describes one thing: a dish, a book, a parcel, a film
- * tonight. It holds an object with a name or a title, and maybe a text and
- * a picture. */
+/* An attribute object that describes one thing, like a dish or a parcel. */
 const THING_TEXT = ["description", "summary"];
 const THING_PICTURE = ["image", "image_url", "picture", "thumbnail"];
 
@@ -390,8 +353,7 @@ const isThing = (v) =>
   v != null && typeof v === "object" && !Array.isArray(v) &&
   ["name", "title"].some((k) => (typeof v[k] === "string" && v[k] !== "") || typeof v[k] === "number");
 
-/* Found without being named: a recipe, the one attribute the card knew up to
- * 0.2, or any object that has a text or a picture besides its name. */
+/* recipe was the only such attribute up to 0.2. Others need a text or picture besides the name. */
 const findThing = (attrs) => {
   if (isThing(attrs.recipe)) return "recipe";
   return Object.keys(attrs).find(
@@ -399,11 +361,8 @@ const findThing = (attrs) => {
   );
 };
 
-/* type: attribute shows what an attribute holds: the object of isThing, or a
- * plain value as the title. Set to an attribute that is empty, it shows
- * nothing. type: picture puts the state itself in the title, for entities
- * whose state is the thing, like the dish of the day. The picture is
- * resolved in renderEntity like for any kind. */
+/* type: attribute shows the thing, or a plain value as the title. type: picture shows the
+ * state as the title, for sensors like the dish of the day. */
 const renderThing = (id, st, items, ctx) => {
   const a = st.attributes;
   const ts = parseTs(st.last_changed, Date.now());
@@ -440,7 +399,6 @@ const renderThing = (id, st, items, ctx) => {
   });
 };
 
-/* All-day events carry midnight as start_time, so they get a day, no time. */
 const renderCalendar = (id, st, items, ctx) => {
   if (st.state !== "on" || !st.attributes.message) return;
   items.push({
@@ -454,9 +412,7 @@ const renderCalendar = (id, st, items, ctx) => {
   });
 };
 
-/* Update entities: title attribute is the actual software name (docs). The
- * install button needs the INSTALL feature, and skipping is refused while
- * auto_update is on, so such an update falls back to the local dismiss. */
+/* Home Assistant refuses to skip an update with auto_update on, so those are dismissed locally. */
 const renderUpdate = (id, st, items, ctx) => {
   if (st.state !== "on") return;
   const a = st.attributes;
@@ -489,7 +445,7 @@ const renderUpdate = (id, st, items, ctx) => {
   });
 };
 
-/* Only the states that need attention, and they stay until the panel moves on. */
+/* Alarms can't be dismissed, they stay until the panel moves on. */
 const ALARM_SEV = Object.freeze({ triggered: "crit", pending: "warn", arming: "warn" });
 
 const renderAlarm = (id, st, items, ctx) => {
@@ -508,7 +464,7 @@ const renderAlarm = (id, st, items, ctx) => {
   });
 };
 
-/* alert.turn_off reaches beyond this card, so alerts keep the local ack. */
+/* Dismissed locally, because alert.turn_off would silence the alert for everyone. */
 const renderAlert = (id, st, items, ctx) => {
   if (st.state !== "on") return;
   items.push({
@@ -539,9 +495,7 @@ const renderGeneric = (id, st, items, ctx) => {
   });
 };
 
-/* Detection order: the DWD attribute shape, the domain, an attribute that
- * describes one thing, then generic. A recipe attribute claims the entity
- * even while it is empty, as it did up to 0.2. */
+/* A recipe attribute claims the entity even while it is empty, as up to 0.2. */
 const detectType = (id, st) => {
   const a = st.attributes;
   if (a.warning_count !== undefined) return "dwd";
@@ -564,8 +518,7 @@ const RENDERERS = Object.freeze({
   generic: renderGeneric,
 });
 
-/* Titles come from the integration translations, which Home Assistant loads
- * on demand; _refreshRepairs asks for them. Fixing happens in the panel. */
+/* Titles come from the integration translations, which _refreshRepairs loads. */
 const REPAIR_SEV = Object.freeze({ critical: "crit", error: "crit", warning: "warn" });
 
 const renderRepair = (issue, items, ctx) => {
@@ -601,8 +554,7 @@ const fire = (node, type, detail) =>
 
 const fireMoreInfo = (host, entityId) => fire(host, "hass-more-info", { entityId });
 
-/* Home Assistant runs the action itself, the same way as for its own cards:
- * confirmation, navigation history, toasts, haptics, assist and so on. */
+/* Home Assistant runs the action as for its own cards, with confirmation, haptics and so on. */
 const fireAction = (host, config) => fire(host, "hass-action", { config, action: "tap" });
 
 const buildTapAction = (tap, host, entity) =>
@@ -615,8 +567,7 @@ const linkAction = (host, url) => () =>
       : { action: "url", url_path: url },
   });
 
-/* One malformed entity must not blank the whole card. Per-entry overrides
- * from the source config apply to everything it produced. */
+/* A renderer that throws only loses its own entity. Overrides apply to every item it made. */
 const renderEntity = (id, st, items, ctx, src) => {
   if (!st) return;
   const forced = Boolean(src && src.type && src.type !== "auto");
@@ -695,8 +646,6 @@ const setImage = (tile, url) => {
   if (img.getAttribute("src") !== url) img.src = url;
 };
 
-/* ── styles ─────────────────────────────────────────────────────────── */
-
 const STYLES = `
   *, *::before, *::after { box-sizing: border-box; }
   :host {
@@ -722,8 +671,7 @@ const STYLES = `
     -webkit-tap-highlight-color: transparent;
   }
   :host(.dark) { --origami-bg-auto: 0.32; }
-  /* Home Assistant drops the grid cell of a card that sets hidden, so the
-   * section closes the gap. The card fades and shrinks before that, see _setShown. */
+  /* Sections drop the cell of a hidden card. _setShown animates before that. */
   :host([hidden]) { display: none !important; }
   :host(.leaving) { pointer-events: none; }
   :host(.no-anim), :host(.no-anim) * {
@@ -743,13 +691,10 @@ const STYLES = `
     touch-action: manipulation;
     transition: transform 400ms var(--origami-ease);
   }
-  /* The sticky view footer of a sections dashboard caps a card at a quarter
-   * of the screen; the list scrolls inside that instead of running off it. */
+  /* In the sections view footer the list scrolls within a quarter of the screen. */
   :host(.docked) ha-card { max-height: var(--origami-max-height, 25dvh); }
-  /* Only with a fixed height from the layout tab does the card fill its cell:
-   * the header centers in it, the open list scrolls inside it. With automatic
-   * height nothing stretches. ha-card itself is stretched, not sized, so a
-   * margin set in css is taken off instead of pushed out of the cell. */
+  /* A fixed height from the layout tab: fill the cell, center the header, scroll the list.
+   * ha-card is stretched rather than sized, so a margin from css stays inside the cell. */
   :host(.bounded) { height: 100%; }
   :host(.bounded) ha-card:not(.open) .hwrap { flex: 1 1 auto; }
   ha-card.has-items:not(.open):active { transform: scale(0.98); transition-duration: 120ms; }
@@ -840,7 +785,7 @@ const STYLES = `
     margin-top: 2px;
     display: grid;
   }
-  /* Header and drawer trade places through their grid row, nothing measures. */
+  /* Header and drawer swap through their grid rows, nothing is measured. */
   .hwrap, .drawer {
     display: grid;
     transition: grid-template-rows 280ms var(--origami-ease);
@@ -902,8 +847,7 @@ const STYLES = `
     overscroll-behavior: contain;
     scrollbar-width: thin;
   }
-  /* A row in a list that scrolls must not give way while it animates;
-   * overflow: hidden would otherwise let it shrink to its padding. */
+  /* Without flex: none an animating row (overflow: hidden) shrinks in a scrolling list. */
   .row {
     flex: none;
     display: grid;
@@ -994,7 +938,7 @@ const STYLES = `
     cursor: pointer;
     transition: opacity 150ms ease, background-color 150ms ease, transform 150ms ease;
   }
-  /* A finger needs more than the 28px the eye needs. */
+  /* A bigger touch target. */
   .x::before { content: ""; position: absolute; inset: -8px -4px; }
   .x ha-icon { --mdc-icon-size: var(--icon-size-xs, 18px); display: flex; }
   .row .body {
@@ -1013,7 +957,7 @@ const STYLES = `
     max-height: calc(2 * var(--ha-line-height-normal, 1.3) * 1em);
     overflow: hidden;
   }
-  /* An opened message can be copied; a tap that only ends a selection does not close it. */
+  /* An opened message can be selected and copied. */
   .row.open .body {
     display: block;
     -webkit-line-clamp: unset;
@@ -1063,8 +1007,8 @@ const STYLES = `
   .track { display: inline-flex; max-width: 100%; }
   .track .t { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .track .dup { display: none; }
-  .track.scroll { max-width: none; animation: nc-scroll var(--scroll-s, 12s) linear infinite; }
-  .track.scroll:dir(rtl) { animation-name: nc-scroll-rtl; }
+  .track.scroll { max-width: none; animation: marquee var(--scroll-s, 12s) linear infinite; }
+  .track.scroll:dir(rtl) { animation-name: marquee-rtl; }
   .track.scroll .t { overflow: visible; max-width: none; padding-inline-end: var(--origami-gap); }
   .track.scroll .t::after {
     content: "\\2022";
@@ -1072,8 +1016,8 @@ const STYLES = `
     opacity: var(--origami-quiet);
   }
   .track.scroll .dup { display: inline; }
-  @keyframes nc-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-  @keyframes nc-scroll-rtl { from { transform: translateX(0); } to { transform: translateX(50%); } }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @keyframes marquee-rtl { from { transform: translateX(0); } to { transform: translateX(50%); } }
 
   .hside {
     grid-area: hsd;
@@ -1127,7 +1071,7 @@ const STYLES = `
     .act:hover { box-shadow: inset 0 0 0 100vmax var(--origami-hover); }
   }
 
-  /* The picture behind the card is decoration; whoever asks for less of it gets none. */
+  /* The background picture is decoration. */
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
     .backdrop { display: none; }
     :host(.has-bg) .row { background: var(--origami-row-bg); }
@@ -1170,14 +1114,11 @@ const TEMPLATE = `
   </ha-card>
 `;
 
-/* ── card ───────────────────────────────────────────────────────────── */
-
 class OrigamiNotificationsCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    /* Stay attached while hidden, or the subscriptions that would bring the
-     * card back are gone (Home Assistant detaches hidden cards otherwise). */
+    /* Home Assistant detaches hidden cards, which would end the subscriptions that bring it back. */
     this.connectedWhileHidden = true;
     this._persistent = new Map();
     this._items = [];
@@ -1208,8 +1149,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._setLang("en");
   }
 
-  /* -- config ---------------------------------------------------------- */
-
   setConfig(config) {
     const sources = [];
     for (const entry of config.entities || []) {
@@ -1230,7 +1169,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (typeof src.entity !== "string" || !src.entity.includes(".")) {
         throw new Error(CARD + ": entities must contain entity ids, got " + JSON.stringify(entry));
       }
-      /* The name the attribute type had up to 0.2, which showed objects only. */
+      /* type: recipe from 0.2, which showed objects only. */
       if (src.type === "recipe") {
         src.type = "attribute";
         src.attribute = src.attribute || "recipe";
@@ -1283,8 +1222,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     return {};
   }
 
-  /* -- language --------------------------------------------------------- */
-
   _setLang(lang, localize) {
     this._lang = lang;
     const base = String(lang).split("-")[0];
@@ -1300,7 +1237,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (this._dom) this._dom.clear.textContent = this._t.clear;
   }
 
-  /* 12 or 24 hours and the time zone follow the user's profile in Home Assistant. */
+  /* 12 or 24 hours and the time zone from the user's profile. */
   _clockOpts() {
     const h = this._hass;
     const l = (h && h.locale) || {};
@@ -1359,9 +1296,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     return fill(near ? t.day_at : t.date_at, { d: date, t: time });
   }
 
-  /* -- hass / lifecycle ------------------------------------------------ */
-  /* hass objects are immutable; changed parts get new references, so all
-   * change detection here is strict-equality checks (documented contract). */
+  /* Changed parts of hass get new references, so comparing references is enough. */
 
   set hass(hass) {
     const old = this._hass;
@@ -1439,8 +1374,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
     const root = this.getRootNode();
     this.classList.toggle("docked", Boolean(root && root.host && root.host.localName === "hui-view-footer"));
-    /* The card picker shows a preview without preview mode; an empty card
-     * stays visible there so the picker has something to show. */
+    /* The card picker sets no preview flag. An empty card stays visible there. */
     const picker = Boolean(root && root.host && root.host.localName === "hui-card-picker");
     if (picker !== Boolean(this._inPicker)) {
       this._inPicker = picker;
@@ -1464,8 +1398,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     clearTimeout(this._repairsTimer);
     if (this._ro) this._ro.disconnect();
     this._stopClock();
-    /* Collapse only if the card stays detached; the dashboard editor
-     * re-parents the preview constantly and must not lose expansion. */
+    /* Collapse only if the card stays detached. The dashboard editor re-parents it all the time. */
     this._detachReset = setTimeout(() => {
       this._expanded = false;
       this._shownOpen = false;
@@ -1524,8 +1457,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._recompute();
   }
 
-  /* -- source resolution ------------------------------------------------ */
-
   _refreshUpdateIds() {
     if (!this._config || !this._config.updates || !this._hass) {
       this._updateIds = [];
@@ -1560,7 +1491,6 @@ class OrigamiNotificationsCard extends HTMLElement {
       });
   }
 
-  /* Entities carrying the configured HA label (entity registry). */
   _refreshLabelIds() {
     const label = this._config ? this._config.label : null;
     const reg = this._hass ? this._hass.entities : null;
@@ -1591,8 +1521,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     ];
   }
 
-  /* -- items ----------------------------------------------------------- */
-
   _recompute() {
     const h = this._hass;
     const c = this._config || {};
@@ -1603,7 +1531,7 @@ class OrigamiNotificationsCard extends HTMLElement {
         try {
           return h.formatEntityName(st, override) || st.entity_id;
         } catch (e) {
-          /* fall through to the plain name */
+          /* use the plain name */
         }
       }
       return (typeof override === "string" && override) || st.attributes.friendly_name || st.entity_id;
@@ -1660,8 +1588,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       }
     }
 
-    /* Dismissed here, not yet confirmed by Home Assistant. Once the source no
-     * longer has the item, or the wait is over, it is no longer pending. */
+    /* Dismissed, but Home Assistant has not removed them yet. */
     if (this._pending.size) {
       const now = Date.now();
       const present = new Set(items.map((it) => it.key));
@@ -1676,18 +1603,15 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (next !== Infinity) this._pendingTimer = setTimeout(() => this._recompute(), next - now + 50);
     }
 
-    /* Critical warnings pin above everything; within a tier newest first. */
-    /* Items without a native dismiss get a local acknowledgment: hidden on
-     * this device until their content changes, then they resurface. An ack
-     * is removed only when its item resurfaces with different content; absent
-     * keys are kept (bounded by _ack) so reloads cannot resurrect items. */
+    /* Without a dismiss in Home Assistant, items are hidden on this device until they change.
+     * An ack stays while its item is gone, so a reload can't bring it back. */
     let acksDirty = false;
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       if (it.dismiss || it.sticky) continue;
       const said = it.title + "\u0000" + it.message;
       const sig = it.kind === "attribute" || it.kind === "picture" ? said : said + "\u0000" + it.ts;
-      /* 0.2 kept no time; such a dismissal turns into one that does. */
+      /* Acks from 0.2 have no time, upgrade them. */
       if (this._acks[it.key] === said && sig !== said) {
         this._acks[it.key] = sig;
         acksDirty = true;
@@ -1705,6 +1629,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       }
     }
     if (acksDirty) this._saveAcks();
+    /* Critical first, then newest. */
     items.sort((a, b) => {
       const ra = a.sev === "crit" ? 0 : 1;
       const rb = b.sev === "crit" ? 0 : 1;
@@ -1715,8 +1640,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._items = items;
     this._render();
   }
-
-  /* -- dom -------------------------------------------------------------- */
 
   _build() {
     this.shadowRoot.innerHTML = TEMPLATE;
@@ -1770,8 +1693,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._suppressAnim();
   }
 
-  /* No transitions on the first paint after (re)attachment, and none at all
-   * while the dashboard editor is open. */
+  /* No transitions on the first paint after attaching, and none in the dashboard editor. */
   _suppressAnim() {
     this.classList.add("no-anim");
     this._settling = true;
@@ -1783,7 +1705,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     });
   }
 
-  /* Keyboard focus follows the toggle, which hides itself as it opens or closes. */
+  /* Focus follows the toggle, which hides itself as it opens or closes. */
   _toggle() {
     if (!this._items.length) return;
     const d = this._dom;
@@ -1833,14 +1755,14 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
   }
 
-  /* The oldest acknowledgments go first once there are more than 64. */
+  /* At most 64 acks, the oldest go first. */
   _saveAcks() {
     const keys = Object.keys(this._acks);
     for (let i = 0; i < keys.length - 64; i++) delete this._acks[keys[i]];
     try {
       localStorage.setItem("origami-notifications-ack", JSON.stringify(this._acks));
     } catch (e) {
-      /* private mode etc. */
+      /* storage blocked */
     }
   }
 
@@ -1850,8 +1772,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._recompute();
   }
 
-  /* Rows go at once, whether Home Assistant or this device keeps the
-   * dismissal; see PENDING_MS for what happens when Home Assistant refuses. */
+  /* Rows go at once. PENDING_MS covers Home Assistant refusing. */
   _dismiss(items) {
     let acked = false;
     for (const it of items) {
@@ -1889,8 +1810,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (this._hass) this._dismiss(this._items.filter((it) => it.dismiss));
   }
 
-  /* After a dismissal by keyboard, focus moves on to the row that took its
-   * place instead of falling out of the card. */
+  /* After a dismissal by keyboard, focus the row that took its place. */
   _focusAfter(index) {
     if (this.hidden || (this._hostAnim && !this._hostAnim.showing)) return;
     const it = this._items[Math.min(Math.max(index, 0), this._items.length - 1)];
@@ -1901,11 +1821,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     target.focus({ preventScroll: true });
   }
 
-  /* Hidden the way Home Assistant expects it: the hidden attribute plus
-   * card-visibility-changed, so sections, masonry and the view footer drop
-   * the card's slot instead of keeping an empty gap. Before that the card
-   * fades and its space closes, see gapPace. With a fixed height from the
-   * layout tab the slot keeps its size anyway, so the card only fades. */
+  /* The hidden attribute plus card-visibility-changed make Home Assistant drop the slot.
+   * A slot with a fixed height keeps its size, so then the card only fades. */
   _setShown(show) {
     const running = this._hostAnim;
     if (show ? !this.hidden && !(running && !running.showing) : this.hidden || (running && !running.showing)) return;
@@ -1925,7 +1842,7 @@ class OrigamiNotificationsCard extends HTMLElement {
         from.height = "0px";
         from.opacity = "0";
       }
-      /* Played at the end of _render, once the content is in and can be measured. */
+      /* Played at the end of _render, once the content can be measured. */
       if (this._animOK()) this._enterFrom = from;
       return;
     }
@@ -1947,9 +1864,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const anim = this.animate(frames, { duration, fill: "forwards" });
     anim.showing = false;
     this._hostAnim = anim;
-    /* Home Assistant takes the gap away in the frame after the first one that
-     * shows the card closed, so that step gets a frame of its own like every
-     * step before it, and no frame stands still in between. */
+    /* Home Assistant removes the gap one frame after the card shows closed, so no frame stands still. */
     let closed = false;
     const watch = () => {
       if (this._hostAnim !== anim) return;
@@ -1986,7 +1901,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     };
   }
 
-  /* Out of sight: whatever comes next starts closed, from an empty list. */
+  /* A hidden card comes back closed, with a fresh list. */
   _gone() {
     const d = this._dom;
     this.classList.remove("leaving");
@@ -2008,7 +1923,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._setBackdrop(null);
   }
 
-  /* Two layers so one picture fades into the next; a picture shows only once loaded. */
+  /* Two layers, so one picture fades into the next once it has loaded. */
   _setBackdrop(url) {
     if (url === this._bgUrl) return;
     this._bgUrl = url;
@@ -2082,8 +1997,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     setImage(d.tile, empty ? null : items[0].image);
     this._setBackdrop(!empty && items[0].backdrop ? items[0].image : null);
 
-    /* The list is only seen while the drawer is open, so only then does it
-     * move. A closing drawer keeps its rows until it is shut. */
+    /* The list animates only while open. A closing drawer keeps its rows until it is shut. */
     if (!this._expanded && (wasOpen || this._listTimer)) {
       this._listTimer =
         this._listTimer ||
@@ -2115,7 +2029,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const foot = this._dom.foot;
     const leaving = foot.classList.contains("leaving");
     if (show === (!foot.hidden && !leaving)) return;
-    /* Wanted again halfway out: the way back is the way out, played backwards. */
+    /* Shown again while leaving, so play the way out backwards. */
     if (show && leaving && animate && foot._motion) {
       const anim = foot._motion;
       foot.classList.remove("leaving");
@@ -2138,8 +2052,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
   }
 
-  /* A card that is connected but not laid out, like one a visibility
-   * condition hides, has nothing to animate and no height to measure. */
+  /* Not without layout, e.g. while a visibility condition hides the card. */
   _animOK() {
     return (
       this._painted &&
@@ -2152,10 +2065,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     );
   }
 
-  /* Keyed: a row whose content did not change stays as it is. With animate,
-   * a row that goes fades and then closes its space where it stood, a new
-   * one opens its space and then fades in, and rows that only change places
-   * glide there. Nothing else moves on its own. */
+  /* Rows are keyed and reused while their content stays the same. With animate, rows
+   * leave and arrive as in playLeave and playEnter, and moved rows slide. */
   _renderList(items, animate) {
     const list = this._dom.list;
     const cache = this._rowCache;
@@ -2271,7 +2182,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       x.append(xi);
       x.addEventListener("click", (e) => {
         e.stopPropagation();
-        /* The row may have been built several updates ago; dismiss what it shows now. */
+        /* The row may be older than the item, so dismiss the current one. */
         const index = this._items.findIndex((i) => i.key === it.key);
         this._dismiss([index < 0 ? it : this._items[index]]);
         if (e.detail === 0) this._focusAfter(index);
@@ -2310,8 +2221,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const go = it.inert ? null : it.open || (it.entity ? () => fireMoreInfo(this, it.entity) : null);
     /* The pointer shows a hand only where a tap does something. */
     row.addEventListener("pointerenter", () => row.classList.toggle("expandable", clamped()));
-    /* Tap: clamped long text expands/collapses; otherwise the row opens its
-     * target. The icon tile always opens the target. */
+    /* A tap expands cut-off text, otherwise it opens the target. The icon always opens it. */
     row.addEventListener("click", () => {
       if (selecting()) return;
       if (row.classList.contains("open") || clamped()) {
@@ -2368,8 +2278,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     });
   }
 
-  /* -- sizing ----------------------------------------------------------- */
-
   getCardSize() {
     return this._expanded ? 1 + this._items.length : 1;
   }
@@ -2378,8 +2286,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     return { columns: 12, rows: "auto", min_columns: 6 };
   }
 }
-
-/* ── editor ─────────────────────────────────────────────────────────── */
 
 /* Generic labels come from Home Assistant, in the user's language. */
 const HA_EDITOR = Object.freeze({
@@ -2736,8 +2642,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
     );
   }
 
-  /* Schema and data are handed to ha-form only when they change, not on
-   * every state update, so fields keep their focus and nothing flickers. */
+  /* ha-form gets a new schema or new data only when they change, so fields keep their focus. */
   _renderForm() {
     if (!this._config) return;
     if (!this._form) {
@@ -2770,10 +2675,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
   }
 }
 
-/* ── registration ───────────────────────────────────────────────────── */
-
-/* Loading the file twice (HACS plus a manual resource) must not throw. The
- * version line is what a bug report asks for. */
+/* The file may be loaded twice, e.g. by HACS and a manual resource. */
 if (!customElements.get(CARD)) {
   customElements.define(CARD, OrigamiNotificationsCard);
   console.info("%c Origami Notifications %c v" + VERSION + " ", "font-weight:bold", "opacity:0.7");
