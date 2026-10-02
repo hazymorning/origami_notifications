@@ -2,12 +2,13 @@
   "name": "origami-notifications",
   "version": "0.3.0",
   "private": true,
-  "description": "Origami Notifications card for Home Assistant",
+  "description": "A notification card for Home Assistant",
+  "license": "MIT",
   "scripts": {
-    "test": "node test/card.test.js",
+    "test": "node --test",
     "lint": "python3 scripts/text-style.py"
   },
   "devDependencies": {
-    "jsdom": "^24.0.0"
+    "jsdom": "^29.1.1"
   }
 }
