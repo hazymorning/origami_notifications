@@ -90,7 +90,8 @@ function addStubs(window, opts) {
 }
 
 /* opts.bare leaves the stubs out, opts.stateIcon defines ha-state-icon, and opts.clock hands the card
- * the Date of mock.timers. Timers follow mock.timers anyway. */
+ * the Date of mock.timers. Timers follow mock.timers anyway. opts.zone is the browser's time zone for
+ * every date format that names none. */
 function makeWindow(opts = {}) {
   const virtualConsole = new VirtualConsole();
   virtualConsole.on("error", (...args) => console.error(...args));
@@ -109,6 +110,13 @@ function makeWindow(opts = {}) {
   window.__origamiTest = {};
   if (!opts.bare) addStubs(window, opts);
   if (opts.clock) window.Date = Date;
+  if (opts.zone) {
+    const Format = window.Intl.DateTimeFormat;
+    window.Intl.DateTimeFormat = function (locales, options) {
+      return new Format(locales, { ...options, timeZone: (options && options.timeZone) || opts.zone });
+    };
+    window.Intl.DateTimeFormat.supportedLocalesOf = Format.supportedLocalesOf;
+  }
   window.eval(CODE);
   windows.push(window);
   return window;
@@ -2097,4 +2105,389 @@ test("the editor offers timers and countdowns as kinds", () => {
   value.hide_when_empty = false;
   form.dispatchEvent(new w.CustomEvent("value-changed", { detail: { value } }));
   same(written.entities, [{ entity: "timer.kitchen", time: "sensor.end", progress: "pct" }], "time and progress stay in the config");
+});
+
+/* Times on a server in UTC, read on a 24 hour clock in the server's zone. Updates keep both objects. */
+const UTC_CONFIG = { time_zone: "UTC" };
+const UTC_LOCALE = { language: "en", time_format: "24", time_zone: "server" };
+const utcHass = (states, opts) => ({ ...makeHass(states, opts), config: UTC_CONFIG, locale: UTC_LOCALE });
+
+/* A calendar as Home Assistant writes it. While it is off, its attributes describe the next event. */
+const calendarAt = (id, state, message, start, allDay = false) =>
+  st(id, state, { friendly_name: id, message, all_day: allDay, start_time: start, end_time: start, location: "", description: "" });
+
+test("a calendar shows its next event ahead of time", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const states = {
+    "calendar.waste": calendarAt("calendar.waste", "off", "Paper bin", "2026-10-02 18:00:00"),
+    "calendar.family": calendarAt("calendar.family", "off", "Dentist", "2026-10-02 15:00:00"),
+    "calendar.holiday": calendarAt("calendar.holiday", "off", "Holiday", "2026-10-03 00:00:00", true),
+    "calendar.work": calendarAt("calendar.work", "off", "Standup", "2026-10-03 09:00:00"),
+    "calendar.gym": calendarAt("calendar.gym", "off", "Gym", "2026-10-02 12:30:00"),
+  };
+  const config = {
+    type: "x",
+    hide_when_empty: false,
+    updates: false,
+    entities: [
+      { entity: "calendar.waste", before: "12:00:00" },
+      { entity: "calendar.family", before: 60 },
+      { entity: "calendar.holiday", before: { days: 1 } },
+      { entity: "calendar.work", before: { hours: 24 } },
+      "calendar.gym",
+    ],
+  };
+  const el = mount(w, config, utcHass(states));
+  const q = (s) => el.shadowRoot.querySelector(s);
+  same(
+    [rows(el).map((r) => [r.title, r.body, r.icon]), whens(el)],
+    [
+      [
+        ["Paper bin", "today at 18:00", "mdi:calendar-month"],
+        ["Holiday", "tomorrow", "mdi:calendar-month"],
+        ["Standup", "tomorrow at 09:00", "mdi:calendar-month"],
+      ],
+      ["in 6 hr.", "tomorrow", "in 21 hr."],
+    ],
+    "as far ahead as each one says, as text, minutes or parts, and nothing without before"
+  );
+  same([head(el).title, q(".head .msg .t").textContent, q(".head .eta").hidden], ["Paper bin", "today at 18:00", true], "the head names the start");
+  same(el.shadowRoot.querySelectorAll(".row .when")[1].dateTime, "2026-10-03", "an all-day event is a day");
+  mock.timers.tick(2 * 3600000 + 49);
+  same(rows(el).length, 3, "not before its time");
+  mock.timers.tick(1);
+  same(rows(el).map((r) => [r.title, r.body])[0], ["Dentist", "today at 15:00"], "an hour ahead of the dentist");
+  mock.timers.tick(10 * 3600000 + 5000);
+  same(rows(el).map((r) => [r.title, r.body]), [["Standup", "today at 09:00"]], "after midnight the reminder says today");
+
+  const { parseBefore } = w.__origamiTest;
+  const minutes = (v) => (Number.isNaN(v) ? "none" : v / 60000);
+  same(
+    ["12:00:00", "0:30", "+1:30:30", 90, 0, { days: 1, hours: 2 }, { minutes: "15" }].map((v) => minutes(parseBefore(v))),
+    [720, 30, 90.5, 90, 0, 1560, 15],
+    "text, a number of minutes, or parts"
+  );
+  same(
+    ["soon", "", "30", "-01:00:00", -5, null, true, {}, { hours: "x" }, { weeks: 1 }, [1]].map((v) => minutes(parseBefore(v))),
+    Array(11).fill("none"),
+    "anything else is not set"
+  );
+});
+
+test("a calendar reminder dismissed the evening before comes back when the event starts", () => {
+  useClock(Date.parse("2026-10-02T20:00:00Z"));
+  const w = makeWindow({ clock: true });
+  const dentist = (state, changed) => ({ ...calendarAt("calendar.family", state, "Dentist", "2026-10-03 08:00:00"), last_changed: changed });
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: [{ entity: "calendar.family", before: "24:00:00" }] };
+  const el = mount(w, config, utcHass({ "calendar.family": dentist("off", "2026-10-01T09:00:00+00:00") }));
+  same(rows(el).map((r) => [r.title, r.body]), [["Dentist", "tomorrow at 08:00"]]);
+  el.shadowRoot.querySelector(".row .x").click();
+  el.hass = utcHass({ "calendar.family": dentist("off", "2026-10-02T23:00:00+00:00") });
+  same(rows(el).length, 0, "it stays dismissed overnight, also after a restart");
+  mock.timers.tick(12 * 3600000);
+  el.hass = utcHass({ "calendar.family": dentist("on", "2026-10-03T08:00:00.000+00:00") });
+  same(rows(el).map((r) => [r.title, r.body]), [["Dentist", "today at 08:00"]], "back at the start, even when that is its last change to the millisecond");
+});
+
+test("an event shows for a day with a picture from its device", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  /* Home Assistant writes the time of the last event in UTC with milliseconds. */
+  const rang = (ms) => new Date(NOW + ms).toISOString().replace("Z", "+00:00");
+  const bell = (at) => st("event.front_door", at, { friendly_name: "Front door", device_class: "doorbell", event_type: "ring", event_types: ["ring"] });
+  const entities = {
+    "event.front_door": { entity_id: "event.front_door", device_id: "door", labels: [] },
+    "camera.front_door": { entity_id: "camera.front_door", device_id: "door", labels: [] },
+    "image.front_door_visitor": { entity_id: "image.front_door_visitor", device_id: "door", labels: [] },
+    "camera.garden": { entity_id: "camera.garden", device_id: "garden", labels: [] },
+  };
+  /* As Home Assistant writes them. An image's state is the time of its picture, and tokens change every few minutes. */
+  const lens = (token) => st("camera.front_door", "idle", { access_token: token, entity_picture: "/api/camera_proxy/camera.front_door?token=" + token });
+  const visitor = (at, token = "i") =>
+    st("image.front_door_visitor", at, { access_token: token, entity_picture: "/api/image_proxy/image.front_door_visitor?token=" + token });
+  const proxy = (at, token = "i") => "http://ha.local/api/image_proxy/image.front_door_visitor?token=" + token + "&state=" + encodeURIComponent(at);
+  const camera = { "camera.front_door": lens("c") };
+  const pictures = {
+    ...camera,
+    "image.front_door_visitor": visitor(rang(-7199000)),
+    "camera.garden": st("camera.garden", "idle", { entity_picture: "/api/camera_proxy/camera.garden?token=g" }),
+  };
+  const hassOf = (at, others = pictures, reg = entities) => {
+    const hass = makeHass({ "event.front_door": bell(at), ...others }, { entities: reg });
+    hass.formatEntityAttributeValue = (s, attr, value) => (attr === "event_type" && value === "ring" ? "Ring" : String(value));
+    return hass;
+  };
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["event.front_door"] };
+  const picture = (card, where = ".row .rtile") => {
+    const img = card.shadowRoot.querySelector(where + " img");
+    return img && img.getAttribute("src");
+  };
+  let hass = hassOf(rang(-2 * 3600000));
+  const el = mount(w, config, hass);
+  same(
+    [rows(el).map((r) => [r.title, r.body, r.icon]), el.shadowRoot.querySelector(".row").dataset.kind, whens(el)],
+    [[["Front door", "Ring", "mdi:eye-check"]], "event", ["2 hr. ago"]],
+    "the event type in Home Assistant's words"
+  );
+  same(
+    [picture(el), picture(el, ".head .tile")],
+    Array(2).fill(proxy(rang(-7199000))),
+    "the picture of an image entity on the same device, with its state like in Home Assistant's own cards"
+  );
+  hass = { ...hass, states: { ...hass.states, "image.front_door_visitor": visitor(rang(-60000)) } };
+  el.hass = hass;
+  same([picture(el), picture(el, ".head .tile")], Array(2).fill(proxy(rang(-60000))), "a new picture of the visitor shows at once");
+  hass = { ...hass, states: { ...hass.states, "image.front_door_visitor": visitor(rang(-60000), "j") } };
+  el.hass = hass;
+  same(picture(el), proxy(rang(-60000), "j"), "and so does a new token");
+  /* Cards in one browser share their dismissals, so the others go in a window of their own. */
+  const other = makeWindow({ clock: true });
+  const cameraHass = hassOf(rang(-2 * 3600000), camera);
+  const fromCamera = mount(other, config, cameraHass);
+  same(picture(fromCamera), "http://ha.local/api/camera_proxy/camera.front_door?token=c", "else of a camera there");
+  fromCamera.hass = { ...cameraHass, states: { ...cameraHass.states, "camera.front_door": lens("d") } };
+  same(picture(fromCamera), "http://ha.local/api/camera_proxy/camera.front_door?token=d", "which follows its token");
+  const own = { ...config, entities: [{ entity: "event.front_door", image: "/local/bell.png" }] };
+  same(picture(mount(other, own, hassOf(rang(-2 * 3600000)))), "http://ha.local/local/bell.png", "the image option wins");
+  const bare = hassOf(rang(-2 * 3600000));
+  bare.entities = undefined;
+  same([rows(mount(other, config, bare)).length, picture(mount(other, config, bare))], [1, null], "without the registry there is no picture");
+  same(rows(mount(other, config, hassOf(rang(-86400000 - 1000)))).length, 0, "an event older than a day shows nothing");
+  same(rows(mount(other, config, hassOf("unknown"))).length, 0, "nor does one that never happened");
+  const parcel = makeHass({
+    "event.parcel": st("event.parcel", rang(-60000), { friendly_name: "Parcel", event_type: "delivered", parcel: { name: "Book", description: "At the door" } }),
+  });
+  const thing = mount(other, { ...config, entities: ["event.parcel"] }, parcel);
+  same(
+    [rows(thing).map((r) => [r.title, r.body]), thing.shadowRoot.querySelector(".row").dataset.kind],
+    [[["Book", "At the door"]], "attribute"],
+    "an event that carries a thing keeps the row it had in 0.4"
+  );
+  const forced = mount(other, { ...config, entities: [{ entity: "event.parcel", type: "event" }] }, parcel);
+  same(rows(forced).map((r) => [r.title, r.body]), [["Parcel", "delivered"]], "unless it is set to show as an event");
+
+  el.shadowRoot.querySelector(".row .x").click();
+  el.hass = hassOf(rang(-2 * 3600000));
+  same(rows(el).length, 0, "dismissed");
+  el.hass = hassOf(rang(0));
+  same([rows(el).length, whens(el)], [1, ["just now"]], "back with the next ring");
+  mock.timers.tick(86400000 + 49);
+  same(rows(el).length, 1, "for a day");
+  mock.timers.tick(1);
+  same(rows(el).length, 0, "then it goes by itself");
+});
+
+/* A to-do item as the subscription sends it, and the subscriptions a card made for its lists. */
+const todoItem = (uid, summary, due, status = "needs_action") => ({ uid, summary, status, due, description: null, completed: null });
+const todoSubs = (subs, id) => subs.filter((s) => s.msg && s.msg.type === "todo/item/subscribe" && (!id || s.msg.entity_id === id));
+
+test("a to-do list shows what is due and marks it done", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const subs = [];
+  const states = {
+    "todo.shopping": st("todo.shopping", "5", { friendly_name: "Shopping", supported_features: 15 }),
+    "todo.chores": st("todo.chores", "2", { friendly_name: "Chores", supported_features: 1 }),
+  };
+  const config = { type: "x", hide_when_empty: false, updates: false, entities: ["todo.shopping", { entity: "todo.chores", before: "48:00:00" }] };
+  const el = mount(w, config, utcHass(states, { subs }));
+  same(
+    todoSubs(subs).map((s) => s.msg),
+    [{ type: "todo/item/subscribe", entity_id: "todo.shopping" }, { type: "todo/item/subscribe", entity_id: "todo.chores" }],
+    "one subscription for each list"
+  );
+  same(rows(el).length, 0, "the number of open items makes no entry");
+  const [shopping, chores] = todoSubs(subs);
+  const groceries = [
+    todoItem("1", "Milk", "2026-10-02"),
+    todoItem("2", "Bread", "2026-10-02T15:00:00+00:00"),
+    todoItem("3", "Eggs", "2026-10-01", "completed"),
+    todoItem("4", "Cheese", null),
+    todoItem("5", "Butter", "2026-10-03T09:00:00+00:00"),
+    todoItem("6", "Tea", "2026-09-30"),
+  ];
+  shopping.cb({ items: groceries });
+  chores.cb({ items: [todoItem("a", "Vacuum", "2026-10-04"), todoItem("b", "Taxes", "2026-10-04T15:00:00+00:00")] });
+  same(
+    [rows(el).map((r) => [r.title, r.body, r.icon, r.actions]), whens(el)],
+    [
+      [
+        ["Bread", "Shopping", "mdi:clipboard-check-outline", ["Done"]],
+        ["Milk", "Shopping", "mdi:clipboard-check-outline", ["Done"]],
+        ["Vacuum", "Chores", "mdi:clipboard-check-outline", []],
+        ["Tea", "Shopping", "mdi:clipboard-check-outline", ["Done"]],
+      ],
+      ["in 3 hr.", "today", "on 10/04", "on 09/30"],
+    ],
+    "open items due by tonight, overdue or within before, and Done only where Home Assistant can update an item"
+  );
+  same(el.shadowRoot.querySelector(".row").dataset.kind, "todo");
+
+  const sent = actionsOf(el);
+  el.shadowRoot.querySelector(".row .act").click();
+  el.shadowRoot.querySelector(".row .rtile").click();
+  same(
+    sent,
+    [
+      {
+        entity: "todo.shopping",
+        tap_action: { action: "perform-action", perform_action: "todo.update_item", target: { entity_id: "todo.shopping" }, data: { item: "2", status: "completed" } },
+      },
+      { tap_action: { action: "navigate", navigation_path: "/todo?entity_id=todo.shopping" } },
+    ],
+    "Done completes the item and a tap opens the list"
+  );
+  shopping.cb({ items: groceries.map((it) => (it.uid === "2" ? { ...it, status: "completed" } : it)) });
+  same(rows(el).map((r) => r.title), ["Milk", "Vacuum", "Tea"], "a completed item goes");
+
+  el.shadowRoot.querySelector(".row .x").click();
+  shopping.cb({ items: groceries.slice(0, 1) });
+  same(rows(el).map((r) => r.title), ["Vacuum"], "dismissed");
+  shopping.cb({ items: [todoItem("1", "Milk", "2026-10-02T18:00:00+00:00")] });
+  same(rows(el).map((r) => r.title), ["Milk", "Vacuum"], "back once it is due at another time");
+  mock.timers.tick(3 * 3600000 + 49);
+  same(rows(el).map((r) => r.title), ["Milk", "Vacuum"], "not before it is due within before");
+  mock.timers.tick(1);
+  same(rows(el).map((r) => r.title), ["Milk", "Vacuum", "Taxes"], "then it shows by itself");
+
+  const german = [];
+  const de = mount(makeWindow({ clock: true }), config, { ...makeHass(states, { subs: german, lang: "de" }), config: UTC_CONFIG });
+  todoSubs(german)[0].cb({ items: groceries });
+  same(rows(de)[0].actions, ["Erledigt"], "in German");
+
+  const hidden = [];
+  const anna = { ...states, "person.anna": st("person.anna", "home", { user_id: "u1" }) };
+  const audience = { "todo.shopping": { except: ["person.anna"] } };
+  const away = mount(makeWindow({ clock: true }), { ...config, audience }, utcHass(anna, { subs: hidden, user: { id: "u1" } }));
+  todoSubs(hidden, "todo.shopping")[0].cb({ items: groceries });
+  todoSubs(hidden, "todo.chores")[0].cb({ items: [todoItem("a", "Vacuum", "2026-10-04")] });
+  same(rows(away).map((r) => r.title), ["Vacuum"], "an item follows the rule for its list");
+});
+
+test("an entry for a day turns from tomorrow to today at midnight", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const subs = [];
+  const states = {
+    "todo.shopping": st("todo.shopping", "1", { friendly_name: "Shopping" }),
+    "todo.chores": st("todo.chores", "1", { friendly_name: "Chores" }),
+  };
+  const berlin = makeHass(states, { subs });
+  berlin.config = { time_zone: "Europe/Berlin" };
+  berlin.locale = { language: "en", time_zone: "server" };
+  const far = mount(w, { type: "x", updates: false, entities: [{ entity: "todo.shopping", before: "36:00:00" }] }, berlin);
+  todoSubs(subs)[0].cb({ items: [todoItem("1", "Milk", "2026-10-04")] });
+  const date = far.shadowRoot.querySelector(".row .when");
+  same([date.textContent, date.dateTime, date.title], ["on 10/04", "2026-10-04", "Oct 4, 2026"], "a date on the server without a time of day");
+
+  subs.length = 0;
+  const el = mount(w, { type: "x", updates: false, entities: [{ entity: "todo.shopping", before: "24:00:00" }, "todo.chores"] }, utcHass(states, { subs }));
+  const [shopping, chores] = todoSubs(subs);
+  shopping.cb({ items: [todoItem("1", "Milk", "2026-10-03")] });
+  chores.cb({ items: [todoItem("2", "Bins", "2026-10-03")] });
+  same([rows(el).map((r) => r.title), whens(el)], [["Milk"], ["tomorrow"]], "due tomorrow, shown a day ahead");
+  /* Off screen nothing ticks, so only the rebuild after midnight changes what a day says. */
+  subs.length = 0;
+  const away = mount(w, { type: "x", updates: false, entities: [{ entity: "todo.shopping", before: "24:00:00" }] }, utcHass(states, { subs }));
+  away._io.fire(false);
+  todoSubs(subs)[0].cb({ items: [todoItem("1", "Milk", "2026-10-03"), todoItem("3", "Tea", "2026-10-01")] });
+  same(whens(away), ["tomorrow", "yesterday"]);
+  mock.timers.tick(12 * 3600000 - 1);
+  same([rows(el).map((r) => r.title), whens(el)], [["Milk"], ["tomorrow"]], "not before midnight");
+  mock.timers.tick(51);
+  same(
+    [rows(el).map((r) => r.title).sort(), whens(el)],
+    [["Bins", "Milk"], ["today", "today"]],
+    "after midnight it is today, and what is due today without before joins"
+  );
+  mock.timers.tick(949);
+  same(whens(away), ["tomorrow", "yesterday"], "a card off screen waits for the rebuild");
+  mock.timers.tick(1);
+  same(whens(away), ["today", "on 10/01"], "which comes a second after midnight");
+});
+
+test("a to-do date is a day on the server and today is the day in the profile", () => {
+  useClock();
+  /* The server is 14 hours ahead of the browser, so it is October 3 there already. */
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const subs = [];
+  const states = {
+    "todo.chores": st("todo.chores", "2", { friendly_name: "Chores" }),
+    "todo.shopping": st("todo.shopping", "1", { friendly_name: "Shopping" }),
+  };
+  const hass = makeHass(states, { subs });
+  hass.config = { time_zone: "Pacific/Kiritimati" };
+  hass.locale = { language: "en", time_format: "24", time_zone: "local" };
+  const el = mount(w, { type: "x", updates: false, entities: ["todo.chores", { entity: "todo.shopping", before: "24:00:00" }] }, hass);
+  const [chores, shopping] = todoSubs(subs);
+  chores.cb({ items: [todoItem("1", "Bins", "2026-10-03"), todoItem("2", "Call", "2026-10-02T23:30:00+00:00")] });
+  shopping.cb({ items: [todoItem("3", "Milk", "2026-10-03")] });
+  same(
+    [rows(el).map((r) => r.title), whens(el)],
+    [["Milk", "Call"], ["tomorrow", "in 12 hr."]],
+    "a time is due today by its date in the profile, and a date is still tomorrow there"
+  );
+  mock.timers.tick(12 * 3600000 - 1);
+  same(rows(el).map((r) => r.title), ["Call", "Milk"], "not before midnight in the profile");
+  mock.timers.tick(51);
+  same(
+    [rows(el).map((r) => r.title), whens(el)],
+    [["Call", "Bins", "Milk"], ["30 min. ago", "today", "today"]],
+    "then the date is today"
+  );
+});
+
+test("to-do subscriptions end with the card and follow the config", async () => {
+  const w = makeWindow();
+  const subs = [];
+  const states = {
+    "todo.shopping": st("todo.shopping", "1", { friendly_name: "Shopping" }),
+    "todo.chores": st("todo.chores", "1", { friendly_name: "Chores" }),
+  };
+  const hass = makeHass(states, { subs });
+  const open = () => todoSubs(subs).filter((s) => !s.closed).map((s) => s.msg.entity_id);
+  const el = mount(w, { type: "x", updates: false, entities: ["todo.shopping", { entity: "binary_sensor.door", type: "todo" }] }, hass);
+  same(open(), ["todo.shopping"], "only to-do lists");
+  el.hass = { ...hass };
+  same(todoSubs(subs).length, 1, "once, however often Home Assistant updates");
+  todoSubs(subs, "todo.shopping")[0].cb({ items: [todoItem("1", "Milk", "2020-01-01")] });
+  el.setConfig({ type: "x", updates: false, entities: ["todo.chores"] });
+  await tick();
+  same(open(), ["todo.chores"], "a new config swaps the lists");
+  todoSubs(subs, "todo.chores")[0].cb({ items: [todoItem("1", "Bins", "2020-01-01")] });
+  el.remove();
+  await tick();
+  same(open(), [], "all of them end with the card");
+  w.document.body.appendChild(el);
+  el.hass = { ...hass, states: { ...states, "todo.chores": st("todo.chores", "2", { friendly_name: "Chores" }) } };
+  same(
+    [open(), todoSubs(subs, "todo.chores").length, rows(el).map((r) => r.title)],
+    [["todo.chores"], 2, ["Bins"]],
+    "back with the card, showing the list it had until Home Assistant sends it again"
+  );
+
+  let asked = 0;
+  const refused = makeHass({ "todo.broken": st("todo.broken", "unavailable") });
+  refused.connection.subscribeMessage = (cb, msg) => {
+    if (msg.type === "todo/item/subscribe") asked++;
+    return Promise.reject(new Error("invalid_entity_id"));
+  };
+  const broken = mount(w, { type: "x", updates: false, entities: ["todo.broken"] }, refused);
+  await tick();
+  broken.hass = { ...refused };
+  same(asked, 1, "a list Home Assistant refused is not asked again at every update");
+  broken.hass = { ...refused, states: { "todo.broken": st("todo.broken", "0") } };
+  same(asked, 2, "but once its state changes");
+
+  let ended = false;
+  let answer = null;
+  const late = makeHass(states);
+  late.connection.subscribeMessage = (cb, msg) =>
+    msg.type === "todo/item/subscribe" ? new Promise((resolve) => (answer = () => resolve(() => (ended = true)))) : Promise.resolve(() => {});
+  const gone = mount(w, { type: "x", updates: false, entities: ["todo.chores"] }, late);
+  gone.remove();
+  answer();
+  await tick();
+  same(ended, true, "a subscription that arrives after the card left ends at once");
 });

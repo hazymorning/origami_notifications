@@ -25,6 +25,8 @@ const ICONS = {
   calendar: "mdi:calendar-month",
   timer: "mdi:timer-outline",
   countdown: "mdi:timer-sand",
+  event: "mdi:eye-check",
+  todo: "mdi:clipboard-check-outline",
   attribute: "mdi:card-text-outline",
   picture: "mdi:image-outline",
   generic: "mdi:information-outline",
@@ -62,6 +64,7 @@ const STRINGS = {
     act_pause: "Pause",
     act_resume: "Resume",
     act_cancel: "Cancel",
+    act_done: "Done",
   },
   de: {
     idle_title: "Alles ruhig",
@@ -89,6 +92,7 @@ const STRINGS = {
     act_pause: "Pause",
     act_resume: "Fortsetzen",
     act_cancel: "Abbrechen",
+    act_done: "Erledigt",
   },
 };
 
@@ -132,6 +136,9 @@ const isInactive = (state) => {
 
 /* UpdateEntityFeature.INSTALL */
 const UPDATE_INSTALL = 1;
+
+/* TodoListEntityFeature.UPDATE_TODO_ITEM */
+const TODO_UPDATE_ITEM = 4;
 
 const parseTs = (value, fallback) => {
   const t = value ? Date.parse(value) : NaN;
@@ -324,12 +331,44 @@ const endOf = (st, zone) => {
 };
 
 const MINUTE_MS = 60000;
+const DAY_MS = 86400000;
 
 const toMinute = (ts) => Math.round(ts / MINUTE_MS) * MINUTE_MS;
 
+/* Moments on the same date in timeZone share a number. */
+const dayNumber = (ts, timeZone) => {
+  const p = zonedParts(ts, timeZone);
+  return Date.UTC(p.year, p.month - 1, p.day) / DAY_MS;
+};
+
+/* The moment the day with that number begins in timeZone. */
+const dayStart = (day, timeZone) => fromServerTime(new Date(day * DAY_MS).toISOString().slice(0, 10), timeZone);
+
+const numberOf = (value) =>
+  typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+
 const percent = (value) => {
-  const n = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  const n = numberOf(value);
   return Number.isFinite(n) ? Math.min(Math.max(n, 0), 100) / 100 : null;
+};
+
+const BEFORE_UNITS = { days: DAY_MS, hours: 3600000, minutes: MINUTE_MS, seconds: 1000 };
+
+/* How long ahead a calendar or a to-do list shows, in the formats of Home Assistant's durations. A bare
+ * number counts as minutes, where Home Assistant reads seconds. */
+const parseBefore = (value) => {
+  let ms = NaN;
+  if (typeof value === "number") ms = value * MINUTE_MS;
+  else if (typeof value === "string") {
+    const m = /^\+?(\d+):(\d+)(?::(\d+(?:\.\d+)?))?$/.exec(value.trim());
+    if (m) ms = m[1] * 3600000 + m[2] * MINUTE_MS + (m[3] || 0) * 1000;
+  } else if (isObject(value)) {
+    const keys = Object.keys(value);
+    if (keys.length && keys.every((k) => k in BEFORE_UNITS)) {
+      ms = keys.reduce((sum, k) => sum + numberOf(value[k]) * BEFORE_UNITS[k], 0);
+    }
+  }
+  return ms >= 0 && Number.isFinite(ms) ? ms : NaN;
 };
 
 /* A time from an option or a thing replaces when it happened. Estimates move by seconds, so it
@@ -362,6 +401,40 @@ const findPicture = (attrs) => {
   if (typeof attrs.entity_picture === "string" && attrs.entity_picture) return attrs.entity_picture;
   for (const k of PICTURE_ATTRS) {
     if (typeof attrs[k] === "string" && URL_LIKE.test(attrs[k])) return attrs[k];
+  }
+  return null;
+};
+
+const usesDevicePicture = (src) =>
+  !src.image && (src.type === "event" || (src.type === "auto" && !src.attribute && src.entity.startsWith("event.")));
+
+/* For each id, the image and camera entities on its device, images first. */
+const devicePictures = (reg, ids) => {
+  const pictures = new Map();
+  if (!reg || !ids.length) return pictures;
+  const byDevice = new Map();
+  for (const [id, entry] of Object.entries(reg)) {
+    if (!entry || !entry.device_id || !/^(image|camera)\./.test(id)) continue;
+    if (!byDevice.has(entry.device_id)) byDevice.set(entry.device_id, []);
+    byDevice.get(entry.device_id).push(id);
+  }
+  for (const id of ids) {
+    const found = byDevice.get(reg[id] && reg[id].device_id) || [];
+    pictures.set(id, [...found.filter((p) => p.startsWith("image.")), ...found.filter((p) => p.startsWith("camera."))]);
+  }
+  return pictures;
+};
+
+/* An image keeps its address for a new picture until its token changes, so Home Assistant's own cards
+ * add its state. */
+const devicePicture = (hass, ids) => {
+  for (const id of ids) {
+    const s = hass.states[id];
+    const a = (s && s.attributes) || {};
+    if (id.startsWith("image.") && typeof a.access_token === "string" && a.access_token) {
+      return "/api/image_proxy/" + id + "?token=" + encodeURIComponent(a.access_token) + "&state=" + encodeURIComponent(s.state);
+    }
+    if (typeof a.entity_picture === "string" && a.entity_picture) return a.entity_picture;
   }
   return null;
 };
@@ -503,18 +576,26 @@ const renderThing = (id, st, items, ctx) => {
   items.push({ ...item, title: ctx.format(st), message: ctx.name(st), ack: String(st.state) });
 };
 
+/* While a calendar is off, its attributes describe the next event. With before, it shows that long ahead. */
 const renderCalendar = (id, st, items, ctx) => {
-  if (st.state !== "on" || !st.attributes.message) return;
-  items.push({
-    key: "c:" + id,
-    kind: "calendar",
-    entity: id,
-    title: st.attributes.message,
-    message: ctx.calWhen(st.attributes.start_time, st.attributes.all_day),
-    ts: parseTs(st.last_changed, ctx.now),
-    past: true,
-    ack: st.attributes.message + "\u0000" + st.attributes.start_time,
-  });
+  const a = st.attributes;
+  if (!a.message) return;
+  const push = (fields) =>
+    items.push({ key: "c:" + id, kind: "calendar", entity: id, title: a.message, message: ctx.calWhen(a.start_time, a.all_day), ...fields });
+  if (st.state === "on") {
+    push({ ts: parseTs(st.last_changed, ctx.now), past: true, ack: a.message + "\u0000" + a.start_time });
+    return;
+  }
+  if (st.state !== "off" || !(ctx.lead >= 0)) return;
+  const start = isoTime(a.start_time, serverZone(ctx.hass));
+  if (!(start > ctx.now)) return;
+  if (start - ctx.now > ctx.lead) {
+    ctx.wake(start - ctx.lead);
+    return;
+  }
+  /* Home Assistant may write the start to the millisecond as the last change. A reminder keeps a dismissal
+   * of its own, so it still comes back when the event starts. */
+  push({ ts: start, day: Boolean(a.all_day), ack: [a.message, a.start_time, "ahead"].join("\u0000") });
 };
 
 /* Installing and skipping need an admin, and Home Assistant refuses to skip an update with
@@ -634,6 +715,59 @@ const renderCountdown = (id, st, items, ctx) => {
   });
 };
 
+/* The state is the time of the last event and survives a restart, so the entry ends a day after the event. */
+const renderEvent = (id, st, items, ctx) => {
+  const ts = isoTime(st.state, serverZone(ctx.hass));
+  if (!Number.isFinite(ts)) return;
+  const type = st.attributes.event_type;
+  items.push({
+    key: "ev:" + id,
+    kind: "event",
+    entity: id,
+    title: ctx.name(st),
+    message: type == null || type === "" ? "" : ctx.formatAttribute(st, "event_type", type),
+    ts,
+    past: true,
+    expires: ts + DAY_MS,
+    image: findPicture(st.attributes) || devicePicture(ctx.hass, ctx.devicePictures(id)),
+    ack: String(st.state),
+  });
+};
+
+/* Items come from a subscription per list. A due date without a time is a day on the server, like an
+ * all-day event. What is due by the end of today shows, and with before what is due within that time. */
+const renderTodo = (id, st, items, ctx) => {
+  const list = ctx.todos(id);
+  if (!list) return;
+  const server = serverZone(ctx.hass);
+  const today = dayNumber(ctx.now, ctx.zone);
+  const canFinish = (Number(st.attributes.supported_features) & TODO_UPDATE_ITEM) === TODO_UPDATE_ITEM;
+  for (const todo of list) {
+    if (!todo || todo.status !== "needs_action" || !todo.uid || typeof todo.due !== "string") continue;
+    const day = !todo.due.includes("T");
+    const ts = isoTime(todo.due, server);
+    if (!Number.isFinite(ts)) continue;
+    if (dayNumber(ts, day ? server : ctx.zone) > today && !(ts - ctx.now <= ctx.lead)) {
+      ctx.wake(dayStart(today + 1, ctx.zone));
+      ctx.wake(ts - ctx.lead);
+      continue;
+    }
+    const done = { item: todo.uid, status: "completed" };
+    items.push({
+      key: "t:" + id + ":" + todo.uid,
+      kind: "todo",
+      entity: id,
+      title: String(todo.summary || ""),
+      message: ctx.name(st),
+      ts,
+      day,
+      ack: todo.uid + "\u0000" + todo.due,
+      open: linkAction(ctx.host, "/todo?entity_id=" + id),
+      actions: canFinish ? [serviceAction(ctx.host, id, ctx.t.act_done, "todo.update_item", done)] : [],
+    });
+  }
+};
+
 const renderGeneric = (id, st, items, ctx) => {
   const active = ctx.forced ? !isInactive(st.state) : isUnambiguouslyActive(st.state);
   if (!active) return;
@@ -658,7 +792,11 @@ const detectType = (id, st) => {
   if (id.startsWith("alarm_control_panel.")) return "alarm";
   if (id.startsWith("alert.")) return "alert";
   if (id.startsWith("timer.")) return "timer";
+  if (id.startsWith("todo.")) return "todo";
   if (findThing(a) || "recipe" in a) return "attribute";
+  /* Home Assistant merges what an integration sends into an event's attributes. An event with a thing
+   * there keeps the row it had in 0.4. */
+  if (id.startsWith("event.")) return "event";
   if (id.startsWith("sensor.") && (a.device_class === "timestamp" || a.device_class === "duration")) return "countdown";
   return "generic";
 };
@@ -679,6 +817,8 @@ const RENDERERS = {
   dwd: renderDwd,
   timer: renderTimer,
   countdown: renderCountdown,
+  event: renderEvent,
+  todo: renderTodo,
   attribute: renderThing,
   picture: renderThing,
   generic: renderGeneric,
@@ -727,9 +867,13 @@ const buildTapAction = (tap, host, entity) =>
   tap && tap.action && tap.action !== "none" ? () => fireAction(host, { entity, tap_action: tap }) : null;
 
 /* A button the card offers on its own, run like an action from the config. */
-const serviceAction = (host, entity, label, action) => ({
+const serviceAction = (host, entity, label, action, data) => ({
   label,
-  run: () => fireAction(host, { entity, tap_action: { action: "perform-action", perform_action: action, target: { entity_id: entity } } }),
+  run: () =>
+    fireAction(host, {
+      entity,
+      tap_action: { action: "perform-action", perform_action: action, target: { entity_id: entity }, ...(data ? { data } : {}) },
+    }),
 });
 
 /* Kinds that tell their own message. The time and progress options leave them as they are. */
@@ -767,7 +911,7 @@ const renderEntity = (id, st, items, ctx, src) => {
   const name = named ? (s) => ctx.name(s, src.name) : ctx.name;
   const before = items.length;
   try {
-    renderer(id, st, items, { ...ctx, forced, kind, attribute, objectOnly, named, name });
+    renderer(id, st, items, { ...ctx, forced, kind, attribute, objectOnly, named, name, lead: parseBefore(src.before) });
   } catch (e) {
     console.warn(CARD + ": renderer failed for " + id, e);
     items.length = before;
@@ -864,8 +1008,6 @@ const nextReorder = (items, now) => {
   }
   return next;
 };
-
-const DAY_MS = 86400000;
 
 /* One wait for the earliest of times, at most a day. The extra 50 ms make sure the moment has passed. */
 const wakeDelay = (times, now) => {
@@ -1437,6 +1579,7 @@ const checkConfig = (config) => {
             background: entry ? entry.background : null,
             time: entry ? entry.time : null,
             progress: entry ? entry.progress : null,
+            before: entry ? entry.before : null,
             actions: entry ? entry.actions : null,
             tap_action: entry ? entry.tap_action : null,
           };
@@ -1530,6 +1673,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._editMode = false;
     this._unsub = null;
     this._unsubRepairs = null;
+    this._todos = new Map();
+    this._pictures = new Map();
     this._clock = null;
     this._boundaryTimer = null;
     this._wakes = [];
@@ -1658,11 +1803,7 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   /* Yesterday, today or tomorrow, else the date of ts in zone. Today is the day in the zone of the profile. */
   _dayOf(ts, zone, now) {
-    const dayOf = (when, timeZone) => {
-      const p = zonedParts(when, timeZone);
-      return Date.UTC(p.year, p.month - 1, p.day) / 86400000;
-    };
-    const diff = dayOf(ts, zone) - dayOf(now, this._clockOpts().timeZone);
+    const diff = dayNumber(ts, zone) - dayNumber(now, this._clockOpts().timeZone);
     if (Math.abs(diff) <= 1) return { near: true, date: this._rel.format(diff, "day") };
     try {
       return { near: false, date: dateFormat(this._lang, { day: "2-digit", month: "2-digit", timeZone: zone }).format(ts) };
@@ -1793,6 +1934,11 @@ class OrigamiNotificationsCard extends HTMLElement {
         this[key] = null;
       }
     }
+    /* The items stay, so a card that comes back shows them until Home Assistant sends the list again. */
+    for (const [id, sub] of this._todos) {
+      if (sub.unsub) sub.unsub.then((u) => u()).catch(() => {});
+      this._todos.set(id, { items: sub.items });
+    }
     CARDS.delete(this);
     clearTimeout(this._repairsTimer);
     clearTimeout(this._dayTimer);
@@ -1823,6 +1969,7 @@ class OrigamiNotificationsCard extends HTMLElement {
         this._unsub = null;
       });
     }
+    this._subscribeTodos();
     /* Like the repairs page in Home Assistant's settings, repairs are for admins only. A new
      * subscription also fetches the list, which may have changed while the card was away. */
     if (!this._unsubRepairs && conn.subscribeEvents && this._config && this._config.repairs && this._isAdmin()) {
@@ -1840,6 +1987,41 @@ class OrigamiNotificationsCard extends HTMLElement {
       return true;
     }
     return false;
+  }
+
+  /* One subscription per to-do list. Home Assistant sends the whole list at once and again after every
+   * change. A list it refused is asked for again once its state changes. */
+  _subscribeTodos() {
+    const h = this._hass;
+    const conn = h && h.connection;
+    if (!conn || !this.isConnected) return;
+    const wanted = new Set(
+      this._allSources
+        .filter((src) => src.entity.startsWith("todo.") && h.states[src.entity] && kindOf(src, h.states[src.entity]) === "todo")
+        .map((src) => src.entity)
+    );
+    for (const [id, sub] of this._todos) {
+      if (wanted.has(id)) continue;
+      if (sub.unsub) sub.unsub.then((u) => u()).catch(() => {});
+      this._todos.delete(id);
+    }
+    for (const id of wanted) {
+      const old = this._todos.get(id);
+      if (old && old.unsub && (old.failed === undefined || old.failed === h.states[id])) continue;
+      const sub = { items: old ? old.items : null };
+      this._todos.set(id, sub);
+      sub.unsub = conn.subscribeMessage(
+        (msg) => {
+          if (this._todos.get(id) !== sub) return;
+          sub.items = Array.isArray(msg && msg.items) ? msg.items : [];
+          this._recompute();
+        },
+        { type: "todo/item/subscribe", entity_id: id }
+      );
+      sub.unsub.catch(() => {
+        sub.failed = (this._hass && this._hass.states[id]) || null;
+      });
+    }
   }
 
   _onNotifications(msg) {
@@ -1860,6 +2042,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._refreshUpdateIds();
     this._refreshLabelIds();
     this._refreshWatched();
+    this._subscribeTodos();
   }
 
   /* From the registry as well, so an update whose state arrives later is already watched. */
@@ -1911,7 +2094,11 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (!list.some((s) => s.entity === id)) list.push({ entity: id, type: "auto" });
     }
     this._allSources = list;
-    const refs = list.flatMap((s) => [s.entity, s.time, s.progress]).filter((id) => typeof id === "string" && id);
+    /* A picture from a device changes on its own, with every new snapshot or token. */
+    this._pictures = devicePictures(this._hass && this._hass.entities, list.filter(usesDevicePicture).map((s) => s.entity));
+    const refs = list
+      .flatMap((s) => [s.entity, s.time, s.progress, ...(this._pictures.get(s.entity) || [])])
+      .filter((id) => typeof id === "string" && id);
     this._watched = [...new Set([...this._updateIds, ...refs])];
   }
 
@@ -1945,6 +2132,10 @@ class OrigamiNotificationsCard extends HTMLElement {
       wake: waker(wakes, now),
       calWhen: (s, allDay) => this._calWhen(s, allDay, now),
       absTime: (ts) => this._absTime(ts),
+      /* Today is the day in the zone of the profile. */
+      zone: this._clockOpts().timeZone,
+      todos: (id) => (this._todos.get(id) || {}).items || null,
+      devicePictures: (id) => this._pictures.get(id) || [],
       name,
       format: (st) => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state)),
       formatAttribute: (st, path, value) => {
@@ -2849,6 +3040,8 @@ const EDITOR_STRINGS = {
     type_dwd: "DWD weather warnings",
     type_timer: "Timer",
     type_countdown: "Countdown",
+    type_event: "Event",
+    type_todo: "To-do list",
     type_attribute: "Details from an attribute",
     type_picture: "State as title",
     type_generic: "Plain entity",
@@ -2885,6 +3078,8 @@ const EDITOR_STRINGS = {
     type_dwd: "DWD-Unwetterwarnungen",
     type_timer: "Timer",
     type_countdown: "Countdown",
+    type_event: "Ereignis",
+    type_todo: "To-do-Liste",
     type_attribute: "Details aus einem Attribut",
     type_picture: "Zustand als Titel",
     type_generic: "Einfache Entität",
@@ -3249,5 +3444,6 @@ if (window.__origamiTest) {
     parseDuration,
     endOf,
     percent,
+    parseBefore,
   });
 }
