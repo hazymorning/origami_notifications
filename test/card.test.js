@@ -116,7 +116,7 @@ console.log("\n# empty");
 {
   const w = makeWindow();
   const el = mount(w, { type: "x" }, makeHass({}));
-  check("hidden when empty", el.classList.contains("gone"), true);
+  check("hidden when empty", el.hidden, true);
   const el2 = mount(w, { type: "x", hide_when_empty: false }, makeHass({}));
   check("idle title", el2.shadowRoot.querySelector(".head .title").textContent, "All quiet");
 }
@@ -552,6 +552,80 @@ console.log("\n# loading the file twice");
     const el2 = mount(w, { type: "x", repairs: false, hide_when_empty: false }, off);
     await new Promise((r) => setTimeout(r, 0));
     check("repairs off", rows(el2).length, 0);
+  }
+
+  console.log("\n# a dismissal shows at once, Home Assistant confirms it later");
+  {
+    const w = makeWindow();
+    const subs = [];
+    const hass = makeHass({}, { subs });
+    const answers = [];
+    hass.callService = (d, s, data) => {
+      hass.calls.push([d + "." + s, data]);
+      return new Promise((resolve, reject) => answers.push({ resolve, reject }));
+    };
+    const el = mount(w, { type: "x", hide_when_empty: false }, hass);
+    const note = (id) => ({ notification_id: id, title: "Backup " + id, message: "done" });
+    subs[0].cb({ type: "current", notifications: { n1: note("n1"), n2: note("n2") } });
+    el.shadowRoot.querySelector(".row .x").click();
+    const dismissals = () => hass.calls.filter((c) => c[0] === "persistent_notification.dismiss").length;
+    check("gone before Home Assistant answers", [rows(el).length, dismissals()], [1, 1]);
+    answers[0].reject(new Error("refused"));
+    await new Promise((r) => setTimeout(r, 0));
+    check("back when Home Assistant refuses", rows(el).length, 2);
+
+    el.shadowRoot.querySelector(".row .x").click();
+    answers[1].resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    check("still away once confirmed", rows(el).length, 1);
+    const key = [...el._pending.keys()][0];
+    el._pending.set(key, Date.now() - 1);
+    el._recompute();
+    check("back when it is still there after the wait", rows(el).length, 2);
+
+    el.shadowRoot.querySelector(".row .x").click();
+    const gone = [...el._pending.keys()][0].slice(2);
+    subs[0].cb({ type: "removed", notifications: { [gone]: { notification_id: gone } } });
+    check("nothing pending once Home Assistant removed it", [el._pending.size, rows(el).length], [0, 1]);
+  }
+
+  console.log("\n# clear all");
+  {
+    const w = makeWindow();
+    const subs = [];
+    const hass = makeHass({ "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }) }, { subs });
+    const el = mount(w, { type: "x", hide_when_empty: false, updates: false, entities: ["binary_sensor.door"] }, hass);
+    subs[0].cb({ type: "current", notifications: { n1: { notification_id: "n1", message: "one" }, n2: { notification_id: "n2", message: "two" } } });
+    el.shadowRoot.querySelector(".clear").click();
+    check("everything goes at once", [rows(el).length, hass.calls.filter((c) => c[0] === "persistent_notification.dismiss").length], [0, 2]);
+  }
+
+  console.log("\n# a card that hid itself comes back closed");
+  {
+    const w = makeWindow();
+    const on = st("binary_sensor.door", "on", { friendly_name: "Door" });
+    const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.door"] }, makeHass({ "binary_sensor.door": on }));
+    el._toggle();
+    check("open", el.shadowRoot.querySelector("ha-card").classList.contains("open"), true);
+    el.hass = makeHass({ "binary_sensor.door": { ...on, state: "off" } });
+    el.hass = makeHass({ "binary_sensor.door": on });
+    check("closed again", [el.hidden, el.shadowRoot.querySelector("ha-card").classList.contains("open")], [false, false]);
+  }
+
+  console.log("\n# keyboard focus after a dismissal");
+  {
+    const w = makeWindow();
+    const hass = makeHass({
+      "binary_sensor.a": st("binary_sensor.a", "on", { friendly_name: "A" }),
+      "binary_sensor.b": st("binary_sensor.b", "on", { friendly_name: "B" }),
+    });
+    const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.a", "binary_sensor.b"] }, hass);
+    el._toggle();
+    const x = el.shadowRoot.querySelector(".row .x");
+    x.focus();
+    x.click();
+    const focused = el.shadowRoot.activeElement;
+    check("moves to the row that took its place", focused && focused.closest(".row").querySelector(".title").textContent, "B");
   }
 
   console.log("\n" + pass + " ok, " + fail + " failed\n");
