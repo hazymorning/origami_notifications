@@ -1,47 +1,79 @@
 # Origami Notifications
 
-A Home Assistant card for everything that wants your attention. Closed, it is one line with the newest or most urgent item. Open, it lists them all.
+A notification card for Home Assistant that folds away when there is nothing to see.
 
 ![The card closed on a phone and open next to it](https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/dark-and-light-preview.png)
 
-System notifications, repairs and pending updates come in without any setup. Any entity you add, or every entity with a label, becomes a notification too: a door left open, the event running in a calendar, an alarm going off, a weather warning, or what a sensor's attributes describe, like a parcel on its way. Pictures show in the row and, if you want, blurred behind the whole card. Rows can carry buttons for any action, each source can be limited to certain people, and the card takes your own CSS.
+Closed, the card is one line with the most important notification. Tap it and it unfolds into the full list. When nothing needs your attention, the card is gone.
 
-Install it with HACS: add `https://github.com/hazymorning/origami_notifications` as a custom repository of type Dashboard and download it. Most of what follows can also be set in the visual editor.
+Home Assistant's notifications, repairs and updates show up without any setup. Add any entity, and the card shows it while it needs attention, like an open door, a triggered alarm or a calendar event that is running.
 
-<details>
-<summary>What can be a notification</summary>
+You style the card with plain CSS, right in its config. No card-mod, no theme tricks.
 
 ```yaml
 type: custom:origami-notifications
 entities:
-  - binary_sensor.garage_door     # while it is on
-  - calendar.family               # the event that is running
-  - entity: sensor.washer
-    type: generic                 # any state but off, idle, none, 0, unknown, unavailable
-  - entity: sensor.library
-    attribute: next_due           # title, text and picture from this attribute
-    background: true              # its picture blurred behind the card while on top
-label: notify                     # plus every entity with this label
-updates: true                     # default
-repairs: true                     # default, admins only
-hide_when_empty: true             # default
+  - binary_sensor.front_door
+  - alarm_control_panel.home
+  - calendar.family
+css: |
+  :host { --origami-radius: 20px; }
+  .row[data-kind="update"] { opacity: 0.6; }
 ```
 
-Without a `type` the card works out what each entity is: calendars show their running event, updates get an install button if the integration can install, alarm panels show while triggered, pending or arming, alerts while on, DWD weather warnings as one row per warning. An attribute holding an object with a `name` or `title` and a `description` or `image` is found on its own and shows as long as it is there: the name is the title, the description the text, the image the picture. `attribute` picks one by name or path, and a plain value there becomes the title. `type: picture` makes the state the title, for a sensor like the book of the day. Everything else shows while it is `on`, `active` or a number above zero.
+## Install
 
-Per entity there are also `name`, `icon`, `tap_action`, `actions` and `image`, an attribute like `cover` or `book.cover`, or a URL. Without `image` a row takes the entity's own picture: `entity_picture`, or an `image`, `image_url`, `picture` or `thumbnail` attribute holding a URL.
+In HACS, add `https://github.com/hazymorning/origami_notifications` as a custom repository of type Dashboard, then download Origami Notifications. The card needs Home Assistant 2025.4 or newer.
+
+Without HACS, copy `dist/origami-notifications.js` to `/config/www/` and add `/local/origami-notifications.js` as a dashboard resource of type JavaScript module.
+
+<details>
+<summary>Options</summary>
+
+| Option | Default | |
+| --- | --- | --- |
+| `entities` | | Entities to watch, see below |
+| `label` | | Also watch every entity with this label. In YAML it's the label ID. |
+| `updates` | `true` | Show available updates |
+| `repairs` | `true` | Show repairs, to admins only |
+| `hide_when_empty` | `true` | Hide the card when there is nothing to show |
+| `audience` | | Who sees what, see below |
+| `css` | | Your own CSS, see below |
+
+The visual editor has all of it except `css` and buttons. The card speaks English and German, and borrows Home Assistant's words for other languages.
 
 </details>
 
 <details>
-<summary>Taps, buttons and dismissing</summary>
+<summary>Entities</summary>
+
+| Entity | Shows while |
+| --- | --- |
+| Alarm panel | triggered, pending or arming |
+| Alert | on |
+| Calendar | an event is running |
+| Update | an update is available |
+| DWD weather warnings | there are warnings, one row each |
+| Anything else | on, active or a number above 0 |
+
+Some sensors describe a thing in an attribute, like tonight's dinner, a library book or a parcel. If the attribute has a `name` or `title` plus a `description` or a picture, the card shows that thing instead of the state.
+
+Every entity can take these options.
+
+| Option | |
+| --- | --- |
+| `type` | Skip the detection. `generic` shows any state but off, idle, none, 0, unknown and unavailable. `picture` shows the state as the title. |
+| `attribute` | The attribute to show, like `next_due` or `book.title`. A plain value becomes the title. |
+| `name` | Replaces the entity's name, not the event or the thing it shows |
+| `icon` | Replaces the icon |
+| `image` | A picture from an attribute or a URL, instead of the entity's own |
+| `background` | Shows the picture blurred behind the card while this entity is on top |
+| `tap_action` | What a tap does. By default it opens the entity. |
+| `actions` | Buttons, each with a `label` and a `tap_action` |
 
 ```yaml
 entities:
   - entity: binary_sensor.doorbell
-    tap_action:
-      action: navigate
-      navigation_path: /lovelace/cameras
     actions:
       - label: Open the door
         tap_action:
@@ -51,9 +83,16 @@ entities:
             entity_id: lock.front_door
 ```
 
-Actions work as in any other card. Without a `tap_action` a row opens its entity; a system notification follows its first link, a repair opens the repairs page. A row with more text than fits opens up on a tap instead, and its icon still runs the action.
+Red rows are critical and stay on top. Everything else is sorted newest first.
 
-System notifications, updates and repairs are dismissed in Home Assistant: the notification is gone for everyone, the update skipped, the repair ignored. Everything else, and an update that installs itself, is only hidden in this browser until it happens again or says something new. Alarm panels can't be dismissed and stay until the panel moves on.
+</details>
+
+<details>
+<summary>Dismissing</summary>
+
+Dismissing a Home Assistant notification removes it for everyone. For admins, dismissing an update skips it and dismissing a repair ignores it. Admins can also install an update right from the card.
+
+Everything else is only hidden on this device, until it happens again or changes. Alarm panels can't be dismissed. Home Assistant's notice about a failed login never shows up.
 
 </details>
 
@@ -68,45 +107,32 @@ audience:
     except: [person.kid]
 ```
 
-Keys are `system`, `updates` (every update entity), `repairs` or an entity id. People are matched through the user linked to them under Settings > People. While the dashboard is being edited, everyone sees everything.
+The keys are `system` for Home Assistant's notifications, `updates`, `repairs` or an entity. A person counts through the user linked to them in Settings > People. While you edit the dashboard, you see everything.
 
 </details>
 
 <details>
-<summary>Your own CSS</summary>
+<summary>Styling</summary>
 
-`css` is a stylesheet added after the card's own, so it can restyle any part of the card.
+Everything in `css` goes into the card after its own styles, so you can change any part of it.
 
-```yaml
-css: |
-  :host { --origami-radius: 20px; --origami-pad: 16px; }
-  .row { border: 1px solid var(--divider-color); }
-  .clear { color: var(--error-color); }
-```
+| Variable | Default | |
+| --- | --- | --- |
+| `--origami-pad` | `12px` | Padding, and the space between rows |
+| `--origami-gap`, `--origami-gap-s` | `12px`, `8px` | Space between icon and text, and small gaps |
+| `--origami-radius`, `--origami-radius-s` | `12px`, `8px` | Corners of the rows and the closed tile, and of small parts |
+| `--origami-tile`, `--origami-tile-s` | `40px`, `32px` | Size of the icon tile, closed and in the rows |
+| `--origami-icon` | `20px` | Icon size in the closed tile |
+| `--origami-card-bg`, `--origami-row-bg` | theme | Card and row background |
+| `--origami-muted`, `--origami-quiet` | `0.6`, `0.45` | Opacity of secondary text, and of times and the dismiss button |
+| `--origami-hover`, `--origami-focus` | | Hover tint and keyboard focus ring |
+| `--origami-max-height` | none | Height limit, the open list scrolls inside |
+| `--origami-bg-opacity`, `--origami-bg-blur` | `0.22`, `24px` | The background picture |
 
-Variables: `--origami-pad`, `--origami-gap`, `--origami-gap-s`, `--origami-radius`, `--origami-radius-s`, `--origami-tile`, `--origami-tile-s`, `--origami-icon`, `--origami-muted`, `--origami-quiet`, `--origami-ease`, `--origami-time`, `--origami-focus`, `--origami-card-bg`, `--origami-row-bg`, `--origami-hover`, `--origami-max-height`, `--origami-bg-opacity` and `--origami-bg-blur` (the last three also in a theme).
+`--origami-max-height`, `--origami-bg-opacity` and `--origami-bg-blur` also work in a theme.
 
-Classes: `.head`, `.tile`, `.badge`, `.title`, `.msg`, `.ebar`, `.count`, `.list`, `.row`, `.rtile`, `.body`, `.when`, `.x`, `.act`, `.foot`, `.clear`, `.backdrop`.
+Closed, the card is the `.head` with `.tile`, `.badge`, `.title` and `.msg`. Open, it has the `.ebar` with the `.count`, the `.list` of `.row`s and the `.foot` with `.clear`. A row has `.rtile`, `.title`, `.when`, `.x`, `.body` and `.act` buttons. Rows carry `.warn` or `.crit` and a `data-kind` like `update`, `repair`, `calendar` or `alarm`.
 
-</details>
-
-<details>
-<summary>Layout and language</summary>
-
-The card is as high as its content and hides itself when there is nothing to show. With a fixed height from the layout tab, or in the footer of a sections view, the open list scrolls inside it.
-
-Texts follow the language of your profile. English and German are built in, other languages get Home Assistant's own words where it has them, and English otherwise. Times follow the 12 or 24 hour setting.
-
-</details>
-
-<details>
-<summary>Without HACS</summary>
-
-Copy `dist/origami-notifications.js` to `config/www/` and add it as a dashboard resource:
-
-```yaml
-url: /local/origami-notifications.js
-type: module
-```
+With a fixed height from the layout tab, or in the footer of a sections view, the open list scrolls inside the card.
 
 </details>
