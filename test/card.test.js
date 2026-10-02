@@ -738,7 +738,7 @@ test("calendar times are read in the server's time zone", () => {
   same(rows(el)[0].body, "on 01/15 at 09:30");
 });
 
-test("non-admins can't install or skip updates, they hide them on this device", () => {
+test("non-admins can't install or skip updates, they hide them in this browser", () => {
   const w = makeWindow();
   const hass = makeHass(
     { "update.router": st("update.router", "on", { title: "RouterOS", latest_version: "7.15", supported_features: 1 }) },
@@ -900,7 +900,7 @@ test("a name that resolves to nothing falls back to the entity's own name", () =
   same(rows(el)[0].title, "Door");
 });
 
-test("cards on one device share their dismissals", () => {
+test("cards in one browser share their dismissals", () => {
   const w = makeWindow();
   const states = {
     "binary_sensor.door": st("binary_sensor.door", "on", { friendly_name: "Door" }),

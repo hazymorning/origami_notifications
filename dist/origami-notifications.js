@@ -140,9 +140,9 @@ const EASE_STANDARD = "cubic-bezier(0.4, 0, 0.2, 1)";
 const EASE_FADE_OUT = "cubic-bezier(0.4, 0, 1, 1)";
 const EASE_FADE_IN = "cubic-bezier(0, 0, 0.2, 1)";
 
-/* Home Assistant removes the gap after a hidden card in one step. Closing ends at about
- * one gap per frame, so that step reads as part of the motion. The view footer hides
- * with its padding, so there the step is measured. */
+/* Home Assistant drops the gap after a hidden card in one jump. Closing ends at a speed of
+ * about one gap per frame, so the jump looks like the last frame. In the view footer the gap
+ * is the footer's padding, so it is measured. */
 const FRAME_MS = 1000 / 60;
 
 const gapPace = (host, height) => {
@@ -153,7 +153,7 @@ const gapPace = (host, height) => {
   return Math.min(4, (gap * SIZE_MS) / (FRAME_MS * Math.max(height || 0, 1)));
 };
 
-/* The curve ends (or starts) with the slope pace. Above 2.5 the second form avoids overshoot. */
+/* Closing ends and opening starts at a slope of pace. Above 2.5 the first form would overshoot. */
 const easeClose = (pace) =>
   pace <= 2.5
     ? "cubic-bezier(0.4, 0, 0.6, " + (1 - 0.4 * pace).toFixed(3) + ")"
@@ -298,7 +298,8 @@ const findPicture = (attrs) => {
   return null;
 };
 
-/* Persistent notifications are Markdown. The card shows plain text, a tap follows the first link. */
+/* Persistent notifications are Markdown. The card shows them as plain text, and a tap follows
+ * the first link. */
 const plainText = (md) =>
   String(md == null ? "" : md)
     .replace(/<br\s*\/?>/gi, "\n")
@@ -358,7 +359,7 @@ const isUnambiguouslyActive = (state) => {
   return !isNaN(n) && n > 0;
 };
 
-/* dwd_weather_warnings levels go from 0 to 4, from 3 on it is severe weather. Home Assistant
+/* dwd_weather_warnings levels go from 0 to 4. Level 3 and up is severe weather. Home Assistant
  * renumbers the warnings when one ends, so the key is the warning, not its number. */
 const renderDwd = (id, st, items, ctx) => {
   if (!(Number(st.state) > 0)) return;
@@ -468,7 +469,7 @@ const renderUpdate = (id, st, items, ctx) => {
   });
 };
 
-/* Alarms can't be dismissed, they stay until the panel moves on. */
+/* Alarms can't be dismissed. They stay until the panel moves on. */
 const ALARM_SEV = { triggered: "crit", pending: "warn", arming: "warn" };
 
 const renderAlarm = (id, st, items, ctx) => {
@@ -1101,7 +1102,7 @@ const STYLES = `
     .act:hover { box-shadow: inset 0 0 0 100vmax var(--origami-hover); }
   }
 
-  /* The background picture is decoration. */
+  /* The background picture is decoration, so it goes for less transparency or more contrast. */
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
     .backdrop { display: none; }
     :host(.has-bg) .row { background: var(--origami-row-bg); }
@@ -1184,8 +1185,8 @@ const checkConfig = (config) => {
   return { sources, audience: checkAudience(config.audience) };
 };
 
-/* Local dismissals, shared by every card on this device. The copy in memory keeps them for
- * this page where storage is blocked. */
+/* Local dismissals, shared by every card in this browser. Where storage is blocked, the copy
+ * in memory keeps them for this page. */
 const ACK_STORE = "origami-notifications-ack";
 const ACK_MARK = "#";
 const CARDS = new Set();
@@ -1235,7 +1236,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    /* Home Assistant detaches hidden cards, which would end the subscriptions that bring it back. */
+    /* Without this, Home Assistant detaches a hidden card and ends the subscriptions that bring it back. */
     this.connectedWhileHidden = true;
     this._persistent = new Map();
     this._items = [];
@@ -1639,7 +1640,7 @@ class OrigamiNotificationsCard extends HTMLElement {
         }
         return String(value);
       },
-      /* A URL Home Assistant can't parse costs the picture, not the card. */
+      /* If Home Assistant can't parse a URL, only the picture is lost. */
       url: (path) => {
         if (typeof path !== "string" || !path) return null;
         try {
@@ -1704,7 +1705,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (next !== Infinity) this._pendingTimer = setTimeout(() => this._recompute(), next - now + 50);
     }
 
-    /* Without a dismiss in Home Assistant, items are hidden on this device until they change.
+    /* Without a dismiss in Home Assistant, items are hidden in this browser until they change.
      * An ack stays while its item is gone, so a reload can't bring it back. The signature
      * comes from the source data, so a new language or formatter doesn't count as a change. */
     const acks = loadAcks();
@@ -1734,8 +1735,8 @@ class OrigamiNotificationsCard extends HTMLElement {
         it.localDismiss = true;
       }
     }
-    /* An attribute row has no time, so it counts as new once its attribute was empty. Only a card
-     * that showed the row may decide that, another card may show the entity another way. */
+    /* An attribute row has no time. Once its attribute has been empty, it counts as new. Only a card
+     * that showed the row decides that, since another card may show the entity another way. */
     for (const key of present) if (key.startsWith("r:")) this._thingIds.add(key.slice(2));
     for (const id of this._thingIds) {
       if (available.has(id) && !present.has("r:" + id) && acks["r:" + id] !== undefined) {
@@ -1910,11 +1911,11 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (this._hass) this._dismiss(this._items.filter((it) => it.dismiss));
   }
 
-  /* After a dismissal by keyboard, focus the row that took its place. */
   _hiding() {
     return this.hidden || Boolean(this._hostAnim && !this._hostAnim.showing);
   }
 
+  /* After a dismissal by keyboard, focus the row that took its place. */
   _focusAfter(index) {
     if (this._hiding()) return;
     const it = this._items[Math.min(Math.max(index, 0), this._items.length - 1)];
@@ -1968,7 +1969,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const anim = this.animate(frames, { duration, fill: "forwards" });
     anim.showing = false;
     this._hostAnim = anim;
-    /* Home Assistant removes the gap one frame after the card shows closed, so no frame stands still. */
+    /* Hide one frame after the card shows closed. The gap Home Assistant then drops is the last step. */
     let closed = false;
     const watch = () => {
       if (this._hostAnim !== anim) return;
@@ -2170,7 +2171,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
   }
 
-  /* Not without layout, e.g. while a visibility condition hides the card. */
+  /* No animation without a layout, like while a visibility condition hides the card. */
   _animOK() {
     return (
       this._painted &&
@@ -2420,7 +2421,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   }
 }
 
-/* Generic labels come from Home Assistant, in the user's language. */
+/* Languages the card doesn't ship get these labels from Home Assistant. */
 const HA_EDITOR = {
   entities: "ui.panel.lovelace.editor.card.generic.entities",
   name: "ui.panel.lovelace.editor.card.generic.name",
@@ -2505,18 +2506,18 @@ const EDITOR_HELPERS = {
     label: "Every entity with this label is added and detected automatically.",
     visible: "Applies outside edit mode, like Home Assistant's own card visibility.",
     people: "Matches the user account linked to each person in Settings → People.",
-    attribute: "An object with a name or title, a description and an image, or a plain value. Leave empty to find one.",
-    attribute_picture: "An attribute that holds an object with a name or title, shown instead of the state.",
-    image: "An attribute, a path into one like book.cover, or a URL. Leave empty for the picture of the shown object or the entity.",
+    attribute: "An attribute that holds an object with a name or title, or a plain value. If empty, the card looks for an object with a description or a picture.",
+    attribute_picture: "An attribute that holds an object with a name or title. The object is shown instead of the state.",
+    image: "An attribute, a path into one like book.cover, or a URL. If empty, the card uses the picture of the shown object or of the entity.",
     background: "Blurred behind the card while this entity is on top.",
   },
   de: {
     label: "Jede Entität mit diesem Label kommt dazu und wird automatisch erkannt.",
     visible: "Gilt außerhalb des Bearbeitungsmodus, wie die Sichtbarkeit von Home Assistant selbst.",
     people: "Verglichen wird das Benutzerkonto, das unter Einstellungen → Personen verknüpft ist.",
-    attribute: "Ein Objekt mit name oder title, description und image, oder ein einfacher Wert. Leer lassen, um eins zu finden.",
-    attribute_picture: "Ein Attribut mit einem Objekt mit name oder title, das statt des Zustands erscheint.",
-    image: "Ein Attribut, ein Pfad hinein wie book.cover, oder eine URL. Leer lassen für das Bild des gezeigten Objekts oder der Entität.",
+    attribute: "Ein Attribut, das ein Objekt mit name oder title enthält, oder ein einfacher Wert. Bleibt es leer, sucht die Karte ein Objekt mit description oder Bild.",
+    attribute_picture: "Ein Attribut, das ein Objekt mit name oder title enthält. Das Objekt erscheint statt des Zustands.",
+    image: "Ein Attribut, ein Pfad darin wie book.cover, oder eine URL. Bleibt es leer, nimmt die Karte das Bild des gezeigten Objekts oder der Entität.",
     background: "Unscharf hinter der Karte, solange diese Entität oben steht.",
   },
 };

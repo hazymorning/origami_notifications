@@ -4,11 +4,11 @@ A notification card for Home Assistant that folds away when there is nothing to 
 
 ![The card closed on a phone and open next to it](https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/dark-and-light-preview.png)
 
-Closed, the card is one line with the most important notification. Tap it and it unfolds into the full list. When nothing needs your attention, the card is gone.
+Closed, the card is one row that shows the newest notification, or the newest critical one. Tap it and it unfolds into the full list.
 
 Home Assistant's notifications, repairs and updates show up without any setup. Add any entity, and the card shows it while it needs attention, like an open door, a triggered alarm or a calendar event that is running.
 
-You style the card with plain CSS, right in its config. No card-mod, no theme tricks.
+You style the card with plain CSS in its config, without card-mod.
 
 ```yaml
 type: custom:origami-notifications
@@ -28,6 +28,34 @@ In HACS, add `https://github.com/hazymorning/origami_notifications` as a custom 
 Without HACS, copy `dist/origami-notifications.js` to `/config/www/` and add `/local/origami-notifications.js` as a dashboard resource of type JavaScript module.
 
 <details>
+<summary>Styling</summary>
+
+Everything in `css` goes into the card after its own styles, so you can change any part of it.
+
+| Variable | Default | |
+| --- | --- | --- |
+| `--origami-pad` | `12px` | Padding, and the space between rows |
+| `--origami-gap`, `--origami-gap-s` | `12px`, `8px` | Space between icon and text, and small gaps |
+| `--origami-radius`, `--origami-radius-s` | `12px`, `8px` | Corners of the rows and the closed tile, and of the row icons, the badge and the buttons |
+| `--origami-tile`, `--origami-tile-s` | `40px`, `32px` | Size of the icon tile, closed and in the rows |
+| `--origami-icon` | `20px` | Icon size in the closed tile |
+| `--origami-card-bg`, `--origami-row-bg` | theme | Card and row background |
+| `--origami-muted`, `--origami-quiet` | `0.6`, `0.45` | Opacity of secondary text, and of times and the dismiss button |
+| `--origami-hover`, `--origami-focus` | light tint, theme | Hover tint and keyboard focus ring |
+| `--origami-max-height` | none | The card's maximum height. The open list scrolls inside. |
+| `--origami-bg-opacity`, `--origami-bg-blur` | `0.22` (`0.32` dark), `24px` | The background picture |
+
+`--origami-max-height`, `--origami-bg-opacity` and `--origami-bg-blur` also work in a theme.
+
+Closed, the card is the `.head` with `.tile`, `.badge`, `.title` and `.msg`. Open, it has the `.ebar` with the `.count`, the `.list` of `.row`s and the `.foot` with `.clear`. A row has `.rtile`, `.title`, `.when`, `.x`, `.body` and `.act` buttons. The background picture is in `.backdrop`.
+
+Rows carry `.warn` or `.crit`, and a `data-kind` of `system`, `repair`, `update`, `calendar`, `alarm`, `alert`, `dwd`, `attribute`, `picture` or `generic`.
+
+With a fixed height from the layout tab, or in the footer of a sections view, the open list scrolls inside the card.
+
+</details>
+
+<details>
 <summary>Options</summary>
 
 | Option | Default | |
@@ -38,9 +66,9 @@ Without HACS, copy `dist/origami-notifications.js` to `/config/www/` and add `/l
 | `repairs` | `true` | Show repairs, to admins only |
 | `hide_when_empty` | `true` | Hide the card when there is nothing to show |
 | `audience` | | Who sees what, see below |
-| `css` | | Your own CSS, see below |
+| `css` | | Your own CSS, see Styling |
 
-The visual editor has all of it except `css` and buttons. The card speaks English and German, and borrows Home Assistant's words for other languages.
+The visual editor has all of it except `css` and buttons. The card's texts are in English and German. Other languages get Home Assistant's words where it has them, and English otherwise.
 
 </details>
 
@@ -56,13 +84,13 @@ The visual editor has all of it except `css` and buttons. The card speaks Englis
 | DWD weather warnings | there are warnings, one row each |
 | Anything else | on, active or a number above 0 |
 
-Some sensors describe a thing in an attribute, like tonight's dinner, a library book or a parcel. If the attribute has a `name` or `title` plus a `description` or a picture, the card shows that thing instead of the state.
+Some sensors describe a thing in an attribute, like tonight's dinner, a library book or a parcel. If the attribute holds a `name` or `title` plus a `description`, `summary` or picture, the card shows that thing for as long as it is there, whatever the state.
 
 Every entity can take these options.
 
 | Option | |
 | --- | --- |
-| `type` | Skip the detection. `generic` shows any state but off, idle, none, 0, unknown and unavailable. `picture` shows the state as the title. |
+| `type` | Skip the detection with `calendar`, `update`, `alarm`, `alert`, `dwd`, `attribute`, `picture` or `generic`. `generic` shows any state but off, idle, none, 0, unknown and unavailable. `picture` shows the state as the title. |
 | `attribute` | The attribute to show, like `next_due` or `book.title`. A plain value becomes the title. |
 | `name` | Replaces the entity's name, not the event or the thing it shows |
 | `icon` | Replaces the icon |
@@ -83,16 +111,18 @@ entities:
             entity_id: lock.front_door
 ```
 
-Red rows are critical and stay on top. Everything else is sorted newest first.
+A tap on a row opens its entity. A notification follows its first link, and a repair opens the repairs page. If a row's text is cut off, a tap shows all of it, and a tap on its icon does the action.
+
+Critical rows have a red icon and stay on top. These are a triggered alarm, a weather warning of level 3 or more and a critical repair. Everything else is sorted newest first.
 
 </details>
 
 <details>
 <summary>Dismissing</summary>
 
-Dismissing a Home Assistant notification removes it for everyone. For admins, dismissing an update skips it and dismissing a repair ignores it. Admins can also install an update right from the card.
+Dismissing a Home Assistant notification removes it for everyone. For admins, dismissing a repair ignores it and dismissing an update skips it. Admins can also install an update from the card, if its integration supports that.
 
-Everything else is only hidden on this device, until it happens again or changes. Alarm panels can't be dismissed. Home Assistant's notice about a failed login never shows up.
+Everything else is only hidden in this browser, until it happens again or changes. That includes updates that install themselves, since Home Assistant can't skip them. Alarm panels can't be dismissed. Home Assistant's notice about a failed login never shows up.
 
 </details>
 
@@ -107,32 +137,6 @@ audience:
     except: [person.kid]
 ```
 
-The keys are `system` for Home Assistant's notifications, `updates`, `repairs` or an entity. A person counts through the user linked to them in Settings > People. While you edit the dashboard, you see everything.
-
-</details>
-
-<details>
-<summary>Styling</summary>
-
-Everything in `css` goes into the card after its own styles, so you can change any part of it.
-
-| Variable | Default | |
-| --- | --- | --- |
-| `--origami-pad` | `12px` | Padding, and the space between rows |
-| `--origami-gap`, `--origami-gap-s` | `12px`, `8px` | Space between icon and text, and small gaps |
-| `--origami-radius`, `--origami-radius-s` | `12px`, `8px` | Corners of the rows and the closed tile, and of small parts |
-| `--origami-tile`, `--origami-tile-s` | `40px`, `32px` | Size of the icon tile, closed and in the rows |
-| `--origami-icon` | `20px` | Icon size in the closed tile |
-| `--origami-card-bg`, `--origami-row-bg` | theme | Card and row background |
-| `--origami-muted`, `--origami-quiet` | `0.6`, `0.45` | Opacity of secondary text, and of times and the dismiss button |
-| `--origami-hover`, `--origami-focus` | | Hover tint and keyboard focus ring |
-| `--origami-max-height` | none | Height limit, the open list scrolls inside |
-| `--origami-bg-opacity`, `--origami-bg-blur` | `0.22`, `24px` | The background picture |
-
-`--origami-max-height`, `--origami-bg-opacity` and `--origami-bg-blur` also work in a theme.
-
-Closed, the card is the `.head` with `.tile`, `.badge`, `.title` and `.msg`. Open, it has the `.ebar` with the `.count`, the `.list` of `.row`s and the `.foot` with `.clear`. A row has `.rtile`, `.title`, `.when`, `.x`, `.body` and `.act` buttons. Rows carry `.warn` or `.crit` and a `data-kind` like `update`, `repair`, `calendar` or `alarm`.
-
-With a fixed height from the layout tab, or in the footer of a sections view, the open list scrolls inside the card.
+The keys are `system` for Home Assistant's notifications, `updates`, `repairs` or an entity ID. People are matched by the user account linked to them in Settings > People. While you edit the dashboard, you see everything.
 
 </details>
