@@ -2888,8 +2888,8 @@ test("a NINA warning without attributes asks Home Assistant once", async () => {
   const asked = () => services(hass).filter((c) => c[0] === "nina.get_details");
   const shown = (card = el) => [...rows(card).map((r) => [r.title, r.body, r.tile]), card.shadowRoot.querySelector(".row .when").dateTime];
   same(
-    [rows(el).map((r) => [r.title, r.body, r.tile, r.x]), el.shadowRoot.querySelector(".row").dataset.kind, asked(), flags],
-    [[["Berlin Warning 1", "15 days ago", "rtile", false]], "warning", [["nina.get_details", {}, { entity_id: NINA }]], [[false, true]]],
+    [rows(el).map((r) => [r.title, r.body.replace(/^\d+ days ago$/, "some days ago"), r.tile, r.x]), el.shadowRoot.querySelector(".row").dataset.kind, asked(), flags],
+    [[["Berlin Warning 1", "some days ago", "rtile", false]], "warning", [["nina.get_details", {}, { entity_id: NINA }]], [[false, true]]],
     "found by its platform, it shows its name while Home Assistant looks up the details, without a notice for an error"
   );
   await tick();
