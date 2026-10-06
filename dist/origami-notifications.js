@@ -4078,7 +4078,7 @@ class OrigamiNotificationsCard extends HTMLElement {
    * card being out of sight stop it. */
   _rotate(restart = false) {
     const go =
-      this._turns() > 0 && Boolean(this._dom) && this._slides.length > 1 && !this._expanded && !this._stopped && !this._held.size &&
+      this._turns() > 0 && Boolean(this._dom) && this._slides.length > 1 && !this._expanded && !this._dialogEl && !this._stopped && !this._held.size &&
       this.isConnected && this._visible && !document.hidden && !this._hiding();
     /* Home Assistant sends new states all the time. They must not push the next turn back. */
     if (go && this._rotateTimer && !restart) return;
@@ -4514,8 +4514,9 @@ class OrigamiNotificationsDialog extends HTMLElement {
     if (this._card && this._card !== card) this._card._dialogEl = null;
     this._card = card;
     card._dialogEl = this;
-    /* The card's clock runs on the minute while the dialog shows its times. */
+    /* The card's clock runs on the minute while the dialog shows its times, and the turns wait. */
     card._tick();
+    card._rotate();
     if (this._dialog) {
       this.update();
       return;
@@ -4578,6 +4579,7 @@ class OrigamiNotificationsDialog extends HTMLElement {
     if (this._card && this._card._dialogEl === this) {
       this._card._dialogEl = null;
       this._card._tick();
+      this._card._rotate();
     }
     Object.assign(this, { _dialog: null, _list: null, _cache: null, _card: null });
     this.dispatchEvent(new CustomEvent("dialog-closed", { bubbles: true, composed: true, detail: { dialog: this.localName } }));
