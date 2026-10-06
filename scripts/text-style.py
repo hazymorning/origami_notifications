@@ -13,7 +13,8 @@ MAX_WORDS = 30
 MAX_COMMENT_LINES = 3
 MAX_README_WORDS = 600
 
-EMOJI = re.compile(r'[\U0001f000-\U0001faff\u2300-\u23ff\u25a0-\u25ff\u2600-\u27bf\u2b00-\u2bff\ufe0f]')
+# The brand mark ◪ in the readme title is a shape, not an emoji.
+EMOJI = re.compile(r'[\U0001f000-\U0001faff\u2300-\u23ff\u25a0-\u25e9\u25eb-\u25ff\u2600-\u27bf\u2b00-\u2bff\ufe0f]')
 BANNER = re.compile(r'[\u2500-\u257f]{3,}|[-=*#/]{8,}')
 
 BUZZWORDS = re.compile(

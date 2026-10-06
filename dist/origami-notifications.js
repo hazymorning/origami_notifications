@@ -3,7 +3,7 @@
 const CARD = "origami-notifications";
 const EDITOR = CARD + "-editor";
 const REPO = "https://github.com/hazymorning/origami_notifications";
-const VERSION = "0.4.1";
+const VERSION = "0.5.0";
 
 const DEFAULTS = {
   hide_when_empty: true,
@@ -11,8 +11,8 @@ const DEFAULTS = {
   repairs: true,
 };
 
-const KEY_ORDER = ["entities", "label", "updates", "repairs", "hide_when_empty", "audience", "css"];
-const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "tap_action"];
+const KEY_ORDER = ["entities", "label", "weather", "updates", "repairs", "hide_when_empty", "audience", "css"];
+const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "before", "tap_action"];
 const ENTITY_KEY_ORDER = ["entity", ...OPTION_KEYS, "actions"];
 
 const ICONS = {
@@ -23,6 +23,14 @@ const ICONS = {
   alert: "mdi:alert",
   dwd: "mdi:flash",
   calendar: "mdi:calendar-month",
+  timer: "mdi:timer-outline",
+  countdown: "mdi:timer-sand",
+  event: "mdi:eye-check",
+  todo: "mdi:clipboard-check-outline",
+  device: "mdi:devices",
+  warning: "mdi:alert-circle",
+  group: "mdi:google-circles-communities",
+  weather: "mdi:weather-partly-rainy",
   attribute: "mdi:card-text-outline",
   picture: "mdi:image-outline",
   generic: "mdi:information-outline",
@@ -43,6 +51,7 @@ const STRINGS = {
     installing: "Installing…",
     installing_pct: "Installing {p}%",
     just_now: "just now",
+    soon: "in a moment",
     count_one: "1 notification",
     count_other: "{n} notifications",
     event: "Event",
@@ -55,6 +64,28 @@ const STRINGS = {
     day_at: "{d} at {t}",
     date_at: "on {d} at {t}",
     on_date: "on {d}",
+    paused_left: "Paused, {t} left",
+    act_pause: "Pause",
+    act_resume: "Resume",
+    act_cancel: "Cancel",
+    act_lock: "Lock",
+    act_close: "Close",
+    act_close_valve: "Close",
+    act_dock: "Dock",
+    act_dock_mower: "Dock",
+    act_off: "Turn off",
+    act_done: "Done",
+    wx_rain_from: "Rain from {t}",
+    wx_snow_from: "Snow from {t}",
+    wx_thunder_from: "Thunderstorms from {t}",
+    wx_hail_from: "Hail from {t}",
+    wx_rain_now: "It is raining",
+    wx_snow_now: "It is snowing",
+    wx_thunder_now: "Thunderstorm",
+    wx_hail_now: "Hail",
+    wx_chance: "{p} chance",
+    wx_frost_from: "Frost from {t}",
+    wx_low: "Low of {v}",
   },
   de: {
     idle_title: "Alles ruhig",
@@ -65,6 +96,7 @@ const STRINGS = {
     installing: "Wird installiert…",
     installing_pct: "Wird installiert ({p} %)",
     just_now: "gerade eben",
+    soon: "gleich",
     count_one: "1 Benachrichtigung",
     count_other: "{n} Benachrichtigungen",
     event: "Termin",
@@ -77,6 +109,28 @@ const STRINGS = {
     day_at: "{d} um {t}",
     date_at: "am {d} um {t}",
     on_date: "am {d}",
+    paused_left: "Pausiert, noch {t}",
+    act_pause: "Pause",
+    act_resume: "Fortsetzen",
+    act_cancel: "Abbrechen",
+    act_lock: "Abschließen",
+    act_close: "Schließen",
+    act_close_valve: "Schließen",
+    act_dock: "Zur Station",
+    act_dock_mower: "Zur Station",
+    act_off: "Ausschalten",
+    act_done: "Erledigt",
+    wx_rain_from: "Regen ab {t}",
+    wx_snow_from: "Schnee ab {t}",
+    wx_thunder_from: "Gewitter ab {t}",
+    wx_hail_from: "Hagel ab {t}",
+    wx_rain_now: "Es regnet",
+    wx_snow_now: "Es schneit",
+    wx_thunder_now: "Gewitter",
+    wx_hail_now: "Hagel",
+    wx_chance: "{p} Wahrscheinlichkeit",
+    wx_frost_from: "Frost ab {t}",
+    wx_low: "Tiefstwert {v}",
   },
 };
 
@@ -90,10 +144,19 @@ const HA_STRINGS = {
   installing: ["ui.card.update.installing"],
   installing_pct: ["ui.card.update.installing_with_progress", { progress: "{p}" }],
   update: ["ui.dialogs.more_info_control.update.update"],
+  act_pause: ["ui.card.timer.actions.pause"],
+  act_resume: ["ui.card.timer.actions.start"],
+  act_cancel: ["ui.card.timer.actions.cancel"],
+  act_lock: ["ui.card.lock.lock"],
+  act_close: ["ui.card.cover.close_cover"],
+  act_close_valve: ["ui.card.valve.close_valve"],
+  act_dock: ["ui.card.vacuum.actions.return_to_base"],
+  act_dock_mower: ["ui.card.lawn_mower.actions.dock"],
+  act_off: ["ui.card.common.turn_off"],
 };
 
 const borrowedStrings = (localize) => {
-  const t = { ...STRINGS.en, just_now: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}" };
+  const t = { ...STRINGS.en, just_now: null, soon: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}", paused_left: "{s}, {t}" };
   if (typeof localize === "function") {
     for (const [key, [id, vars]] of Object.entries(HA_STRINGS)) {
       const text = localize(id, vars);
@@ -101,8 +164,51 @@ const borrowedStrings = (localize) => {
     }
     const title = localize("ui.notification_drawer.title");
     if (title) t.count_one = t.count_other = title + " ({n})";
+    /* Home Assistant names the weather in every language, so rain ahead reads like "Pluie, 19 h". */
+    for (const [kind, condition] of [["rain", "rainy"], ["snow", "snowy"], ["thunder", "lightning"], ["hail", "hail"]]) {
+      const name = localize("component.weather.entity_component._.state." + condition);
+      if (!name) continue;
+      t["wx_" + kind + "_now"] = name;
+      t["wx_" + kind + "_from"] = name + ", {t}";
+    }
   }
   return t;
+};
+
+/* How many binary sensors of one device class are on, in the languages the card ships. */
+const ALIKE_TITLES = {
+  en: {
+    window: { one: "1 window open", other: "{n} windows open" },
+    door: { other: "{n} doors open" },
+    garage_door: { other: "{n} garage doors open" },
+    opening: { other: "{n} sensors open" },
+    battery: { other: "{n} batteries low" },
+    moisture: { other: "{n} water alarms" },
+    smoke: { other: "{n} smoke alarms" },
+    gas: { other: "{n} gas alarms" },
+    carbon_monoxide: { other: "{n} CO alarms" },
+    heat: { other: "{n} heat alarms" },
+    problem: { other: "{n} problems" },
+    tamper: { other: "{n} tamper alerts" },
+    safety: { other: "{n} safety alerts" },
+    sound: { other: "{n} sounds detected" },
+  },
+  de: {
+    window: { one: "1 Fenster offen", other: "{n} Fenster offen" },
+    door: { other: "{n} Türen offen" },
+    garage_door: { other: "{n} Garagentore offen" },
+    opening: { other: "{n} Sensoren offen" },
+    battery: { other: "{n} Batterien schwach" },
+    moisture: { other: "{n} Wassermelder ausgelöst" },
+    smoke: { other: "{n} Rauchmelder ausgelöst" },
+    gas: { other: "{n} Gasmelder ausgelöst" },
+    carbon_monoxide: { other: "{n} CO-Melder ausgelöst" },
+    heat: { other: "{n} Hitzemelder ausgelöst" },
+    problem: { other: "{n} Probleme" },
+    tamper: { other: "{n} Sabotagealarme" },
+    safety: { other: "{n} Sicherheitswarnungen" },
+    sound: { other: "{n} Geräusche erkannt" },
+  },
 };
 
 /* Home Assistant's notice about a failed login is never shown. */
@@ -115,8 +221,115 @@ const isInactive = (state) => {
   return INACTIVE.has(s) || Number(s) === 0;
 };
 
+/* Home Assistant's rule for an active state, from its frontend. A domain whose state is a time is
+ * active while it is available, and an alert that was acknowledged is still on. */
+const TIME_STATE_DOMAINS = new Set([
+  "ai_task",
+  "button",
+  "conversation",
+  "event",
+  "image",
+  "infrared",
+  "input_button",
+  "notify",
+  "radio_frequency",
+  "scene",
+  "stt",
+  "tag",
+  "tts",
+  "wake_word",
+  "datetime",
+]);
+const IDLE_STATES = {
+  alarm_control_panel: ["disarmed"],
+  alert: ["idle"],
+  cover: ["closed"],
+  device_tracker: ["not_home"],
+  lawn_mower: ["docked", "paused", "idle"],
+  lock: ["locked"],
+  media_player: ["standby"],
+  person: ["not_home"],
+  vacuum: ["idle", "docked", "paused"],
+  valve: ["closed"],
+};
+const ACTIVE_STATES = {
+  camera: ["streaming", "recording"],
+  group: ["on", "home", "open", "locked", "problem"],
+  plant: ["problem"],
+  timer: ["active"],
+};
+
+const stateActive = (st) => {
+  const domain = st.entity_id.split(".")[0];
+  const s = st.state;
+  if (TIME_STATE_DOMAINS.has(domain)) return s !== "unavailable";
+  if (s === "unavailable" || s === "unknown" || (s === "off" && domain !== "alert")) return false;
+  if (ACTIVE_STATES[domain]) return ACTIVE_STATES[domain].includes(s);
+  return !(IDLE_STATES[domain] || []).includes(s);
+};
+
 /* UpdateEntityFeature.INSTALL */
 const UPDATE_INSTALL = 1;
+
+/* TodoListEntityFeature.UPDATE_TODO_ITEM */
+const TODO_UPDATE_ITEM = 4;
+
+/* CoverEntityFeature.CLOSE, ValveEntityFeature.CLOSE, VacuumEntityFeature.RETURN_HOME,
+ * LawnMowerEntityFeature.DOCK and SirenEntityFeature.TURN_OFF */
+const COVER_CLOSE = 2;
+const VALVE_CLOSE = 2;
+const VACUUM_RETURN_HOME = 16;
+const MOWER_DOCK = 4;
+const SIREN_TURN_OFF = 2;
+
+/* What is urgent, and the one button with its label, its action, the feature it needs and the states it
+ * shows in. Like Home Assistant's own controls, Lock and Close also show whenever a state is only assumed. */
+const DEVICES = {
+  lock: {
+    sev: { jammed: "warn" },
+    label: "act_lock",
+    action: "lock.lock",
+    when: ["unlocked", "open", "jammed"],
+    assumed: true,
+  },
+  cover: {
+    label: "act_close",
+    action: "cover.close_cover",
+    feature: COVER_CLOSE,
+    when: ["open", "opening"],
+    assumed: true,
+    confirm: true,
+  },
+  valve: {
+    label: "act_close_valve",
+    action: "valve.close_valve",
+    feature: VALVE_CLOSE,
+    when: ["open", "opening"],
+    assumed: true,
+    confirm: true,
+  },
+  vacuum: {
+    sev: { error: "warn" },
+    label: "act_dock",
+    action: "vacuum.return_to_base",
+    feature: VACUUM_RETURN_HOME,
+    when: ["cleaning", "error"],
+  },
+  lawn_mower: {
+    sev: { error: "warn" },
+    label: "act_dock_mower",
+    action: "lawn_mower.dock",
+    feature: MOWER_DOCK,
+    when: ["mowing", "returning", "error"],
+  },
+  siren: {
+    sev: { on: "crit" },
+    label: "act_off",
+    action: "siren.turn_off",
+    feature: SIREN_TURN_OFF,
+    when: ["on"],
+  },
+};
 
 const parseTs = (value, fallback) => {
   const t = value ? Date.parse(value) : NaN;
@@ -247,30 +460,104 @@ const labelled = (hass, label) => {
   return Object.keys(reg).filter((id) => ((reg[id] && reg[id].labels) || []).includes(label));
 };
 
+/* Building a date format takes far longer than using one, and a countdown asks every second. */
+const FORMATS = new Map();
+
+const dateFormat = (lang, opts) => {
+  const key = lang + JSON.stringify(opts);
+  if (!FORMATS.has(key)) FORMATS.set(key, new Intl.DateTimeFormat(lang, opts));
+  return FORMATS.get(key);
+};
+
+const serverZone = (hass) => (hass && hass.config && hass.config.time_zone) || undefined;
+
 /* The date and time of ts in timeZone, or in the browser's zone. */
 const zonedParts = (ts, timeZone) => {
   const opts = { hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" };
   let parts;
   try {
-    parts = new Intl.DateTimeFormat("en-US", { ...opts, timeZone }).formatToParts(ts);
+    parts = dateFormat("en-US", { ...opts, timeZone }).formatToParts(ts);
   } catch (e) {
-    parts = new Intl.DateTimeFormat("en-US", opts).formatToParts(ts);
+    parts = dateFormat("en-US", opts).formatToParts(ts);
   }
   const p = {};
   for (const { type, value } of parts) p[type] = Number(value);
   return p;
 };
 
-/* Calendars give start_time as the server's wall clock time, without an offset. */
+/* Calendars give start_time as the server's wall clock time, without an offset. Other times without
+ * one may carry fractions of a second. */
 const fromServerTime = (text, timeZone) => {
-  const m = /^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d)(?::(\d\d))?)?$/.exec(String(text));
+  const m = /^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d)(?::(\d\d)(?:\.(\d+))?)?)?$/.exec(String(text));
   if (!m) return Date.parse(text);
   const wall = Date.UTC(m[1], m[2] - 1, m[3], m[4] || 0, m[5] || 0, m[6] || 0);
   const offset = (ts) => {
     const p = zonedParts(ts, timeZone);
     return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - ts;
   };
-  return wall - offset(wall - offset(wall));
+  let ts = wall - offset(wall - offset(wall));
+  /* Where the clock skips midnight, as in Santiago, the day begins at the end of the gap. */
+  if (zonedParts(ts, timeZone).day !== Number(m[3])) ts = wall - offset(wall);
+  return ts + (m[7] ? Number(m[7].slice(0, 3).padEnd(3, "0")) : 0);
+};
+
+/* Home Assistant writes times as ISO text. Date.parse would also read a bare number like 5 as a year. */
+const isoTime = (value, zone) =>
+  typeof value === "string" && /^\d{4}-\d\d-\d\d/.test(value) ? fromServerTime(value, zone) : NaN;
+
+/* Timers write their duration and the time left as H:MM:SS. */
+const parseDuration = (text) => {
+  const m = /^(\d+):(\d\d):(\d\d)$/.exec(String(text == null ? "" : text).trim());
+  return m ? (Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])) * 1000 : NaN;
+};
+
+const TIME_UNITS = { d: 86400000, h: 3600000, min: 60000, s: 1000, ms: 1, "μs": 0.001 };
+
+/* A state with a time unit holds the time left, unless its device class says it is a timestamp. */
+const durationUnit = (a) => (a.device_class === "timestamp" ? undefined : TIME_UNITS[a.unit_of_measurement]);
+
+/* The moment a state points to. A duration counts down from the state's last change and has ended at 0. */
+const endOf = (st, zone) => {
+  const unit = durationUnit(st.attributes || {});
+  if (!unit) return isoTime(st.state, zone);
+  const rest = Number(st.state) * unit;
+  return rest > 0 ? parseTs(st.last_changed, NaN) + rest : NaN;
+};
+
+const MINUTE_MS = 60000;
+const DAY_MS = 86400000;
+
+const toMinute = (ts) => Math.round(ts / MINUTE_MS) * MINUTE_MS;
+
+/* Moments on the same date in timeZone share a number. */
+const dayNumber = (ts, timeZone) => {
+  const p = zonedParts(ts, timeZone);
+  return Date.UTC(p.year, p.month - 1, p.day) / DAY_MS;
+};
+
+/* The moment the day with that number begins in timeZone. */
+const dayStart = (day, timeZone) => fromServerTime(new Date(day * DAY_MS).toISOString().slice(0, 10), timeZone);
+
+const numberOf = (value) =>
+  typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+
+const BEFORE_UNITS = { days: DAY_MS, hours: 3600000, minutes: MINUTE_MS, seconds: 1000 };
+
+/* How long ahead a calendar or a to-do list shows, in the formats of Home Assistant's durations. A bare
+ * number counts as minutes, where Home Assistant reads seconds. */
+const parseBefore = (value) => {
+  let ms = NaN;
+  if (typeof value === "number") ms = value * MINUTE_MS;
+  else if (typeof value === "string") {
+    const m = /^\+?(\d+):(\d+)(?::(\d+(?:\.\d+)?))?$/.exec(value.trim());
+    if (m) ms = m[1] * 3600000 + m[2] * MINUTE_MS + (m[3] || 0) * 1000;
+  } else if (isObject(value)) {
+    const keys = Object.keys(value);
+    if (keys.length && keys.every((k) => k in BEFORE_UNITS)) {
+      ms = keys.reduce((sum, k) => sum + numberOf(value[k]) * BEFORE_UNITS[k], 0);
+    }
+  }
+  return ms >= 0 && Number.isFinite(ms) ? ms : NaN;
 };
 
 /* The first of keys that holds a text or a number. */
@@ -298,8 +585,42 @@ const findPicture = (attrs) => {
   return null;
 };
 
-/* Persistent notifications are Markdown. The card shows them as plain text, and a tap follows
- * the first link. */
+const usesDevicePicture = (src) =>
+  !src.image && (src.type === "event" || (src.type === "auto" && !src.attribute && src.entity.startsWith("event.")));
+
+/* For each id, the image and camera entities on its device, images first. */
+const devicePictures = (reg, ids) => {
+  const pictures = new Map();
+  if (!reg || !ids.length) return pictures;
+  const byDevice = new Map();
+  for (const [id, entry] of Object.entries(reg)) {
+    if (!entry || !entry.device_id || !/^(image|camera)\./.test(id)) continue;
+    if (!byDevice.has(entry.device_id)) byDevice.set(entry.device_id, []);
+    byDevice.get(entry.device_id).push(id);
+  }
+  for (const id of ids) {
+    const found = byDevice.get(reg[id] && reg[id].device_id) || [];
+    pictures.set(id, [...found.filter((p) => p.startsWith("image.")), ...found.filter((p) => p.startsWith("camera."))]);
+  }
+  return pictures;
+};
+
+/* An image keeps its address for a new picture until its token changes, so Home Assistant's own cards
+ * add its state. */
+const devicePicture = (hass, ids) => {
+  for (const id of ids) {
+    const s = hass.states[id];
+    const a = (s && s.attributes) || {};
+    if (id.startsWith("image.") && typeof a.access_token === "string" && a.access_token) {
+      return "/api/image_proxy/" + id + "?token=" + encodeURIComponent(a.access_token) + "&state=" + encodeURIComponent(s.state);
+    }
+    if (typeof a.entity_picture === "string" && a.entity_picture) return a.entity_picture;
+  }
+  return null;
+};
+
+/* Persistent notifications are Markdown. The card shows them as plain text with their first picture,
+ * and a tap follows the first link. */
 const plainText = (md) =>
   String(md == null ? "" : md)
     .replace(/<br\s*\/?>/gi, "\n")
@@ -316,6 +637,12 @@ const SAFE_LINK = /^(https?:\/\/|\/(?!\/))/i;
 const firstLink = (md) => {
   const text = String(md || "").replace(/!\[[^\]]*\]\([^)]*\)/g, "");
   const m = /\[[^\]]*\]\(([^)\s]+)[^)]*\)/.exec(text);
+  return m && SAFE_LINK.test(m[1]) ? m[1] : null;
+};
+
+/* As in Home Assistant, the address may follow spaces and ends where a title begins. */
+const firstPicture = (md) => {
+  const m = /!\[[^\]]*\]\(\s*([^)\s]*)[^)]*\)/.exec(String(md || ""));
   return m && SAFE_LINK.test(m[1]) ? m[1] : null;
 };
 
@@ -372,6 +699,7 @@ const renderDwd = (id, st, items, ctx) => {
     if (!title) continue;
     const level = Number(w("level")) || 0;
     const text = w("description") || "";
+    const start = parseTs(w("start"), NaN);
     let key = "w:" + id + ":" + (w("name") || title) + ":" + (w("start") || "");
     while (keys.has(key)) key += "+";
     keys.add(key);
@@ -383,7 +711,8 @@ const renderDwd = (id, st, items, ctx) => {
       entity: id,
       title,
       message: text || fill(ctx.t.level, { l: level }),
-      ts: parseTs(w("start"), parseTs(st.last_changed, Date.now())),
+      ts: isNaN(start) ? parseTs(st.last_changed, ctx.now) : start,
+      past: isNaN(start),
       ack: [title, level, text].join("\u0000"),
     });
   }
@@ -406,11 +735,11 @@ const findThing = (attrs) => {
  * state as the title, for sensors like the dish of the day. */
 const renderThing = (id, st, items, ctx) => {
   const a = st.attributes;
-  const ts = parseTs(st.last_changed, Date.now());
+  const ts = parseTs(st.last_changed, ctx.now);
   /* `type: picture` reads only the attribute it is given, or a recipe as in 0.2. */
   const path = ctx.attribute || (ctx.kind === "picture" ? isThing(a.recipe) && "recipe" : findThing(a));
   const value = path ? attrPath(a, path) : undefined;
-  const item = { key: "r:" + id, kind: ctx.kind, entity: id, ts };
+  const item = { key: "r:" + id, kind: ctx.kind, entity: id, ts, past: true };
   if (isThing(value)) {
     const title = textOf(value, ["name", "title"]);
     const text = textOf(value, THING_TEXT);
@@ -428,17 +757,26 @@ const renderThing = (id, st, items, ctx) => {
   items.push({ ...item, title: ctx.format(st), message: ctx.name(st), ack: String(st.state) });
 };
 
+/* While a calendar is off, its attributes describe the next event. With before, it shows that long ahead. */
 const renderCalendar = (id, st, items, ctx) => {
-  if (st.state !== "on" || !st.attributes.message) return;
-  items.push({
-    key: "c:" + id,
-    kind: "calendar",
-    entity: id,
-    title: st.attributes.message,
-    message: ctx.calWhen(st.attributes.start_time, st.attributes.all_day),
-    ts: parseTs(st.last_changed, Date.now()),
-    ack: st.attributes.message + "\u0000" + st.attributes.start_time,
-  });
+  const a = st.attributes;
+  if (!a.message) return;
+  const push = (fields) =>
+    items.push({ key: "c:" + id, kind: "calendar", entity: id, title: a.message, message: ctx.calWhen(a.start_time, a.all_day), ...fields });
+  if (st.state === "on") {
+    push({ ts: parseTs(st.last_changed, ctx.now), past: true, ack: a.message + "\u0000" + a.start_time });
+    return;
+  }
+  if (st.state !== "off" || !(ctx.lead >= 0)) return;
+  const start = isoTime(a.start_time, serverZone(ctx.hass));
+  if (!(start > ctx.now)) return;
+  if (start - ctx.now > ctx.lead) {
+    ctx.wake(start - ctx.lead);
+    return;
+  }
+  /* Once the event runs, its last change may equal its start to the millisecond. The ahead mark keeps a
+   * dismissed reminder from hiding the running event. */
+  push({ ts: start, day: Boolean(a.all_day), ack: [a.message, a.start_time, "ahead"].join("\u0000") });
 };
 
 /* Installing and skipping need an admin, and Home Assistant refuses to skip an update with
@@ -458,7 +796,8 @@ const renderUpdate = (id, st, items, ctx) => {
     entity: id,
     title: name || t.update,
     message: version ? fill(t.update_msg, { v: version }) : t.update_msg_plain,
-    ts: parseTs(st.last_changed, Date.now()),
+    ts: parseTs(st.last_changed, ctx.now),
+    past: true,
     dismiss: a.auto_update || !ctx.admin ? undefined : () => ctx.hass.callService("update", "skip", { entity_id: id }),
     actions: busy
       ? [{ label: pct === null ? t.installing : fill(t.installing_pct, { p: Math.round(pct) }), disabled: true }]
@@ -483,7 +822,8 @@ const renderAlarm = (id, st, items, ctx) => {
     entity: id,
     title: ctx.name(st),
     message: ctx.format(st),
-    ts: parseTs(st.last_changed, Date.now()),
+    ts: parseTs(st.last_changed, ctx.now),
+    past: true,
   });
 };
 
@@ -497,42 +837,294 @@ const renderAlert = (id, st, items, ctx) => {
     entity: id,
     title: ctx.name(st),
     message: "",
-    ts: parseTs(st.last_changed, Date.now()),
+    ts: parseTs(st.last_changed, ctx.now),
+    past: true,
     ack: "",
   });
+};
+
+/* A running timer has a fixed end in finishes_at. Its remaining keeps the value from the start, so
+ * the time left is read from remaining only while the timer is paused. */
+const renderTimer = (id, st, items, ctx) => {
+  const a = st.attributes;
+  const t = ctx.t;
+  const button = (label, service) => serviceAction(ctx.host, id, label, "timer." + service);
+  const item = { key: "tm:" + id, kind: "timer", entity: id, title: ctx.name(st) };
+  if (st.state === "active") {
+    const end = parseTs(a.finishes_at, NaN);
+    items.push({
+      ...item,
+      oldKey: "g:" + id,
+      oldRow: { ack: "active", ts: parseTs(st.last_changed, ctx.now) },
+      message: ctx.format(st),
+      ts: end,
+      live: true,
+      clock: true,
+      ack: String(a.finishes_at),
+      actions: [button(t.act_pause, "pause"), button(t.act_cancel, "cancel")],
+    });
+  } else if (st.state === "paused") {
+    const rest = parseDuration(a.remaining);
+    items.push({
+      ...item,
+      message: fill(t.paused_left, { t: clockText(rest), s: ctx.format(st) }),
+      ts: parseTs(st.last_changed, ctx.now),
+      past: true,
+      ack: "paused\u0000" + a.remaining,
+      actions: [button(t.act_resume, "start"), button(t.act_cancel, "cancel")],
+    });
+  }
+};
+
+/* A timestamp sensor holds its end, a duration sensor the time left. Either shows while the end lies ahead.
+ * The time left goes stale until the sensor changes again, so a duration names its end instead. */
+const renderCountdown = (id, st, items, ctx) => {
+  const ts = toMinute(endOf(st, serverZone(ctx.hass)));
+  if (!(ts > ctx.now)) return;
+  items.push({
+    key: "cd:" + id,
+    kind: "countdown",
+    entity: id,
+    title: ctx.name(st),
+    message: durationUnit(st.attributes) ? ctx.absTime(ts) : ctx.format(st),
+    ts,
+    live: true,
+    ack: "",
+  });
+};
+
+/* The state is the time of the last event and survives a restart, so the entry ends a day after the event. */
+const renderEvent = (id, st, items, ctx) => {
+  const ts = isoTime(st.state, serverZone(ctx.hass));
+  if (!Number.isFinite(ts)) return;
+  const type = st.attributes.event_type;
+  items.push({
+    key: "ev:" + id,
+    kind: "event",
+    entity: id,
+    title: ctx.name(st),
+    message: type == null || type === "" ? "" : ctx.formatAttribute(st, "event_type", type),
+    ts,
+    past: true,
+    expires: ts + DAY_MS,
+    image: findPicture(st.attributes) || devicePicture(ctx.hass, ctx.devicePictures(id)),
+    ack: String(st.state),
+  });
+};
+
+/* With type todo, the items of a list come from a subscription. Without it, a list shows how many are open, as in 0.4.
+ * A due date without a time is a day on the server, like an all-day event. What is due by the end of today shows,
+ * and with before what is due within that time. */
+const renderTodo = (id, st, items, ctx) => {
+  const list = ctx.todos(id);
+  if (!list) return;
+  const server = serverZone(ctx.hass);
+  const today = dayNumber(ctx.now, ctx.zone);
+  const canFinish = (Number(st.attributes.supported_features) & TODO_UPDATE_ITEM) === TODO_UPDATE_ITEM;
+  for (const todo of list) {
+    if (!todo || todo.status !== "needs_action" || !todo.uid || typeof todo.due !== "string") continue;
+    const day = !todo.due.includes("T");
+    const ts = isoTime(todo.due, server);
+    if (!Number.isFinite(ts)) continue;
+    if (dayNumber(ts, day ? server : ctx.zone) > today && !(ts - ctx.now <= ctx.lead)) {
+      ctx.wake(dayStart(today + 1, ctx.zone));
+      ctx.wake(ts - ctx.lead);
+      continue;
+    }
+    const done = { item: todo.uid, status: "completed" };
+    items.push({
+      key: "t:" + id + ":" + todo.uid,
+      kind: "todo",
+      entity: id,
+      title: String(todo.summary || ""),
+      message: ctx.name(st),
+      ts,
+      day,
+      ack: todo.uid + "\u0000" + todo.due,
+      open: linkAction(ctx.host, "/todo?entity_id=" + id),
+      actions: canFinish ? [serviceAction(ctx.host, id, ctx.t.act_done, "todo.update_item", done)] : [],
+    });
+  }
+};
+
+/* A device shows while Home Assistant counts it as active. A lock that asks for a code gets no button, since
+ * the card can't ask for one. 0.4 showed a sounding siren as a plain entity, and its dismissal carries over. */
+const renderDevice = (id, st, items, ctx) => {
+  if (st.state === "unknown" || !stateActive(st)) return;
+  const a = st.attributes;
+  const d = DEVICES[id.split(".")[0]];
+  const offered =
+    d &&
+    (d.when.includes(st.state) || (d.assumed && a.assumed_state === true)) &&
+    (!d.feature || (Number(a.supported_features) & d.feature) === d.feature) &&
+    !(id.startsWith("lock.") && a.code_format);
+  items.push({
+    key: "dv:" + id,
+    oldKey: "g:" + id,
+    kind: "device",
+    sev: d && d.sev && d.sev[st.state],
+    entity: id,
+    title: ctx.name(st),
+    message: ctx.memberText(st) || ctx.format(st),
+    ts: parseTs(st.last_changed, ctx.now),
+    past: true,
+    ack: String(st.state),
+    actions: offered ? [serviceAction(ctx.host, id, ctx.t[d.label], d.action, null, d.confirm)] : [],
+  });
+};
+
+const CAP_SEV = { extreme: "crit", severe: "crit", moderate: "warn" };
+
+const isCap = (a) => Boolean(textOf(a, ["severity"]) && textOf(a, ["headline", "event"]));
+
+const platformOf = (reg, id) => (reg && reg[id] && reg[id].platform) || "";
+
+/* From Home Assistant 2026.11, NINA keeps a warning out of its attributes and answers its get_details action
+ * instead. A slot can switch warnings while it stays on, so answers are kept per slot and warning. */
+const NINA_DETAILS = new Map();
+
+/* The details of a warning, null without them, or undefined while they are not known yet. That includes the time
+ * before Home Assistant lists the action, which may come after the states. */
+const ninaDetails = (hass, st, card) => {
+  const id = st.entity_id;
+  const warning = st.attributes.id || st.last_updated || st.last_changed;
+  const known = NINA_DETAILS.get(id) || new Map();
+  let entry = known.get(warning);
+  if (!entry) {
+    const nina = hass.services && hass.services.nina;
+    if (!nina || !nina.get_details) return undefined;
+    /* A slot keeps the answer before this one, which a card away from the page may still show. */
+    for (const [old, e] of [...known].slice(0, -1)) if (e.data !== undefined) known.delete(old);
+    entry = { data: undefined, cards: new Set() };
+    known.set(warning, entry);
+    NINA_DETAILS.set(id, known);
+    const answer = (data) => {
+      entry.data = isObject(data) ? data : null;
+      for (const c of entry.cards) c._recompute();
+      entry.cards.clear();
+    };
+    new Promise((resolve) => resolve(hass.callService("nina", "get_details", {}, { entity_id: id }, false, true))).then(
+      (res) => answer(res && res.response && res.response[id]),
+      () => answer(null)
+    );
+  }
+  if (entry.data === undefined) entry.cards.add(card);
+  return entry.data;
+};
+
+/* NINA and Meteoalarm send warnings in the Common Alerting Protocol, and severity sets the urgency. Meteoalarm
+ * writes neither start nor sent, and its onset is optional, so effective counts as a start too. */
+const renderWarning = (id, st, items, ctx) => {
+  if (st.state !== "on") return;
+  const a = st.attributes;
+  const cap = isCap(a);
+  const details = cap || platformOf(ctx.hass.entities, id) !== "nina" ? null : ctx.ninaDetails(st);
+  const w = cap ? a : details || {};
+  const zone = serverZone(ctx.hass);
+  const start = ["start", "onset", "effective"].map((k) => isoTime(w[k], zone)).find(Number.isFinite);
+  const sent = isoTime(w.sent, zone);
+  const expires = isoTime(w.expires, zone);
+  const title = textOf(w, ["headline", "event"]);
+  const text = textOf(w, ["description"]);
+  const changed = parseTs(st.last_changed, ctx.now);
+  const item = {
+    key: "wn:" + id,
+    oldKey: "g:" + id,
+    oldRow: { ack: "on", ts: changed },
+    kind: "warning",
+    sev: CAP_SEV[String(w.severity).toLowerCase()],
+    entity: id,
+    title: title || ctx.name(st),
+    message: plainText(text),
+    ts: start !== undefined ? start : Number.isFinite(sent) ? sent : changed,
+    past: start === undefined,
+    ack: title ? [title, w.severity, text].join("\u0000") : String(a.id || ""),
+  };
+  if (details === undefined) item.waiting = true;
+  if (Number.isFinite(expires)) item.expires = expires;
+  items.push(item);
+};
+
+/* Home Assistant's default theme shows these classes in red while they are on. The worst are critical. */
+const DEVICE_CLASS_SEV = {
+  smoke: "crit",
+  gas: "crit",
+  carbon_monoxide: "crit",
+  moisture: "crit",
+  safety: "crit",
+  heat: "crit",
+  problem: "warn",
+  tamper: "warn",
+  battery: "warn",
+  sound: "warn",
+};
+
+const nameList = (names) => (names.length > 4 ? names.slice(0, 4).join(", ") + " +" + (names.length - 4) : names.join(", "));
+
+/* The members a group entity names. A sensor group keeps its state, a value like a mean, so it names none. */
+const groupMembers = (st) =>
+  Array.isArray(st.attributes.entity_id) && !st.entity_id.startsWith("sensor.")
+    ? st.attributes.entity_id.filter((id) => typeof id === "string")
+    : [];
+
+const memberText = (hass, ids, name) => {
+  const active = ids.map((id) => hass.states[id]).filter((m) => m && stateActive(m));
+  return nameList(active.map((m) => name(m)));
+};
+
+/* The room of an entity, its own or else its device's. */
+const areaOf = (hass, id) => {
+  const entry = hass.entities && hass.entities[id];
+  const device = entry && entry.device_id && hass.devices && hass.devices[entry.device_id];
+  const area = hass.areas && hass.areas[(entry && entry.area_id) || (device && device.area_id)];
+  return (area && area.name) || "";
 };
 
 const renderGeneric = (id, st, items, ctx) => {
   const active = ctx.forced ? !isInactive(st.state) : isUnambiguouslyActive(st.state);
   if (!active) return;
+  const a = st.attributes;
+  const binary = id.startsWith("binary_sensor.");
   items.push({
     key: "g:" + id,
     kind: "generic",
+    sev: binary && st.state === "on" ? DEVICE_CLASS_SEV[a.device_class] : undefined,
+    /* A group entity is a group already, so it never joins one. */
+    deviceClass: binary && typeof a.device_class === "string" && !Array.isArray(a.entity_id) ? a.device_class : undefined,
     entity: id,
     title: ctx.name(st),
-    message: ctx.format(st),
-    ts: parseTs(st.last_changed, Date.now()),
+    message: ctx.memberText(st) || ctx.format(st),
+    ts: parseTs(st.last_changed, ctx.now),
+    past: true,
     ack: String(st.state),
   });
 };
 
 /* A recipe attribute claims the entity even while it is empty, as up to 0.2. */
-const detectType = (id, st) => {
+const detectType = (id, st, reg) => {
   const a = st.attributes;
   if (a.warning_count !== undefined) return "dwd";
   if (id.startsWith("calendar.")) return "calendar";
   if (id.startsWith("update.")) return "update";
   if (id.startsWith("alarm_control_panel.")) return "alarm";
   if (id.startsWith("alert.")) return "alert";
+  if (id.startsWith("timer.")) return "timer";
   if (findThing(a) || "recipe" in a) return "attribute";
+  /* Home Assistant merges what an integration sends into an event's attributes, and any integration can add
+   * attributes to a device. An event or a device with a thing there keeps the row it had in 0.4. */
+  if (id.startsWith("event.")) return "event";
+  if (DEVICES[id.split(".")[0]]) return "device";
+  if (id.startsWith("binary_sensor.") && (isCap(a) || platformOf(reg, id) === "nina")) return "warning";
+  /* A duration may count up as well, so it stays a plain number unless its kind is set, as in 0.4. */
+  if (id.startsWith("sensor.") && a.device_class === "timestamp") return "countdown";
   return "generic";
 };
 
 /* The kind an entity shows as. checkConfig has already turned `type: recipe` into an attribute. */
-const kindOf = (src, st) => {
+const kindOf = (src, st, hass) => {
   if (src.type && src.type !== "auto") return src.type;
   if (src.attribute) return "attribute";
-  return st ? detectType(st.entity_id, st) : "generic";
+  return st ? detectType(st.entity_id, st, hass && hass.entities) : "generic";
 };
 
 /* In the order the editor offers them. */
@@ -542,6 +1134,12 @@ const RENDERERS = {
   alarm: renderAlarm,
   alert: renderAlert,
   dwd: renderDwd,
+  timer: renderTimer,
+  countdown: renderCountdown,
+  event: renderEvent,
+  todo: renderTodo,
+  device: renderDevice,
+  warning: renderWarning,
   attribute: renderThing,
   picture: renderThing,
   generic: renderGeneric,
@@ -565,7 +1163,8 @@ const renderRepair = (issue, items, ctx) => {
     sev: REPAIR_SEV[issue.severity] || "warn",
     title,
     message: issue.breaks_in_ha_version ? fill(ctx.t.breaks_in, { v: issue.breaks_in_ha_version }) : "",
-    ts: parseTs(issue.created, Date.now()),
+    ts: parseTs(issue.created, ctx.now),
+    past: true,
     dismiss: () =>
       h.callWS({
         type: "repairs/ignore_issue",
@@ -588,6 +1187,23 @@ const fireAction = (host, config) => fire(host, "hass-action", { config, action:
 const buildTapAction = (tap, host, entity) =>
   tap && tap.action && tap.action !== "none" ? () => fireAction(host, { entity, tap_action: tap }) : null;
 
+/* A button the card offers on its own, run like an action from the config. With confirmation, Home Assistant
+ * asks first in its own words. */
+const serviceAction = (host, entity, label, action, data, confirmation) => ({
+  label,
+  run: () =>
+    fireAction(host, {
+      entity,
+      tap_action: {
+        action: "perform-action",
+        perform_action: action,
+        target: { entity_id: entity },
+        ...(data ? { data } : {}),
+        ...(confirmation ? { confirmation } : {}),
+      },
+    }),
+});
+
 const linkAction = (host, url) => () =>
   fireAction(host, {
     tap_action: url.startsWith("/")
@@ -601,14 +1217,14 @@ const renderEntity = (id, st, items, ctx, src) => {
   const forced = Boolean(src.type && src.type !== "auto");
   const attribute = src.attribute || null;
   const objectOnly = Boolean(src.objectOnly);
-  const kind = kindOf(src, st);
+  const kind = kindOf(src, st, ctx.hass);
   const renderer = RENDERERS[kind];
   if (!renderer) return;
   const named = Boolean(src.name);
   const name = named ? (s) => ctx.name(s, src.name) : ctx.name;
   const before = items.length;
   try {
-    renderer(id, st, items, { ...ctx, forced, kind, attribute, objectOnly, named, name });
+    renderer(id, st, items, { ...ctx, forced, kind, attribute, objectOnly, named, name, lead: parseBefore(src.before) });
   } catch (e) {
     console.warn(CARD + ": renderer failed for " + id, e);
     items.length = before;
@@ -636,10 +1252,264 @@ const renderEntity = (id, st, items, ctx, src) => {
   for (let i = before; i < items.length; i++) {
     if (src.icon) items[i].icon = src.icon;
     if (extra.length) items[i].actions = [...(items[i].actions || []), ...extra];
+    /* A to-do is a task on a list, so it keeps the icon of its kind. */
+    if (items[i].kind !== "todo") items[i].stateObj = st;
   }
 };
 
-/* A row is built again only when something it shows has changed. */
+/* A time that says when something happened lies behind, even when Home Assistant's clock runs ahead
+ * of the browser's. */
+const isAhead = (it, now) => !it.past && it.ts > now;
+
+/* Critical first, then what lies closest to now, ahead or behind. What happened keeps the newest
+ * first, even from a clock that runs ahead. Then the latest arrival, and the key keeps the order
+ * stable. */
+const sortItems = (items, now) => {
+  const near = (it) => (!Number.isFinite(it.ts) ? Infinity : it.past ? now - it.ts : Math.abs(it.ts - now));
+  return items.sort((a, b) => {
+    const ra = a.sev === "crit" ? 0 : 1;
+    const rb = b.sev === "crit" ? 0 : 1;
+    if (ra !== rb) return ra - rb;
+    const da = near(a);
+    const db = near(b);
+    if (da !== db) return da < db ? -1 : 1;
+    if ((a.seq || 0) !== (b.seq || 0)) return (b.seq || 0) - (a.seq || 0);
+    return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+  });
+};
+
+/* A count like 3 windows open. Without words of its own, a class takes Home Assistant's name for it. */
+const alikeTitle = (lang, dc, n, localize) => {
+  const forms = (ALIKE_TITLES[String(lang).split("-")[0]] || {})[dc];
+  if (forms) return fill(n === 1 && forms.one ? forms.one : forms.other, { n });
+  const name = (typeof localize === "function" && localize("component.binary_sensor.entity_component." + dc + ".name")) || prettySlug(dc);
+  return fill("{name} ({n})", { name, n });
+};
+
+/* A group can't show the buttons, the picture or the tap of one entry, so such an entry stays alone. */
+const groupable = (it) => it.kind === "generic" && Boolean(it.deviceClass) && !it.image && !it.open && !(it.actions && it.actions.length);
+
+/* Two or more plain binary sensors of one device class become one entry. */
+const groupAlike = (items, ctx) => {
+  const alike = new Map();
+  for (const it of items) {
+    if (!groupable(it)) continue;
+    if (!alike.has(it.deviceClass)) alike.set(it.deviceClass, []);
+    alike.get(it.deviceClass).push(it);
+  }
+  const out = [];
+  for (const it of items) {
+    const members = groupable(it) ? alike.get(it.deviceClass) : null;
+    if (!members || members.length < 2) out.push(it);
+    else if (members[0] === it) out.push(alikeGroup(it.deviceClass, members, ctx));
+  }
+  return out;
+};
+
+/* The newest member comes first. A member without a room is named instead, and a room shared by several shows once. */
+const alikeGroup = (dc, members, ctx) => {
+  const sorted = sortItems([...members], ctx.now);
+  const rooms = new Set();
+  const names = [];
+  for (const m of sorted) {
+    const room = areaOf(ctx.hass, m.entity);
+    if (!room) {
+      names.push(m.title);
+    } else if (!rooms.has(room)) {
+      rooms.add(room);
+      names.push(room);
+    }
+  }
+  return {
+    key: "gr:" + dc,
+    kind: "group",
+    sev: sorted[0].sev,
+    title: ctx.alikeTitle(dc, sorted.length),
+    message: nameList(names),
+    ts: sorted.reduce((ts, m) => Math.max(ts, m.ts), -Infinity),
+    past: true,
+    icon: sorted[0].icon,
+    stateObj: sorted[0].stateObj,
+    members: sorted,
+    dismiss: () => ctx.host._dismiss(sorted),
+  };
+};
+
+/* Forecasts by "<entity>|<type>", shared by every card and kept over a remount. */
+const FORECAST_CACHE = new Map();
+
+/* Home Assistant's feature bits for forecasts. The card asks for hourly, then twice daily, then daily. */
+const forecastType = (st) => {
+  const features = Number(st && st.attributes && st.attributes.supported_features) || 0;
+  return features & 2 ? "hourly" : features & 4 ? "twice_daily" : features & 1 ? "daily" : null;
+};
+
+const FORECAST_SPAN = { hourly: 3600000, twice_daily: 43200000, daily: 86400000 };
+
+/* The entries that have not ended yet. Home Assistant sends null when it has no forecast. */
+const forecastFilterPast = (forecast, type, now) =>
+  (Array.isArray(forecast) ? forecast : []).filter((f) => f && Date.parse(f.datetime) + FORECAST_SPAN[type] > now);
+
+/* What the card reads from a forecast. A new one with the same print changes nothing. */
+const forecastFingerprint = (forecast) =>
+  Array.isArray(forecast)
+    ? forecast
+        .map((f) => (f ? [f.datetime, f.condition, f.temperature, f.precipitation, f.precipitation_probability].join("|") : ""))
+        .join(";")
+    : "";
+
+const WET = new Set(["rainy", "pouring", "lightning", "lightning-rainy", "snowy", "snowy-rainy", "hail"]);
+
+const isWet = (f, unit) =>
+  WET.has(f.condition) || Number(f.precipitation) >= (unit === "in" ? 0.01 : 0.2) || Number(f.precipitation_probability) >= 60;
+
+const wetKind = (condition, temperature, cold) => {
+  const c = String(condition || "");
+  if (c.startsWith("lightning")) return "thunder";
+  if (c === "hail") return "hail";
+  return c.startsWith("snowy") || (temperature != null && temperature !== "" && Number(temperature) <= cold) ? "snow" : "rain";
+};
+
+const WEATHER_ICONS = {
+  rain: "mdi:weather-rainy",
+  snow: "mdi:weather-snowy",
+  thunder: "mdi:weather-lightning",
+  hail: "mdi:weather-hail",
+  frost: "mdi:snowflake-thermometer",
+};
+
+/* Open windows anywhere in Home Assistant, but not a group of them. Every window is watched, so one that opens counts at once. */
+const openWindows = (states, watch) => {
+  let open = 0;
+  for (const id in states) {
+    const st = states[id];
+    if (!st || !st.attributes || st.attributes.device_class !== "window" || Array.isArray(st.attributes.entity_id)) continue;
+    if (id.startsWith("binary_sensor.")) {
+      watch(id);
+      if (st.state === "on") open++;
+    } else if (id.startsWith("cover.")) {
+      watch(id);
+      if (st.state !== "closed" && st.state !== "unavailable" && st.state !== "unknown") open++;
+    }
+  }
+  return open;
+};
+
+/* Rain, snow, thunder or hail in the next 6 hours, and frost in the next 18. With a window open, wet weather is a
+ * warning, also while it already rains. A daily forecast has no hours, so it gives neither. */
+const renderWeather = (id, st, forecast, type, items, ctx) => {
+  if (!st) return;
+  const t = ctx.t;
+  const a = st.attributes;
+  const fahrenheit = a.temperature_unit === "°F";
+  const hours = type === "hourly" || type === "twice_daily" ? forecast : [];
+  const windows = openWindows(ctx.hass.states, ctx.watch);
+  const wet = (kind, title, message, ts, past) =>
+    items.push({
+      key: "wx:" + id + ":wet",
+      kind: "weather",
+      entity: id,
+      icon: WEATHER_ICONS[kind],
+      sev: windows ? "warn" : undefined,
+      title,
+      message,
+      ts,
+      past,
+      /* An open window makes it new, so a hint dismissed before comes back as a warning. */
+      ack: kind + (windows ? " open" : ""),
+    });
+  if (WET.has(st.state)) {
+    const kind = wetKind(st.state, a.temperature, fahrenheit ? 34 : 1);
+    if (windows) wet(kind, t["wx_" + kind + "_now"], ctx.alikeTitle("window", windows), parseTs(st.last_changed, ctx.now), true);
+  } else {
+    const hour = hours.find((f) => Date.parse(f.datetime) < ctx.now + 6 * 3600000 && isWet(f, a.precipitation_unit));
+    if (hour) {
+      /* A forecast hour that has begun counts from now. */
+      const start = Math.max(Date.parse(hour.datetime), ctx.now);
+      const kind = wetKind(hour.condition, hour.temperature, fahrenheit ? 34 : 1);
+      const chance = Number(hour.precipitation_probability);
+      const message = windows
+        ? ctx.alikeTitle("window", windows)
+        : hour.precipitation_probability != null && Number.isFinite(chance)
+          ? fill(t.wx_chance, { p: ctx.percent(chance) })
+          : "";
+      wet(kind, fill(t["wx_" + kind + "_from"], { t: ctx.hour(start) }), message, start, false);
+    }
+  }
+  const freeze = fahrenheit ? 32 : 0;
+  if (!hours.length || a.temperature == null || !(Number(a.temperature) > freeze)) return;
+  const ahead = hours.filter((f) => Date.parse(f.datetime) < ctx.now + 18 * 3600000 && f.temperature != null && Number.isFinite(Number(f.temperature)));
+  const first = ahead.find((f) => Number(f.temperature) < freeze);
+  if (!first) return;
+  const start = Math.max(Date.parse(first.datetime), ctx.now);
+  items.push({
+    key: "wx:" + id + ":frost",
+    kind: "weather",
+    entity: id,
+    icon: WEATHER_ICONS.frost,
+    title: fill(t.wx_frost_from, { t: ctx.hour(start) }),
+    message: fill(t.wx_low, { v: ctx.formatAttribute(st, "temperature", Math.min(...ahead.map((f) => Number(f.temperature)))) }),
+    ts: start,
+    ack: "frost",
+  });
+};
+
+/* Only moments ahead count. One that has passed would wake the card again and again. */
+const waker = (times, now) => (ts) => {
+  if (ts > now) times.push(ts);
+};
+
+/* An entry goes at its expiry without a change in Home Assistant. The card wakes for that, and for
+ * the end of a countdown. */
+const dropExpired = (items, now, wake) =>
+  items.filter((it) => {
+    if (it.expires != null && it.expires <= now) return false;
+    if (it.expires != null) wake(it.expires);
+    if (it.live) wake(it.ts);
+    return true;
+  });
+
+/* The order changes on its own once an entry ahead comes as close to now as the one before it.
+ * Neighbours always swap first, so the earliest of their swaps is the next change. */
+const nextReorder = (items, now) => {
+  let next = null;
+  for (let i = 1; i < items.length; i++) {
+    const a = items[i - 1];
+    const b = items[i];
+    if ((a.sev === "crit") !== (b.sev === "crit") || !isAhead(b, now) || !(b.ts > a.ts)) continue;
+    const at = Math.max((a.ts + b.ts) / 2, now + 1);
+    if (next === null || at < next) next = at;
+  }
+  return next;
+};
+
+/* One wait for the earliest of times, at most a day. The extra 50 ms make sure the moment has passed. */
+const wakeDelay = (times, now) => {
+  if (!times.length) return null;
+  const next = times.reduce((a, b) => Math.min(a, b), Infinity);
+  return Math.min(Math.max(next - now, 0), DAY_MS) + 50;
+};
+
+/* A countdown rounds up, so it reads 0:00 only once it has ended. */
+const clockText = (ms) => {
+  const total = ms > 0 ? Math.ceil(ms / 1000) : 0;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h ? h + ":" + String(m).padStart(2, "0") + ":" + s : m + ":" + s;
+};
+
+/* Milliseconds until the times on show change, or 0. A countdown in view changes by the second, in
+ * step with its end. Other times change by the minute, while the list is open or an entry lies
+ * ahead. */
+const nextTick = (items, head, open, now) => {
+  const clock = (open ? items : head ? [head] : []).find((it) => it.clock && it.ts > now);
+  if (clock) return (clock.ts - now) % 1000 || 1000;
+  if (open || items.some((it) => isAhead(it, now))) return 60000 - (now % 60000);
+  return 0;
+};
+
+/* A row is built again only when something it shows has changed. Times change in place. */
 const rowSig = (it) =>
   [
     it.kind,
@@ -647,7 +1517,6 @@ const rowSig = (it) =>
     it.sev || "",
     it.title,
     it.message,
-    it.ts,
     Boolean(it.dismiss),
     Boolean(it.open || it.entity) && !it.inert,
     (it.actions || []).map((a) => a.label + (a.disabled ? "!" : "")).join("|"),
@@ -675,6 +1544,35 @@ const setImage = (tile, url) => {
     tile.prepend(img);
   }
   if (img.getAttribute("src") !== url) img.src = url;
+};
+
+/* Like Home Assistant's own icons, the option goes first, then the icon the user picked for the entity, then the
+ * one the entity names. */
+const fallbackIcon = (it, hass) => {
+  const st = it.stateObj;
+  const reg = st && hass && hass.entities && hass.entities[st.entity_id];
+  return it.icon || (reg && reg.icon) || (st && st.attributes && st.attributes.icon) || ICONS[it.kind] || ICONS.generic;
+};
+
+/* Home Assistant's state icon follows the state, like an open or a closed lock. Until Home Assistant has defined
+ * it, an entry shows the icon its entity names, or its kind's. */
+const setIcon = (tile, it, hass) => {
+  const state = it.stateObj && customElements.get("ha-state-icon") ? it.stateObj : null;
+  const tag = state ? "ha-state-icon" : "ha-icon";
+  let el = tile.querySelector("ha-icon, ha-state-icon");
+  if (!el || el.localName !== tag) {
+    const fresh = document.createElement(tag);
+    if (el) el.replaceWith(fresh);
+    else tile.insertBefore(fresh, tile.querySelector(".badge"));
+    el = fresh;
+  }
+  if (state) {
+    el.hass = hass;
+    el.stateObj = state;
+    el.icon = it.icon || undefined;
+  } else {
+    el.setAttribute("icon", fallbackIcon(it, hass));
+  }
 };
 
 const STYLES = `
@@ -782,7 +1680,7 @@ const STYLES = `
     color: var(--primary-text-color);
     opacity: var(--origami-muted);
   }
-  .tile ha-icon { --mdc-icon-size: var(--origami-icon); }
+  .tile :is(ha-icon, ha-state-icon) { --mdc-icon-size: var(--origami-icon); }
 
   .badge {
     position: absolute;
@@ -911,7 +1809,7 @@ const STYLES = `
     outline: none;
   }
   .rtile[role="button"] { cursor: pointer; }
-  .rtile ha-icon { --mdc-icon-size: var(--icon-size-xs, 18px); display: flex; }
+  .rtile :is(ha-icon, ha-state-icon) { --mdc-icon-size: var(--icon-size-xs, 18px); display: flex; }
   .rtile.warn { background: var(--warning-color); color: var(--text-color-active, var(--primary-background-color)); }
   .rtile.crit { background: var(--error-color); color: var(--text-color-active, var(--primary-background-color)); }
   .tile img, .rtile img {
@@ -924,7 +1822,7 @@ const STYLES = `
   }
   img { -webkit-user-drag: none; }
   img.ready { opacity: 1; }
-  img.ready ~ ha-icon { visibility: hidden; }
+  img.ready ~ :is(ha-icon, ha-state-icon) { visibility: hidden; }
   .row .title {
     grid-area: rtitle;
     min-width: 0;
@@ -1026,7 +1924,7 @@ const STYLES = `
     opacity: var(--opacity-disabled, 0.3);
     pointer-events: none;
   }
-  .msg {
+  .msg, .eta {
     grid-area: hsub;
     align-self: start;
     margin-top: 2px;
@@ -1038,6 +1936,8 @@ const STYLES = `
     white-space: nowrap;
   }
   .msg.fade { mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%); }
+  .eta { min-width: 0; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
+  .msg[hidden], .eta[hidden] { display: none; }
   .track { display: inline-flex; max-width: 100%; }
   .track .t { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .track .dup { display: none; }
@@ -1126,6 +2026,7 @@ const TEMPLATE = `
         <div class="tile"><ha-icon></ha-icon><div class="badge"></div></div>
         <div class="title"></div>
         <div class="msg"><div class="track"><span class="t"></span><span class="t dup" aria-hidden="true"></span></div></div>
+        <div class="eta" aria-live="off" hidden></div>
         <ha-icon class="chev" icon="mdi:chevron-down"></ha-icon>
       </div>
     </div>
@@ -1162,6 +2063,7 @@ const checkConfig = (config) => {
             name: entry ? entry.name : null,
             image: entry ? entry.image : null,
             background: entry ? entry.background : null,
+            before: entry ? entry.before : null,
             actions: entry ? entry.actions : null,
             tap_action: entry ? entry.tap_action : null,
           };
@@ -1178,9 +2080,13 @@ const checkConfig = (config) => {
     if (src.attribute != null && typeof src.attribute !== "string") fail("attribute must be the name of an attribute");
     if (src.image != null && typeof src.image !== "string") fail("image must be an attribute path or URL");
     if (src.background != null && typeof src.background !== "boolean") fail("background must be true or false");
+    if (src.before != null && !(parseBefore(src.before) >= 0)) fail("before must be minutes or a duration like 1:30:00");
     if (typeof src.tap_action === "string") src.tap_action = { action: src.tap_action };
     src.actions = Array.isArray(src.actions) ? src.actions.filter(isObject) : null;
     if (!sources.some((s) => s.entity === src.entity)) sources.push(src);
+  }
+  if (config.weather != null && !(typeof config.weather === "string" && config.weather.startsWith("weather."))) {
+    fail("weather must be a weather entity, e.g. weather.home");
   }
   if (config.css != null && typeof config.css !== "string") fail("css must be a string");
   return { sources, audience: checkAudience(config.audience) };
@@ -1200,6 +2106,9 @@ const isOldAck = (ack, it, once) => {
   if (once) return (it.titles || [it.title]).includes(ack.split("\u0000")[0]);
   return ack.endsWith("\u0000" + it.ts) || ack === it.title + "\u0000" + it.message;
 };
+
+/* Whether ack hid the plain row this entry had up to 0.4, saved as in 0.4 or in 0.3. */
+const heldAs = (ack, row) => ack === ACK_MARK + row.ack + "\u0000" + row.ts || isOldAck(ack, row, false);
 
 const loadAcks = () => {
   if (!memory.acks) {
@@ -1245,6 +2154,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._labelIds = [];
     this._repairs = [];
     this._watched = [];
+    this._readIds = [];
     this._allSources = [];
     this._audience = {};
     this._people = [];
@@ -1255,7 +2165,17 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._editMode = false;
     this._unsub = null;
     this._unsubRepairs = null;
+    this._todos = new Map();
+    this._forecast = null;
+    this._pictures = new Map();
     this._clock = null;
+    this._boundaryTimer = null;
+    this._wakes = [];
+    this._visible = true;
+    this._onVisibility = () => {
+      if (!document.hidden) this._refreshTimes();
+      this._tick();
+    };
     this._lastMsg = null;
     this._bgUrl = null;
     this._hostAnim = null;
@@ -1268,6 +2188,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._painted = false;
     this._seq = 0;
     this._setLang("en");
+    /* Home Assistant may define its state icon after the card. Then every icon is drawn again. */
+    if (!customElements.get("ha-state-icon")) {
+      customElements.whenDefined("ha-state-icon").then(() => {
+        this._epoch++;
+        this._render();
+      });
+    }
   }
 
   setConfig(config) {
@@ -1329,21 +2256,30 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (l.time_format === "12") o.hour12 = true;
     else if (l.time_format === "24") o.hour12 = false;
     else if (l.time_format === "system") {
-      const sys = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12;
+      const sys = dateFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12;
       if (sys !== undefined) o.hour12 = sys;
     }
     if (l.time_zone === "server" && h.config && h.config.time_zone) o.timeZone = h.config.time_zone;
     return o;
   }
 
-  _relTime(ts) {
-    const s = Math.round((ts - Date.now()) / 1000);
+  _relTime(ts, now = Date.now()) {
+    const s = Math.round((ts - now) / 1000);
     const m = Math.round(s / 60);
     const h = Math.round(s / 3600);
-    if (Math.abs(s) < 60) return this._t.just_now || this._rel.format(0, "second");
+    if (Math.abs(s) < 60) return (s > 0 ? this._t.soon : this._t.just_now) || this._rel.format(0, "second");
     if (Math.abs(m) < 60) return this._rel.format(m, "minute");
     if (Math.abs(h) < 24) return this._rel.format(h, "hour");
     return this._rel.format(Math.round(s / 86400), "day");
+  }
+
+  /* The one text for the time of an entry. A countdown counts the seconds. A day has no time of day. */
+  _timeText(it, now = Date.now()) {
+    if (!Number.isFinite(it.ts)) return "";
+    if (it.clock) return clockText(it.ts - now);
+    if (!it.day) return this._relTime(it.past ? Math.min(it.ts, now) : it.ts, now);
+    const { near, date } = this._dayOf(it.ts, serverZone(this._hass), now);
+    return near ? date : fill(this._t.on_date, { d: date });
   }
 
   _absTime(ts) {
@@ -1357,31 +2293,62 @@ class OrigamiNotificationsCard extends HTMLElement {
     return this._abs.format(ts);
   }
 
-  _calWhen(start, allDay) {
+  /* An hour as the profile writes it, like 7 PM or 19 Uhr. */
+  _hourText(ts) {
+    try {
+      return dateFormat(this._lang, { hour: "numeric", ...this._clockOpts() }).format(ts);
+    } catch (e) {
+      return dateFormat(undefined, { hour: "numeric" }).format(ts);
+    }
+  }
+
+  _percentText(p) {
+    try {
+      return new Intl.NumberFormat(this._lang, { style: "percent", maximumFractionDigits: 0 }).format(p / 100);
+    } catch (e) {
+      return Math.round(p) + " %";
+    }
+  }
+
+  _weatherId() {
+    return (this._config && this._config.weather) || null;
+  }
+
+  _absDate(ts, zone) {
+    try {
+      return dateFormat(this._lang, { dateStyle: "medium", timeZone: zone }).format(ts);
+    } catch (e) {
+      return dateFormat(undefined, { dateStyle: "medium" }).format(ts);
+    }
+  }
+
+  /* Yesterday, today or tomorrow, else the date of ts in zone. Today is the day in the zone of the profile. */
+  _dayOf(ts, zone, now) {
+    const diff = dayNumber(ts, zone) - dayNumber(now, this._clockOpts().timeZone);
+    if (Math.abs(diff) <= 1) return { near: true, date: this._rel.format(diff, "day") };
+    try {
+      return { near: false, date: dateFormat(this._lang, { day: "2-digit", month: "2-digit", timeZone: zone }).format(ts) };
+    } catch (e) {
+      return { near: false, date: dateFormat(undefined, { day: "2-digit", month: "2-digit" }).format(ts) };
+    }
+  }
+
+  _calWhen(start, allDay, now = Date.now()) {
     const t = this._t;
-    const h = this._hass;
-    const server = (h && h.config && h.config.time_zone) || undefined;
+    const server = serverZone(this._hass);
     const ts = start ? fromServerTime(start, server) : NaN;
     if (isNaN(ts)) return t.event;
     /* An all-day event is a date on the server. Times show in the zone of the profile. */
     const zone = allDay ? server : this._clockOpts().timeZone;
-    const dayOf = (when, timeZone) => {
-      const p = zonedParts(when, timeZone);
-      return Date.UTC(p.year, p.month - 1, p.day) / 86400000;
-    };
-    const diff = dayOf(ts, zone) - dayOf(Date.now(), this._clockOpts().timeZone);
-    const near = Math.abs(diff) <= 1;
+    const { near, date } = this._dayOf(ts, zone, now);
+    if (allDay) return near ? date : fill(t.on_date, { d: date });
     const d = new Date(ts);
-    let date;
     let time;
     try {
-      date = near ? this._rel.format(diff, "day") : d.toLocaleDateString(this._lang, { day: "2-digit", month: "2-digit", timeZone: zone });
       time = d.toLocaleTimeString(this._lang, { hour: "numeric", minute: "2-digit", ...this._clockOpts() });
     } catch (e) {
-      date = near ? this._rel.format(diff, "day") : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" });
       time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     }
-    if (allDay) return near ? date : fill(t.on_date, { d: date });
     return fill(near ? t.day_at : t.date_at, { d: date, t: time });
   }
 
@@ -1419,16 +2386,15 @@ class OrigamiNotificationsCard extends HTMLElement {
       this._recompute();
       return;
     }
-    if (localeChanged || formatChanged) {
+    /* Home Assistant may load its actions, translations and rooms after the states. Warnings and groups need them. */
+    const loaded =
+      hass.services !== old.services || hass.localize !== old.localize || hass.areas !== old.areas || hass.devices !== old.devices;
+    if (localeChanged || formatChanged || loaded) {
       this._recompute();
       return;
     }
-    for (const id of this._watched) {
-      if (old.states[id] !== hass.states[id]) {
-        this._recompute();
-        return;
-      }
-    }
+    const changed = (id) => old.states[id] !== hass.states[id];
+    if (this._watched.some(changed) || this._readIds.some(changed)) this._recompute();
   }
 
   get hass() {
@@ -1457,6 +2423,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       clearTimeout(this._detachReset);
       this._detachReset = null;
     }
+    this._visible = true;
     const root = this.getRootNode();
     this.classList.toggle("docked", Boolean(root && root.host && root.host.localName === "hui-view-footer"));
     /* The card picker sets no preview flag. An empty card stays visible there. */
@@ -1468,14 +2435,15 @@ class OrigamiNotificationsCard extends HTMLElement {
     CARDS.add(this);
     if (this._hass) this._subscribe();
     if (this._hostAnim) this._hostAnim.finish();
-    if (this._expanded) {
-      this._refreshTimes();
-      this._startClock();
-    }
+    document.addEventListener("visibilitychange", this._onVisibility);
     this._scheduleDay();
+    this._scheduleBoundary();
     if (this._dom) {
       this._ro.observe(this._dom.msg);
+      if (this._io) this._io.observe(this);
       this._suppressAnim();
+      this._refreshTimes();
+      this._tick();
     }
   }
 
@@ -1486,10 +2454,20 @@ class OrigamiNotificationsCard extends HTMLElement {
         this[key] = null;
       }
     }
+    /* The items stay, so a card that comes back shows them until Home Assistant sends the list again. */
+    for (const [id, sub] of this._todos) {
+      if (sub.unsub) sub.unsub.then((u) => u()).catch(() => {});
+      this._todos.set(id, { items: sub.items });
+    }
+    this._unsubscribeForecast();
     CARDS.delete(this);
     clearTimeout(this._repairsTimer);
     clearTimeout(this._dayTimer);
+    clearTimeout(this._boundaryTimer);
+    this._boundaryTimer = null;
     if (this._ro) this._ro.disconnect();
+    if (this._io) this._io.disconnect();
+    document.removeEventListener("visibilitychange", this._onVisibility);
     this._stopClock();
     /* Collapse only if the card stays detached. The dashboard editor re-parents it all the time. */
     this._detachReset = setTimeout(() => this._collapse(), 150);
@@ -1512,6 +2490,8 @@ class OrigamiNotificationsCard extends HTMLElement {
         this._unsub = null;
       });
     }
+    this._subscribeTodos();
+    this._subscribeForecast();
     /* Like the repairs page in Home Assistant's settings, repairs are for admins only. A new
      * subscription also fetches the list, which may have changed while the card was away. */
     if (!this._unsubRepairs && conn.subscribeEvents && this._config && this._config.repairs && this._isAdmin()) {
@@ -1529,6 +2509,81 @@ class OrigamiNotificationsCard extends HTMLElement {
       return true;
     }
     return false;
+  }
+
+  /* One subscription per to-do list. Home Assistant sends the whole list at once and again after every
+   * change. A list it refused is asked for again once its state changes. */
+  _subscribeTodos() {
+    const h = this._hass;
+    const conn = h && h.connection;
+    if (!conn || !this.isConnected) return;
+    const wanted = new Set(
+      this._allSources
+        .filter((src) => src.entity.startsWith("todo.") && h.states[src.entity] && kindOf(src, h.states[src.entity]) === "todo")
+        .map((src) => src.entity)
+    );
+    for (const [id, sub] of this._todos) {
+      if (wanted.has(id)) continue;
+      if (sub.unsub) sub.unsub.then((u) => u()).catch(() => {});
+      this._todos.delete(id);
+    }
+    for (const id of wanted) {
+      const old = this._todos.get(id);
+      if (old && old.unsub && (old.failed === undefined || old.failed === h.states[id])) continue;
+      const sub = { items: old ? old.items : null };
+      this._todos.set(id, sub);
+      sub.unsub = conn.subscribeMessage(
+        (msg) => {
+          if (this._todos.get(id) !== sub) return;
+          sub.items = Array.isArray(msg && msg.items) ? msg.items : [];
+          this._recompute();
+        },
+        { type: "todo/item/subscribe", entity_id: id }
+      );
+      sub.unsub.catch(() => {
+        sub.failed = (this._hass && this._hass.states[id]) || null;
+      });
+    }
+  }
+
+  /* One forecast subscription per card. Like a to-do list, a forecast Home Assistant refused is asked for again once
+   * the weather changes, since the entity may still be loading. */
+  _subscribeForecast() {
+    const h = this._hass;
+    const id = this._weatherId();
+    const type = id && h && this.isConnected ? forecastType(h.states[id]) : null;
+    const key = type ? id + "|" + type : null;
+    const old = this._forecast;
+    if (old && old.key === key && (old.failed === undefined || old.failed === h.states[id])) return;
+    this._unsubscribeForecast();
+    if (!key || !h.connection) return;
+    const sub = { key };
+    this._forecast = sub;
+    sub.unsub = h.connection.subscribeMessage((msg) => this._onForecast(sub, msg), {
+      type: "weather/subscribe_forecast",
+      entity_id: id,
+      forecast_type: type,
+    });
+    sub.unsub.catch(() => {
+      sub.failed = (this._hass && this._hass.states[id]) || null;
+    });
+  }
+
+  _unsubscribeForecast() {
+    const sub = this._forecast;
+    this._forecast = null;
+    if (sub) sub.unsub.then((unsub) => unsub()).catch(() => {});
+  }
+
+  /* Every card on the same forecast takes the news at once. A repeat of what the cache holds changes nothing. */
+  _onForecast(sub, msg) {
+    if (this._forecast !== sub) return;
+    const forecast = msg && Array.isArray(msg.forecast) ? msg.forecast : null;
+    const print = forecastFingerprint(forecast);
+    const cached = FORECAST_CACHE.get(sub.key);
+    if (cached && cached.print === print) return;
+    FORECAST_CACHE.set(sub.key, { forecast, print });
+    for (const card of CARDS) if (card._forecast && card._forecast.key === sub.key) card._recompute();
   }
 
   _onNotifications(msg) {
@@ -1549,6 +2604,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._refreshUpdateIds();
     this._refreshLabelIds();
     this._refreshWatched();
+    this._subscribeTodos();
   }
 
   /* From the registry as well, so an update whose state arrives later is already watched. */
@@ -1600,15 +2656,19 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (!list.some((s) => s.entity === id)) list.push({ entity: id, type: "auto" });
     }
     this._allSources = list;
-    this._watched = [
-      ...new Set([...this._updateIds, ...list.map((s) => s.entity)]),
-    ];
+    /* A picture from a device changes on its own, with every new snapshot or token. */
+    this._pictures = devicePictures(this._hass && this._hass.entities, list.filter(usesDevicePicture).map((s) => s.entity));
+    const refs = list.flatMap((s) => [s.entity, ...(this._pictures.get(s.entity) || [])]);
+    this._watched = [...new Set([...this._updateIds, ...refs])];
   }
 
   _recompute() {
     const h = this._hass;
     const c = this._config || {};
-    const items = [];
+    const now = Date.now();
+    const wakes = [];
+    const read = [];
+    let items = [];
     const allowed = (source) => this._editMode || visibleTo(this._audience[source], this._viewer);
     const name = (st, override) => {
       if (typeof override === "string" && override) return override;
@@ -1628,7 +2688,26 @@ class OrigamiNotificationsCard extends HTMLElement {
       t: this._t,
       admin: this._isAdmin(),
       issueLocalize: this._issueLocalize,
-      calWhen: (s, allDay) => this._calWhen(s, allDay),
+      now,
+      /* A renderer names a moment when its entries change on their own, like a reminder that opens. */
+      wake: waker(wakes, now),
+      calWhen: (s, allDay) => this._calWhen(s, allDay, now),
+      absTime: (ts) => this._absTime(ts),
+      zone: this._clockOpts().timeZone,
+      todos: (id) => (this._todos.get(id) || {}).items || null,
+      devicePictures: (id) => this._pictures.get(id) || [],
+      ninaDetails: (st) => ninaDetails(h, st, this),
+      /* The members of a group entity change without the group, so they are watched as well. */
+      memberText: (st) => {
+        const ids = groupMembers(st);
+        read.push(...ids);
+        return memberText(h, ids, name);
+      },
+      alikeTitle: (dc, n) => alikeTitle(this._lang, dc, n, h && h.localize),
+      /* An entity read besides the card's own, so a change to it counts. */
+      watch: (id) => read.push(id),
+      hour: (ts) => this._hourText(ts),
+      percent: (p) => this._percentText(p),
       name,
       format: (st) => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state)),
       formatAttribute: (st, path, value) => {
@@ -1662,7 +2741,9 @@ class OrigamiNotificationsCard extends HTMLElement {
           kind: "system",
           title: plainText(n.title) || this._t.notification,
           message: plainText(message),
-          ts: parseTs(n.created_at, Date.now()),
+          image: ctx.url(firstPicture(message)),
+          ts: parseTs(n.created_at, now),
+          past: true,
           seq: n.__seq || 0,
           open: link ? linkAction(this, link) : null,
           dismiss: () =>
@@ -1690,10 +2771,22 @@ class OrigamiNotificationsCard extends HTMLElement {
         renderEntity(src.entity, st, items, ctx, src);
       }
     }
+    const weather = this._weatherId();
+    let forecastKnown = false;
+    if (h && weather && allowed(weather)) {
+      read.push(weather);
+      const st = h.states[weather];
+      const type = forecastType(st);
+      const cached = type && FORECAST_CACHE.get(weather + "|" + type);
+      forecastKnown = Boolean(cached);
+      renderWeather(weather, st, cached ? forecastFilterPast(cached.forecast, type, now) : [], type, items, ctx);
+      /* The six and eighteen hours ahead move on with every hour. */
+      if (cached && type !== "daily") ctx.wake(Math.floor(now / 3600000) * 3600000 + 3600000);
+    }
+    this._readIds = read;
 
     /* Dismissed, but Home Assistant has not removed them yet. */
     if (this._pending.size) {
-      const now = Date.now();
       const present = new Set(items.map((it) => it.key));
       for (const [key, until] of this._pending) {
         if (!present.has(key) || until <= now) this._pending.delete(key);
@@ -1705,6 +2798,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       const next = Math.min(...this._pending.values());
       if (next !== Infinity) this._pendingTimer = setTimeout(() => this._recompute(), next - now + 50);
     }
+    items = dropExpired(items, now, ctx.wake);
 
     /* Without a dismiss in Home Assistant, items are hidden in this browser until they change.
      * An ack stays while its item is gone, so a reload can't bring it back. The signature
@@ -1716,11 +2810,24 @@ class OrigamiNotificationsCard extends HTMLElement {
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       if (it.dismiss || it.sticky) continue;
-      const once = it.kind === "attribute" || it.kind === "picture";
-      const sig = ACK_MARK + (once ? it.ack : it.ack + "\u0000" + it.ts);
       const oldKey = acks[it.key] === undefined && it.oldKey ? it.oldKey : it.key;
-      if (isOldAck(acks[oldKey], it, once)) {
+      const heldBefore = oldKey !== it.key && it.oldRow !== undefined && heldAs(acks[oldKey], it.oldRow);
+      /* A NINA warning without its details has no signature yet. A dismissal stays as it is and hides it meanwhile. */
+      if (it.waiting) {
+        if (acks[it.key] !== undefined || heldBefore) items.splice(i, 1);
+        continue;
+      }
+      /* Weather ahead keeps its dismissal while its first hour moves on. */
+      const once = it.kind === "attribute" || it.kind === "picture" || (it.kind === "weather" && !it.past);
+      const sig = ACK_MARK + (once ? it.ack : it.ack + "\u0000" + it.ts);
+      /* A dismissal from an older version moves to the new key, so it can't hide the entry again once it changes. */
+      if (heldBefore || isOldAck(acks[oldKey], it, once)) {
         delete acks[oldKey];
+        acks[it.key] = sig;
+        acksDirty = true;
+      }
+      /* The same signature under the old key carries over. It stays there for a card that still shows the row that way. */
+      if (oldKey !== it.key && acks[oldKey] === sig) {
         acks[it.key] = sig;
         acksDirty = true;
       }
@@ -1745,27 +2852,41 @@ class OrigamiNotificationsCard extends HTMLElement {
         acksDirty = true;
       }
     }
+    /* So does weather that was gone while the forecast was known. */
+    for (const key of forecastKnown ? ["wx:" + weather + ":wet", "wx:" + weather + ":frost"] : []) {
+      if (!present.has(key) && acks[key] !== undefined) {
+        delete acks[key];
+        acksDirty = true;
+      }
+    }
     if (acksDirty) saveAcks(present);
-    /* Critical first, then newest. */
-    items.sort((a, b) => {
-      const ra = a.sev === "crit" ? 0 : 1;
-      const rb = b.sev === "crit" ? 0 : 1;
-      if (ra !== rb) return ra - rb;
-      if (b.ts !== a.ts) return b.ts - a.ts;
-      return (b.seq || 0) - (a.seq || 0);
-    });
-    this._items = items;
-    this._render();
+    items = groupAlike(items, ctx);
+    this._items = sortItems(items, now);
+    const reorder = nextReorder(this._items, now);
+    if (reorder !== null) ctx.wake(reorder);
+    this._render(now);
     this._scheduleDay();
+    this._scheduleBoundary(wakes, now);
   }
 
-  /* Calendar rows say today or yesterday, so they are built again after midnight. */
+  /* Calendar rows and entries for a day say today or tomorrow, so they are built again after midnight. */
   _scheduleDay() {
     clearTimeout(this._dayTimer);
-    if (!this.isConnected || !this._items.some((it) => it.kind === "calendar")) return;
+    if (!this.isConnected || !this._items.some((it) => it.kind === "calendar" || it.day)) return;
     const p = zonedParts(Date.now(), this._clockOpts().timeZone);
     const ms = ((23 - p.hour) * 3600 + (59 - p.minute) * 60 + (60 - p.second)) * 1000;
     this._dayTimer = setTimeout(() => this._recompute(), ms + 1000);
+  }
+
+  /* One timer for the earliest moment the list changes on its own. A card that was away catches up
+   * when it comes back. */
+  _scheduleBoundary(wakes = this._wakes, now = Date.now()) {
+    clearTimeout(this._boundaryTimer);
+    this._boundaryTimer = null;
+    this._wakes = wakes;
+    if (!this.isConnected) return;
+    const ms = wakeDelay(wakes, now);
+    if (ms !== null) this._boundaryTimer = setTimeout(() => this._recompute(), ms);
   }
 
   _build() {
@@ -1777,9 +2898,9 @@ class OrigamiNotificationsCard extends HTMLElement {
       card: q("ha-card"),
       head: q(".head"),
       tile: q(".head .tile"),
-      icon: q(".head .tile ha-icon"),
       title: q(".head .title"),
       msg: q(".msg"),
+      eta: q(".head .eta"),
       track: q(".track"),
       t1: q(".track .t:not(.dup)"),
       t2: q(".track .dup"),
@@ -1820,7 +2941,21 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (t !== null) this._setMessage(t);
     });
     this._ro.observe(this._dom.msg);
+    if (window.IntersectionObserver) {
+      this._io = new IntersectionObserver((entries) => this._onView(entries), { threshold: 0.01 });
+      if (this.isConnected) this._io.observe(this);
+    }
     this._suppressAnim();
+  }
+
+  /* Off screen nothing ticks. Back in view, the times are brought up to date at once. */
+  _onView(entries) {
+    const entry = entries[entries.length - 1];
+    const visible = Boolean(entry && entry.isIntersecting);
+    if (visible === this._visible) return;
+    this._visible = visible;
+    if (visible) this._refreshTimes();
+    this._tick();
   }
 
   /* No transitions on the first paint after attaching, and none in the dashboard editor. */
@@ -1844,43 +2979,70 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._expanded = !this._expanded;
     d.head.setAttribute("aria-expanded", String(this._expanded));
     if (this._expanded) {
-      this._refreshTimes();
-      this._startClock();
       const cap = getComputedStyle(d.card).getPropertyValue("--origami-max-height").trim();
       this.classList.toggle("capped", cap !== "");
-    } else {
-      this._stopClock();
     }
     this._render();
     if (refocus) (this._expanded ? d.ebar : d.head).focus({ preventScroll: true });
   }
 
-  _startClock() {
-    if (this._clock) return;
-    this._clock = setInterval(() => this._refreshTimes(), 60000);
+  /* One clock per card, and only while a time on show can change. */
+  _tick() {
+    this._stopClock();
+    if (!this._dom || !this.isConnected || !this._visible || document.hidden) return;
+    const ms = nextTick(this._items, this._items[0], this._expanded, Date.now());
+    if (!ms) return;
+    this._clock = setTimeout(() => {
+      this._clock = null;
+      this._refreshTimes();
+      this._tick();
+    }, ms);
   }
 
   _stopClock() {
-    if (this._clock) {
-      clearInterval(this._clock);
-      this._clock = null;
+    clearTimeout(this._clock);
+    this._clock = null;
+  }
+
+  _refreshTimes(now = Date.now()) {
+    if (!this._dom) return;
+    const top = this._items[0];
+    if (top && top.live) setText(this._dom.eta, this._timeText(top, now));
+    for (const it of this._items) {
+      const entry = this._rowCache.get(it.key);
+      if (entry) this._setTime(entry.el, it, now);
     }
   }
 
-  _refreshTimes() {
-    if (!this._dom) return;
-    for (const it of this._items) {
-      const entry = this._rowCache.get(it.key);
-      const when = entry && entry.el.querySelector(".when");
-      if (when) when.textContent = this._relTime(it.ts);
+  /* Rows keep their element while the time changes. The full date is written only for a new time.
+   * An entry for a day has a date on the server and no time of day. */
+  _setTime(row, it, now) {
+    const when = row.querySelector(".when");
+    const stamp = (it.day ? "day " : "") + it.ts;
+    if (when._stamp !== stamp) {
+      when._stamp = stamp;
+      if (!Number.isFinite(it.ts)) {
+        when.removeAttribute("datetime");
+        when.removeAttribute("title");
+      } else if (it.day) {
+        const zone = serverZone(this._hass);
+        const p = zonedParts(it.ts, zone);
+        when.dateTime = [p.year, p.month, p.day].map((n) => String(n).padStart(2, "0")).join("-");
+        when.title = this._absDate(it.ts, zone);
+      } else {
+        when.dateTime = new Date(it.ts).toISOString();
+        when.title = this._absTime(it.ts);
+      }
     }
+    setText(when, this._timeText(it, now));
   }
 
   /* Rows go at once. PENDING_MS covers Home Assistant refusing. */
   _dismiss(items) {
     const acks = loadAcks();
     let acked = false;
-    for (const it of items) {
+    /* A group stands for its members, and each of them keeps a dismissal of its own. */
+    for (const it of items.flatMap((i) => i.members || [i])) {
       if (it.localDismiss) {
         acks[it.key] = it.ackSig;
         acked = true;
@@ -2063,7 +3225,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     else next.src = url;
   }
 
-  _render() {
+  _render(now = Date.now()) {
     if (!this._dom || !this._config) return;
     const d = this._dom;
     const items = this._items;
@@ -2073,13 +3235,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (empty && this._config.hide_when_empty && !this._editMode && !this._inPicker) {
       this._setShown(false);
       this._painted = true;
+      this._stopClock();
       return;
     }
     this._setShown(true);
 
     if (empty) {
       this._expanded = false;
-      this._stopClock();
       d.head.setAttribute("aria-expanded", "false");
     }
     const wasOpen = this._shownOpen;
@@ -2096,7 +3258,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     d.head.setAttribute("aria-disabled", String(empty));
 
     if (empty) {
-      d.icon.setAttribute("icon", "mdi:bell-outline");
+      setIcon(d.tile, { icon: "mdi:bell-outline" }, this._hass);
       d.tile.className = "tile idle";
       setText(d.title, this._t.idle_title);
       this._setMessage(this._t.idle_msg);
@@ -2104,7 +3266,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       d.chev.hidden = true;
     } else {
       const top = items[0];
-      d.icon.setAttribute("icon", top.icon || ICONS[top.kind]);
+      setIcon(d.tile, top, this._hass);
       d.tile.className = "tile" + sevClass(top.sev);
       setText(d.title, top.title);
       this._setMessage(top.message || "");
@@ -2112,7 +3274,12 @@ class OrigamiNotificationsCard extends HTMLElement {
       setText(d.badge, badgeText(items.length));
       d.chev.hidden = false;
     }
-    d.head.classList.toggle("single", !empty && !items[0].message);
+    /* A running time takes the place of the message, without the marquee. */
+    const live = !empty && Boolean(items[0].live);
+    d.msg.hidden = live;
+    d.eta.hidden = !live;
+    setText(d.eta, live ? this._timeText(items[0], now) : "");
+    d.head.classList.toggle("single", !empty && !items[0].message && !live);
 
     setImage(d.tile, empty ? null : items[0].image);
     this._setBackdrop(!empty && items[0].backdrop ? items[0].image : null);
@@ -2128,20 +3295,21 @@ class OrigamiNotificationsCard extends HTMLElement {
     } else {
       clearTimeout(this._listTimer);
       this._listTimer = null;
-      this._renderDrawer(wasOpen && this._expanded);
+      this._renderDrawer(wasOpen && this._expanded, now);
     }
     this._painted = true;
     if (this._enterFrom) this._playEnter();
+    this._tick();
   }
 
-  _renderDrawer(animate) {
+  _renderDrawer(animate, now = Date.now()) {
     const d = this._dom;
     const items = this._items;
     animate = animate && this._animOK();
     if (items.length) {
       setText(d.count, fill(items.length === 1 ? this._t.count_one : this._t.count_other, { n: items.length }));
     }
-    this._renderList(items, animate);
+    this._renderList(items, animate, now);
     this._setFoot(items.length > 1 && items.some((it) => it.dismiss), animate);
   }
 
@@ -2186,7 +3354,7 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   /* Rows are keyed and reused while their content stays the same. With animate, rows
    * leave and arrive as in playLeave and playEnter, and moved rows slide. */
-  _renderList(items, animate) {
+  _renderList(items, animate, now) {
     const list = this._dom.list;
     const cache = this._rowCache;
     const active = this.shadowRoot.activeElement;
@@ -2205,11 +3373,11 @@ class OrigamiNotificationsCard extends HTMLElement {
       let el;
       if (hit && hit.sig === sig) {
         el = hit.el;
-        const when = el.querySelector(".when");
-        if (when) when.textContent = this._relTime(it.ts);
+        this._setTime(el, it, now);
+        setIcon(el.querySelector(".rtile"), it, this._hass);
         setImage(el.querySelector(".rtile"), it.image);
       } else {
-        el = this._row(it);
+        el = this._row(it, now);
         if (hit) {
           replaced.set(hit.el, el);
           if (hit.el.classList.contains("open")) el.classList.add("open");
@@ -2226,9 +3394,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._rowCache = next;
     const kept = new Set(els);
     const gone = new Set(old.filter((el) => !kept.has(el) && !replaced.has(el)));
+    /* A button can end its own row, like Cancel on a timer. Focus then goes where it goes after a dismissal. */
+    const keys = [...cache.keys()];
+    const lost = active ? keys.findIndex((key) => !next.has(key) && cache.get(key).el.contains(active)) : -1;
     const focus = () => {
       const target = refocus && refocus[0].querySelectorAll(refocus[1])[refocus[2]];
       if (target) target.focus({ preventScroll: true });
+      else if (lost >= 0) this._focusAfter(lost);
     };
     if (!animate) {
       for (const el of old) stopMotion(el);
@@ -2285,16 +3457,14 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
   }
 
-  _row(it) {
+  _row(it, now) {
     const row = document.createElement("div");
     row.className = "row" + sevClass(it.sev);
     row.dataset.kind = it.kind;
     row.setAttribute("role", "listitem");
     const tile = document.createElement("div");
     tile.className = "rtile" + sevClass(it.sev);
-    const ic = document.createElement("ha-icon");
-    ic.setAttribute("icon", it.icon || ICONS[it.kind]);
-    tile.append(ic);
+    setIcon(tile, it, this._hass);
     setImage(tile, it.image);
     const title = document.createElement("div");
     title.className = "title";
@@ -2303,9 +3473,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     meta.className = "meta";
     const when = document.createElement("time");
     when.className = "when";
-    when.dateTime = new Date(it.ts).toISOString();
-    when.title = this._absTime(it.ts);
-    when.textContent = this._relTime(it.ts);
     meta.append(when);
     if (it.dismiss) {
       const x = document.createElement("button");
@@ -2329,6 +3496,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     body.className = "body";
     body.textContent = it.message;
     row.append(tile, title, meta, body);
+    this._setTime(row, it, now);
     if (it.actions && it.actions.length) {
       const actions = document.createElement("div");
       actions.className = "actions";
@@ -2435,6 +3603,7 @@ const EDITOR_STRINGS = {
   en: {
     entities: "Entities",
     label: "Include entities by label",
+    weather: "Weather",
     updates: "Pending updates",
     repairs: "Repairs",
     hide_when_empty: "Hide when there is nothing to show",
@@ -2445,6 +3614,7 @@ const EDITOR_STRINGS = {
     icon: "Icon",
     image: "Picture",
     background: "Picture as card background",
+    before: "Show ahead of time",
     tap_action: "Tap behavior",
     audience: "Who sees what",
     visible: "Visible to",
@@ -2462,6 +3632,12 @@ const EDITOR_STRINGS = {
     type_alarm: "Alarm panel",
     type_alert: "Alert",
     type_dwd: "DWD weather warnings",
+    type_timer: "Timer",
+    type_countdown: "Countdown",
+    type_event: "Event",
+    type_todo: "To-do list",
+    type_device: "Device",
+    type_warning: "Warning",
     type_attribute: "Details from an attribute",
     type_picture: "State as title",
     type_generic: "Plain entity",
@@ -2469,6 +3645,7 @@ const EDITOR_STRINGS = {
   de: {
     entities: "Entitäten",
     label: "Entitäten mit diesem Label einbeziehen",
+    weather: "Wetter",
     updates: "Ausstehende Updates",
     repairs: "Reparaturen",
     hide_when_empty: "Ausblenden, wenn nichts anliegt",
@@ -2479,6 +3656,7 @@ const EDITOR_STRINGS = {
     icon: "Symbol",
     image: "Bild",
     background: "Bild als Kartenhintergrund",
+    before: "Im Voraus zeigen",
     tap_action: "Verhalten beim Tippen",
     audience: "Wer sieht was",
     visible: "Sichtbar für",
@@ -2496,6 +3674,12 @@ const EDITOR_STRINGS = {
     type_alarm: "Alarmanlage",
     type_alert: "Alarm (alert)",
     type_dwd: "DWD-Unwetterwarnungen",
+    type_timer: "Timer",
+    type_countdown: "Countdown",
+    type_event: "Ereignis",
+    type_todo: "To-do-Liste",
+    type_device: "Gerät",
+    type_warning: "Warnung",
     type_attribute: "Details aus einem Attribut",
     type_picture: "Zustand als Titel",
     type_generic: "Einfache Entität",
@@ -2505,21 +3689,25 @@ const EDITOR_STRINGS = {
 const EDITOR_HELPERS = {
   en: {
     label: "Every entity with this label is added and detected automatically.",
+    weather: "Shows rain, snow and frost ahead.",
     visible: "Applies outside edit mode, like Home Assistant's own card visibility.",
     people: "Matches the user account linked to each person in Settings → People.",
     attribute: "An attribute that holds an object with a name or title, or a plain value. If empty, the card looks for an object with a description or a picture.",
     attribute_picture: "An attribute that holds an object with a name or title. The object is shown instead of the state.",
     image: "An attribute, a path into one like book.cover, or a URL. If empty, the card uses the picture of the shown object or of the entity.",
     background: "Blurred behind the card while this entity is on top.",
+    before: "How long before it starts or is due.",
   },
   de: {
     label: "Jede Entität mit diesem Label kommt dazu und wird automatisch erkannt.",
+    weather: "Zeigt Regen, Schnee und Frost im Voraus.",
     visible: "Gilt außerhalb des Bearbeitungsmodus, wie die Sichtbarkeit von Home Assistant selbst.",
     people: "Verglichen wird das Benutzerkonto, das unter Einstellungen → Personen verknüpft ist.",
     attribute: "Ein Attribut, das ein Objekt mit name oder title enthält, oder ein einfacher Wert. Bleibt es leer, sucht die Karte ein Objekt mit description oder Bild.",
     attribute_picture: "Ein Attribut, das ein Objekt mit name oder title enthält. Das Objekt erscheint statt des Zustands.",
     image: "Ein Attribut, ein Pfad darin wie book.cover, oder eine URL. Bleibt es leer, nimmt die Karte das Bild des gezeigten Objekts oder der Entität.",
     background: "Unscharf hinter der Karte, solange diese Entität oben steht.",
+    before: "Wie lange vor dem Beginn oder der Fälligkeit.",
   },
 };
 
@@ -2527,6 +3715,15 @@ const TYPES = ["auto", ...Object.keys(RENDERERS)];
 
 /* The kinds that read an attribute, so only they show the field. */
 const USES_ATTRIBUTE = ["auto", "attribute", "picture", "recipe"];
+const USES_BEFORE = ["calendar", "todo"];
+
+/* Home Assistant's duration field reads only parts. A bare number there would count as seconds. */
+const durationParts = (ms) => ({
+  days: Math.floor(ms / DAY_MS),
+  hours: Math.floor((ms % DAY_MS) / 3600000),
+  minutes: Math.floor((ms % 3600000) / MINUTE_MS),
+  seconds: (ms % MINUTE_MS) / 1000,
+});
 
 class OrigamiNotificationsEditor extends HTMLElement {
   setConfig(config) {
@@ -2577,6 +3774,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
     const sources = [{ key: "system", name: this._label("system"), icon: ICONS.system }];
     if (c.updates !== false) sources.push({ key: "updates", name: this._label("updates"), icon: ICONS.update });
     if (c.repairs !== false) sources.push({ key: "repairs", name: this._label("repairs"), icon: ICONS.repair });
+    if (c.weather) sources.push({ key: c.weather, name: this._name(c.weather), icon: ICONS.weather });
     for (const src of [...this._entries(c), ...labelled(this._hass, c.label).map((entity) => ({ entity }))]) {
       if (sources.some((s) => s.key === src.entity)) continue;
       sources.push({
@@ -2589,7 +3787,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
   }
 
   _typeOf(src) {
-    return src.type === "recipe" ? "attribute" : kindOf(src, this._hass && this._hass.states[src.entity]);
+    return src.type === "recipe" ? "attribute" : kindOf(src, this._hass && this._hass.states[src.entity], this._hass);
   }
 
   _summary(rule) {
@@ -2607,6 +3805,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
     return [
       { name: "entities", selector: { entity: { multiple: true } } },
       { name: "label", selector: { label: {} } },
+      { name: "weather", selector: { entity: { filter: { domain: "weather" } } } },
       {
         name: "",
         type: "grid",
@@ -2624,7 +3823,8 @@ class OrigamiNotificationsEditor extends HTMLElement {
               title: this._label("options"),
               icon: "mdi:tune-variant",
               schema: entries.map((e) => {
-                const icon = typeIcon(this._typeOf(e));
+                const kind = this._typeOf(e);
+                const icon = typeIcon(kind);
                 return {
                   name: e.entity,
                   type: "expandable",
@@ -2659,6 +3859,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
                     },
                     { name: "image", selector: { text: {} } },
                     { name: "background", selector: { boolean: {} } },
+                    ...(USES_BEFORE.includes(kind) ? [{ name: "before", selector: { duration: { enable_day: true } } }] : []),
                     { name: "tap_action", selector: { ui_action: { default_action: "more-info" } } },
                   ],
                 };
@@ -2701,6 +3902,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
           icon: e.icon,
           image: e.image,
           background: Boolean(e.background),
+          before: e.before == null ? undefined : durationParts(parseBefore(e.before)),
           tap_action: e.tap_action,
         },
       ])
@@ -2730,7 +3932,9 @@ class OrigamiNotificationsEditor extends HTMLElement {
         if (!(key in opt)) continue;
         const v = opt[key];
         if (key === "name" && isEmpty(v) && base.name != null && typeof base.name !== "string") continue;
-        if (isEmpty(v) || (key === "type" && v === "auto")) delete merged[key];
+        /* An unchanged duration keeps the way it was written. */
+        if (key === "before" && parseBefore(v) === parseBefore(base.before)) continue;
+        if (isEmpty(v) || (key === "type" && v === "auto") || (key === "before" && !parseBefore(v))) delete merged[key];
         else merged[key] = v;
       }
       if (!USES_ATTRIBUTE.includes(merged.type || "auto")) delete merged.attribute;
@@ -2764,8 +3968,8 @@ class OrigamiNotificationsEditor extends HTMLElement {
         delete audience[key];
       }
     }
-    if (this._swapped && audience[this._swapped[0]] && !audience[this._swapped[1]]) {
-      audience[this._swapped[1]] = audience[this._swapped[0]];
+    for (const [from, to] of [this._swapped || [], [this._config.weather, value.weather]]) {
+      if (from && to && audience[from] && !audience[to]) audience[to] = audience[from];
     }
     /* A rule goes when its source leaves the list, since the editor could no longer show it.
      * Rules for updates stay, because the card applies them to the updates it finds as well. */
@@ -2843,5 +4047,27 @@ if (!window.customCards.some((c) => c.type === CARD)) {
       "System notifications, repairs, updates, warnings and any entity you add.",
     preview: true,
     documentationURL: REPO,
+  });
+}
+
+/* Tests reach the pure functions through this object, which only they create. */
+if (window.__origamiTest) {
+  Object.assign(window.__origamiTest, {
+    sortItems,
+    waker,
+    dropExpired,
+    nextReorder,
+    wakeDelay,
+    clockText,
+    nextTick,
+    parseDuration,
+    endOf,
+    parseBefore,
+    stateActive,
+    alikeTitle,
+    firstPicture,
+    forecastType,
+    isWet,
+    wetKind,
   });
 }
