@@ -81,6 +81,7 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | `vertical` | `false` | The icon above the text, like a tile with vertical content. The text then has the whole width, as in half a header. |
 | `rotate` | `8` | Seconds between turns of the closed card. At `0` it holds still. A swipe or an arrow key turns it by hand and stops the turns. |
 | `slide` | `up` | Whether the text moves `up` or to the `side` at a turn |
+| `tap_action`, `hold_action`, `double_tap_action` | | What a tap, a hold and a double tap on the closed card do. Next to Home Assistant's actions, `open` opens the list and `next` shows the next entry. More info opens the entity on show. A tap opens the list unless you set it. |
 | `audience` | | Who sees what, see below |
 | `css` | | Your own CSS, see Styling |
 
@@ -101,7 +102,7 @@ Infos take the options of a tile card.
 | `forecast_type` | For a weather entity, `daily`, `hourly` or `twice_daily` adds the forecast |
 | `forecast_slots` | How many days or hours turn by, 1 unless set |
 | `show_current`, `show_forecast` | As on Home Assistant's forecast card, both show unless `false` |
-| `tap_action`, `hold_action`, `double_tap_action` | What a tap, a hold and a double tap do. A tap opens the entity. |
+| `tap_action`, `hold_action`, `double_tap_action` | What a tap, a hold and a double tap do. Unset, the card's own apply, and a tap opens the entity. |
 | `visibility` | The conditions of Home Assistant's visibility tab. All of them must hold. |
 
 ```yaml
