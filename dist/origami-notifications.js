@@ -3,7 +3,7 @@
 const CARD = "origami-notifications";
 const EDITOR = CARD + "-editor";
 const REPO = "https://github.com/hazymorning/origami_notifications";
-const VERSION = "0.6.1";
+const VERSION = "0.6.2";
 
 const DEFAULTS = {
   hide_when_empty: true,
@@ -1800,6 +1800,7 @@ const STYLES = `
   /* :host sets display, which would beat [hidden]. */
   :host([hidden]) { display: none !important; }
   :host(.leaving) { pointer-events: none; }
+  :host(.intro) .slide, :host(.intro) .head .glyph { opacity: 0; }
   :host(.no-anim), :host(.no-anim) * {
     transition: none !important;
     animation: none !important;
@@ -1945,7 +1946,7 @@ const STYLES = `
   }
   .msg, .eta {
     min-width: 0;
-    color: var(--ha-tile-info-secondary-color, var(--primary-text-color));
+    color: var(--ha-tile-info-secondary-color, var(--secondary-text-color));
     font-size: var(--ha-tile-info-secondary-font-size, var(--ha-font-size-s, 12px));
     font-weight: var(--ha-tile-info-secondary-font-weight, var(--ha-font-weight-normal, 400));
     line-height: var(--ha-tile-info-secondary-line-height, var(--ha-line-height-condensed, 1.2));
@@ -3576,12 +3577,19 @@ class OrigamiNotificationsCard extends HTMLElement {
   _suppressAnim() {
     this.classList.add("no-anim");
     this._settling = true;
+    this._markIntro();
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         this._settling = false;
         if (!this._editMode) this.classList.remove("no-anim");
+        this._playIntro();
       });
     });
+  }
+
+  /* Until the card settles, the first entry of several waits out of sight for its way in. */
+  _markIntro() {
+    if (this._settling && this._slides.length > 1 && !this._editMode && motionOK()) this.classList.add("intro");
   }
 
   /* Focus follows the toggle, which hides itself as it opens or closes. */
@@ -3894,6 +3902,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     d.chev.hidden = !items.length;
     const shown = this._painted && !this._hiding() && !this._expanded;
     this._paintHead(slide, now, moved && shown ? { dir: 1 } : null);
+    this._markIntro();
 
     /* The list animates only while open. A closing drawer keeps its rows until it is shut. */
     if (!this._expanded && (wasOpen || this._listTimer)) {
@@ -3979,13 +3988,31 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (this._swapping !== out) return;
       this._swapping = null;
       this._fillHead(this._headSlide, Date.now());
-      const back = { duration: ms * 0.6, easing: EASE_FADE_IN };
-      const into = d.slide.animate([{ transform: move(sign), opacity: 0 }, { transform: "none", opacity: 1 }], back);
-      d.glyph.animate([{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "none" }], back);
+      this._slideIn(sign, side);
       out.cancel();
       iconOut.cancel();
-      into.onfinish = () => d.texts.classList.remove("up", "side");
     };
+  }
+
+  /* The text comes in from where it turns to, and the icon grows back. */
+  _slideIn(sign, side) {
+    const d = this._dom;
+    const ms = tokenMs(this, "--ha-animation-duration-slow", 350) * 1.6 * 0.6;
+    const move = side ? "translateX(" + sign * 24 + "px)" : "translateY(" + sign * 14 + "px)";
+    d.texts.classList.add(side ? "side" : "up");
+    const back = { duration: ms, easing: EASE_FADE_IN };
+    const into = d.slide.animate([{ transform: move, opacity: 0 }, { transform: "none", opacity: 1 }], back);
+    d.glyph.animate([{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "none" }], back);
+    into.onfinish = () => d.texts.classList.remove("up", "side");
+  }
+
+  /* A card with more than one entry shows the first one coming in, as on every turn. */
+  _playIntro() {
+    if (!this.classList.contains("intro")) return;
+    this.classList.remove("intro");
+    if (this._slides.length < 2 || this._expanded || this._swapping || !this._animOK() || !this._dom.slide.animate) return;
+    const side = this._config.slide === "side";
+    this._slideIn(side && this._rtl() ? -1 : 1, side);
   }
 
   _fillHead(slide, now) {
@@ -4051,7 +4078,7 @@ class OrigamiNotificationsCard extends HTMLElement {
    * card being out of sight stop it. */
   _rotate(restart = false) {
     const go =
-      this._turns() > 0 && Boolean(this._dom) && this._slides.length > 1 && !this._expanded && !this._stopped && !this._held.size &&
+      this._turns() > 0 && Boolean(this._dom) && this._slides.length > 1 && !this._expanded && !this._dialogEl && !this._stopped && !this._held.size &&
       this.isConnected && this._visible && !document.hidden && !this._hiding();
     /* Home Assistant sends new states all the time. They must not push the next turn back. */
     if (go && this._rotateTimer && !restart) return;
@@ -4484,11 +4511,15 @@ class OrigamiNotificationsDialog extends HTMLElement {
   }
 
   showDialog({ card }) {
-    if (this._card && this._card !== card) this._card._dialogEl = null;
+    if (this._card && this._card !== card) {
+      this._card._dialogEl = null;
+      this._card._rotate();
+    }
     this._card = card;
     card._dialogEl = this;
-    /* The card's clock runs on the minute while the dialog shows its times. */
+    /* The card's clock runs on the minute while the dialog shows its times, and the turns wait. */
     card._tick();
+    card._rotate();
     if (this._dialog) {
       this.update();
       return;
@@ -4551,6 +4582,7 @@ class OrigamiNotificationsDialog extends HTMLElement {
     if (this._card && this._card._dialogEl === this) {
       this._card._dialogEl = null;
       this._card._tick();
+      this._card._rotate();
     }
     Object.assign(this, { _dialog: null, _list: null, _cache: null, _card: null });
     this.dispatchEvent(new CustomEvent("dialog-closed", { bubbles: true, composed: true, detail: { dialog: this.localName } }));
