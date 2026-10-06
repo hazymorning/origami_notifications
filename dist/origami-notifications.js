@@ -2447,6 +2447,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._swapping = null;
     this._held = new Set();
     this._stopped = false;
+    this._turned = false;
     this._rotateTimer = null;
     this._press = null;
     this._noClick = false;
@@ -2480,6 +2481,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const { sources, audience, infos } = checkConfig(config);
     this._config = { ...DEFAULTS, ...config };
     this._infoConfig = infos;
+    this._turned = false;
     /* Home Assistant reads layout_options only when grid_options is missing. */
     const rows = config.grid_options
       ? config.grid_options.rows
@@ -3931,7 +3933,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (fresh) {
       slide = fresh;
       this._stopped = false;
-    } else if (!slide || topMoved || !(this._turns() || this._stopped)) {
+    } else if (!slide || topMoved || !this._turned || !(this._turns() || this._stopped)) {
+      /* Until the first turn the card shows the first entry, also one that loads later, like a forecast. */
       slide = top;
     }
     /* Written anew each time, so the same news is read out again. */
@@ -4071,6 +4074,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   _step(dir, how) {
     const slides = this._slides;
     if (slides.length < 2) return;
+    this._turned = true;
     if (how !== "auto") this._stopped = true;
     const i = Math.max(0, slides.findIndex((s) => s.key === this._slideKey));
     const next = slides[(i + dir + slides.length) % slides.length];

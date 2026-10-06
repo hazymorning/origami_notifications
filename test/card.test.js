@@ -4088,6 +4088,19 @@ test("forecast temperatures follow the number format of the profile, as Home Ass
   );
 });
 
+test("until its first turn the card shows its first info, also one that loads later", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const subs = [];
+  const states = { "weather.home": weatherAt("rainy", { supported_features: 1 }), "sun.sun": quietStates()["sun.sun"] };
+  const el = mount(w, { type: "x", updates: false, infos: [{ entity: "weather.home", forecast_type: "daily", show_current: false }, "sun.sun"] }, makeHass(states, { subs, formatEntityState: (s) => (s.state === "sunny" ? "Sunny" : s.state) }));
+  same(head(el).title, "Sun", "the sun shows while the forecast loads");
+  subs.find((s) => s.msg && s.msg.type === "weather/subscribe_forecast").cb({ type: "daily", forecast: [dayAt(0)] });
+  same(head(el).title, "Today", "then the forecast takes its place at the front");
+  mock.timers.tick(8000);
+  same(head(el).title, "Sun", "and the turns go on from there");
+});
+
 test("a weather info shows the current weather and its forecast, unless it asks for one of them", () => {
   useClock();
   const w = makeWindow({ clock: true, zone: "UTC" });
