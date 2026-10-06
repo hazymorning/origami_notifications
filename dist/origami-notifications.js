@@ -3170,11 +3170,12 @@ class OrigamiNotificationsCard extends HTMLElement {
         out.push({ ...base, key, stateObj: st, title: ctx.name(st, info.name), color: colorOf(st), content: info.state_content, timeFormat: info.time_format });
         continue;
       }
-      /* Each forecast slot turns by like an info of its own, with the condition as its state. */
+      /* Each forecast slot turns by like an info of its own, with the condition as its state. A name of the
+       * info's own comes first, and the day or hour moves to the second line. */
+      const named = isEmpty(info.name) ? "" : ctx.name(st, info.name);
       slots.forEach((slot, n) => {
         const shown = { ...st, state: slot.condition || st.state };
         const label = this._slotLabel(Date.parse(slot.datetime), info.forecast_type, ctx.now);
-        const named = typeof info.name === "string" && info.name;
         out.push({
           ...base,
           key: key + "#" + n,

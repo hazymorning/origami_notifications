@@ -3930,6 +3930,11 @@ test("an hourly or twice daily forecast names its hour or its half of the day", 
   el.shadowRoot.querySelector(".head").dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
   same([...shownInfo(el), icon()], ["Oslo", "Tomorrow at 12:00 AM · 11° · Partly cloudy", ["partlycloudy", "mdi:weather-night-partly-cloudy"]], "an hour after midnight says its day, and a night has a night icon");
 
+  const items = forecastCard(w, { forecast_type: "hourly", name: [{ type: "entity" }] });
+  items.hass.formatEntityName = (st, name) => (Array.isArray(name) ? "Home weather" : st.attributes.friendly_name);
+  items.forecasts()[0].cb({ type: "hourly", forecast: [hour(0)] });
+  same(shownInfo(items.el), ["Home weather", "12:00 PM · 11° · Cloudy"], "a name from name items as well");
+
   const twice = forecastCard(w, { forecast_type: "twice_daily" });
   twice.forecasts()[0].cb({ type: "twice_daily", forecast: [hour(0, { condition: "sunny", temperature: 17, is_daytime: true })] });
   same(shownInfo(twice.el), ["Today", "Day · 17° · Sunny"], "half a day says whether it is day or night");
