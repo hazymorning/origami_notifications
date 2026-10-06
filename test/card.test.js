@@ -350,7 +350,7 @@ test("editor schema", () => {
   ed.setConfig({ type: "x", entities: ["calendar.family"] });
   ed.hass = makeHass({ "calendar.family": st("calendar.family", "off", { friendly_name: "Family" }) });
   const form = ed.querySelector("ha-form");
-  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "content_layout", "grid", "interactions", "options", "audience", "styling"]);
+  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "content_layout", "grid", "options", "audience", "styling"]);
   same(
     form.schema.find((s) => s.name === "options").schema[0].schema.map((s) => s.name || s.type),
     ["type", "attribute", "grid", "image", "background", "before", "tap_action"],
@@ -361,9 +361,6 @@ test("editor schema", () => {
     ["system", "updates", "repairs", "calendar.family"],
     "audience sources"
   );
-  const names = ["open", "next", "toggle"].map((a) => form.hass.localize("ui.panel.lovelace.editor.action-editor.actions." + a));
-  same(names, ["Open list", "Show next", ""], "Home Assistant's action picker names the card's own actions");
-  same(form.schema.find((s) => s.name === "interactions").schema[0].selector.ui_action.actions.slice(0, 3), ["open", "next", "more-info"]);
 });
 
 test("vertical puts the icon above the text, like a tile with vertical content", () => {
@@ -3784,45 +3781,6 @@ test("the closed card turns through what needs attention, and critical entries h
   same([head(single).title, single.shadowRoot.querySelector(".badge").hidden], ["Door", true], "one entry needs no count");
 });
 
-test("tap, hold and double tap can open the list, show the next or run any action", () => {
-  useClock();
-  const w = makeWindow({ clock: true });
-  const states = threeOn();
-  const press = (h, ms) => {
-    h.dispatchEvent(new w.PointerEvent("pointerdown", { pointerId: 1, isPrimary: true, pointerType: "touch", clientX: 10, clientY: 10, bubbles: true }));
-    mock.timers.tick(ms);
-    h.dispatchEvent(new w.PointerEvent("pointerup", { pointerId: 1, isPrimary: true, pointerType: "touch", clientX: 10, clientY: 10, bubbles: true }));
-    h.click();
-  };
-  const plain = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(states));
-  plain.shadowRoot.querySelector(".head").click();
-  same(plain.shadowRoot.querySelector(".head").getAttribute("aria-expanded"), "true", "unset, a tap opens the list");
-
-  const config = { type: "x", updates: false, entities: Object.keys(states), tap_action: "next", hold_action: { action: "open" }, double_tap_action: { action: "more-info" } };
-  const el = mount(w, config, makeHass(states));
-  const h = el.shadowRoot.querySelector(".head");
-  const got = [];
-  el.addEventListener("hass-action", (e) => got.push(e.detail));
-  h.click();
-  mock.timers.tick(250);
-  same([head(el).title, h.getAttribute("aria-expanded")], ["Garage", null], "a tap shows the next and the head is no longer a disclosure");
-  h.click();
-  h.click();
-  same(got, [{ config: { entity: "binary_sensor.b", double_tap_action: { action: "more-info" } }, action: "double_tap" }], "a double tap opens the entity on show");
-  press(h, 500);
-  mock.timers.tick(250);
-  same(el.shadowRoot.querySelector("ha-card").classList.contains("open"), true, "a hold opens the list");
-
-  const quiet = mount(w, { type: "x", updates: false, tap_action: "next", infos: ["sun.sun", { entity: "sensor.energy", tap_action: "more-info" }] }, quietHass(quietStates()));
-  const q = [];
-  quiet.addEventListener("hass-action", (e) => q.push(e.detail));
-  quiet.shadowRoot.querySelector(".head").click();
-  same([head(quiet).title, q], ["Energy", []], "an info without its own action takes the card's");
-  quiet.shadowRoot.querySelector(".head").click();
-  same(q.map((e) => e.config.entity), ["sensor.energy"], "an info's own action comes first");
-  assert.throws(() => mount(w, { type: "x", tap_action: 3 }, makeHass({})), /tap_action must be an action/);
-});
-
 test("the second line is quieter than the first, and several entries come in on load", () => {
   const w = makeWindow();
   const el = mount(w, { type: "x", updates: false, entities: Object.keys(threeOn()) }, makeHass(threeOn()));
@@ -4244,7 +4202,7 @@ test("an info does what its actions say, like a tile", () => {
   h.click();
   same(got, [], "a tap waits whether a second one follows");
   mock.timers.tick(250);
-  same(got, [{ config: { entity: "sun.sun", tap_action: { action: "more-info" } }, action: "tap" }], "then opens the entity");
+  same(got, [{ config: { entity: "sun.sun", tap_action: { action: "more-info" }, hold_action: hold, double_tap_action: { action: "toggle" } }, action: "tap" }], "then opens the entity");
   got.length = 0;
   h.click();
   h.click();

@@ -14,7 +14,7 @@ const DEFAULTS = {
   slide: "up",
 };
 
-const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "vertical", "rotate", "slide", "tap_action", "hold_action", "double_tap_action", "audience", "css"];
+const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "vertical", "rotate", "slide", "audience", "css"];
 const INFO_KEY_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
 const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "before", "tap_action"];
 const ENTITY_KEY_ORDER = ["entity", ...OPTION_KEYS, "actions"];
@@ -490,10 +490,6 @@ const tokenMs = (el, name, fallback) => {
 };
 
 const hasAction = (a) => Boolean(a && a.action && a.action !== "none");
-/* The card's own actions. Home Assistant runs every other one, as on its own cards. */
-const GESTURES = ["tap", "hold", "double_tap"];
-const ACTIONS = ["open", "next", "more-info", "toggle", "navigate", "url", "perform-action", "assist", "none"];
-const ACTION_LABEL = "ui.panel.lovelace.editor.action-editor.actions.";
 
 /* Below this width the list opens in Home Assistant's dialog instead of unfolding in the card. */
 const NARROW_PX = 300;
@@ -2353,15 +2349,7 @@ const checkConfig = (config) => {
   }
   if (config.slide != null && config.slide !== "up" && config.slide !== "side") fail("slide must be up or side");
   if (config.vertical != null && typeof config.vertical !== "boolean") fail("vertical must be true or false");
-  const actions = {};
-  for (const gesture of GESTURES) {
-    const key = gesture + "_action";
-    const a = typeof config[key] === "string" ? { action: config[key] } : config[key];
-    if (a == null) continue;
-    if (!isObject(a) || typeof a.action !== "string") fail(key + " must be an action, like open, next or more-info");
-    actions[gesture] = a;
-  }
-  return { sources, audience: checkAudience(config.audience), infos, actions };
+  return { sources, audience: checkAudience(config.audience), infos };
 };
 
 /* Local dismissals, shared by every card in this browser. Where storage is blocked, the copy
@@ -2459,7 +2447,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._headSlide = null;
     this._swapping = null;
     this._held = new Set();
-    this._actions = {};
     this._stopped = false;
     this._turned = false;
     this._rotateTimer = null;
@@ -2492,10 +2479,9 @@ class OrigamiNotificationsCard extends HTMLElement {
   }
 
   setConfig(config) {
-    const { sources, audience, infos, actions } = checkConfig(config);
+    const { sources, audience, infos } = checkConfig(config);
     this._config = { ...DEFAULTS, ...config };
     this._infoConfig = infos;
-    this._actions = actions;
     this._turned = false;
     /* Home Assistant reads layout_options only when grid_options is missing. */
     const rows = config.grid_options
@@ -3906,11 +3892,10 @@ class OrigamiNotificationsCard extends HTMLElement {
     d.card.classList.toggle("has-items", items.length > 0);
 
     const { slide, moved } = this._pickSlide();
-    /* The head opens the list, or the dialog where the card is narrow, unless a tap is set to do something else. */
-    const opens = items.length > 0 && this._actionFor(slide, "tap").action === "open";
-    if (opens && !this._narrow) d.head.setAttribute("aria-expanded", String(this._expanded));
+    /* The head opens the list, or the dialog where the card is narrow, or what an info leads to. */
+    if (items.length && !this._narrow) d.head.setAttribute("aria-expanded", String(this._expanded));
     else d.head.removeAttribute("aria-expanded");
-    if (opens && this._narrow) d.head.setAttribute("aria-haspopup", "dialog");
+    if (items.length && this._narrow) d.head.setAttribute("aria-haspopup", "dialog");
     else d.head.removeAttribute("aria-haspopup");
     d.badge.hidden = items.length < 2;
     setText(d.badge, badgeText(items.length));
@@ -4033,7 +4018,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   _fillHead(slide, now) {
     const d = this._dom;
     const info = Boolean(slide && slide.kind === "info");
-    const tappable = this._acts(slide);
+    const tappable = this._items.length > 0 || Boolean(info && this._infoActs(slide));
     d.card.classList.toggle("tappable", tappable);
     d.head.setAttribute("aria-disabled", String(!tappable));
     d.card.style.setProperty("--tile-color", slide ? itemColor(slide) : "var(--state-inactive-color)");
@@ -4140,11 +4125,11 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._hold("press", true);
     const slide = this._headSlide;
     const p = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, dx: 0, drag: false };
-    if (hasAction(this._actionFor(slide, "hold"))) {
+    if (slide && slide.kind === "info" && hasAction(slide.info.hold_action)) {
       p.timer = setTimeout(() => {
         p.timer = null;
         this._noClick = true;
-        this._run(slide, "hold");
+        this._infoAction(slide, "hold");
       }, HOLD_MS);
     }
     this._press = p;
@@ -4198,49 +4183,40 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (s.animate && this._animOK()) s.animate([from, { transform: "none", opacity: 1 }], { duration: SIZE_MS, easing: EASE_STANDARD });
   }
 
-  /* With a double tap set, a tap waits a moment for the second one. */
+  /* A tap opens the list, or does what the info on show is set to do. */
   _activate() {
     const slide = this._headSlide;
-    if (!hasAction(this._actionFor(slide, "double_tap"))) {
-      this._run(slide, "tap");
-    } else if (this._tapWait) {
-      clearTimeout(this._tapWait);
-      this._tapWait = null;
-      this._run(slide, "double_tap");
-    } else {
-      this._tapWait = setTimeout(() => {
+    if (slide && slide.kind === "info") {
+      const info = slide.info;
+      if (!hasAction(info.double_tap_action)) {
+        this._infoAction(slide, "tap");
+      } else if (this._tapWait) {
+        clearTimeout(this._tapWait);
         this._tapWait = null;
-        this._run(slide, "tap");
-      }, DOUBLE_TAP_MS);
+        this._infoAction(slide, "double_tap");
+      } else {
+        this._tapWait = setTimeout(() => {
+          this._tapWait = null;
+          this._infoAction(slide, "tap");
+        }, DOUBLE_TAP_MS);
+      }
+      return;
     }
+    this._toggle();
   }
 
-  /* An info's own action comes first, then the card's. Unset, a tap opens the list, or the entity of an info. */
-  _actionFor(slide, gesture) {
-    const own = slide && slide.kind === "info" ? slide.info[gesture + "_action"] : null;
-    const set = own || this._actions[gesture];
-    if (set || gesture !== "tap") return set || null;
-    return { action: slide && slide.kind === "info" ? "more-info" : "open" };
+  /* Home Assistant runs the action as for its own cards. Without a tap action it opens the entity. */
+  _infoAction(slide, action) {
+    const info = slide.info;
+    const config = { entity: slide.entity, tap_action: info.tap_action || { action: "more-info" } };
+    if (info.hold_action) config.hold_action = info.hold_action;
+    if (info.double_tap_action) config.double_tap_action = info.double_tap_action;
+    if (action !== "tap" || hasAction(config.tap_action)) fire(this, "hass-action", { config, action });
   }
 
-  /* Home Assistant runs the action for the entity on show. Without one, more info opens the list. */
-  _run(slide, gesture) {
-    const a = this._actionFor(slide, gesture);
-    if (!hasAction(a)) return;
-    const entity = slide ? slide.entity : undefined;
-    if (a.action === "next") this._step(1, "tap");
-    else if (a.action === "open" || (a.action === "more-info" && !a.entity && !entity)) this._toggle();
-    else fire(this, "hass-action", { config: { entity, [gesture + "_action"]: a }, action: gesture });
-  }
-
-  _acts(slide) {
-    return GESTURES.some((gesture) => {
-      const a = this._actionFor(slide, gesture);
-      if (!hasAction(a)) return false;
-      if (a.action === "next") return this._slides.length > 1;
-      if (a.action === "open" || (a.action === "more-info" && !a.entity && !(slide && slide.entity))) return this._items.length > 0;
-      return true;
-    });
+  _infoActs(slide) {
+    const info = slide.info;
+    return !info.tap_action || hasAction(info.tap_action) || hasAction(info.hold_action) || hasAction(info.double_tap_action);
   }
 
   _renderDrawer(animate, now = Date.now()) {
@@ -4646,9 +4622,6 @@ const HA_EDITOR = {
   icon: "ui.panel.lovelace.editor.card.generic.icon",
   attribute: "ui.panel.lovelace.editor.card.generic.attribute",
   tap_action: "ui.panel.lovelace.editor.card.generic.tap_action",
-  hold_action: "ui.panel.lovelace.editor.card.generic.hold_action",
-  double_tap_action: "ui.panel.lovelace.editor.card.generic.double_tap_action",
-  interactions: "ui.panel.lovelace.editor.card.generic.interactions",
 };
 
 const EDITOR_STRINGS = {
@@ -4696,9 +4669,6 @@ const EDITOR_STRINGS = {
     vertical: "Vertical",
     styling: "Styling",
     css: "CSS",
-    interactions: "Interactions",
-    action_open: "Open list",
-    action_next: "Show next",
     visible: "Visible to",
     people: "People",
     system: "System notifications",
@@ -4768,9 +4738,6 @@ const EDITOR_STRINGS = {
     vertical: "Vertikal",
     styling: "Gestaltung",
     css: "CSS",
-    interactions: "Interaktionen",
-    action_open: "Liste öffnen",
-    action_next: "Nächstes zeigen",
     visible: "Sichtbar für",
     people: "Personen",
     system: "Systembenachrichtigungen",
@@ -4812,7 +4779,6 @@ const EDITOR_HELPERS = {
     infos: "Shown in turn while nothing needs attention.",
     rotate: "At 0 the card holds still.",
     css: "Goes into the card after its own styles, so you can change any part of it.",
-    card_tap: "Unset, a tap opens the list, and on an info it opens the entity.",
     visibility_intro: "The info shows while all of these conditions hold.",
   },
   de: {
@@ -4828,7 +4794,6 @@ const EDITOR_HELPERS = {
     infos: "Erscheinen im Wechsel, solange nichts anliegt.",
     rotate: "Bei 0 bleibt die Karte stehen.",
     css: "Kommt nach den Styles der Karte, so lässt sich jeder Teil ändern.",
-    card_tap: "Ohne Angabe öffnet ein Tippen die Liste, bei einer Info die Entität.",
     visibility_intro: "Die Info erscheint, solange alle diese Bedingungen erfüllt sind.",
   },
 };
@@ -4963,22 +4928,6 @@ class OrigamiNotificationsEditor extends HTMLElement {
           {
             name: "slide",
             selector: { select: { mode: "dropdown", options: ["up", "side"].map((value) => ({ value, label: this._label("slide_" + value) })) } },
-          },
-        ],
-      },
-      {
-        name: "interactions",
-        type: "expandable",
-        flatten: true,
-        title: this._label("interactions"),
-        icon: "mdi:gesture-tap",
-        schema: [
-          { name: "tap_action", helper: "card_tap", selector: { ui_action: { actions: ACTIONS } } },
-          {
-            name: "",
-            type: "optional_actions",
-            flatten: true,
-            schema: ["hold_action", "double_tap_action"].map((name) => ({ name, selector: { ui_action: { actions: ACTIONS, default_action: "none" } } })),
           },
         ],
       },
@@ -5217,22 +5166,6 @@ class OrigamiNotificationsEditor extends HTMLElement {
     return Object.keys(out).length === 1 ? out.entity : out;
   }
 
-  _cardAction(gesture) {
-    const a = this._config[gesture + "_action"];
-    return typeof a === "string" ? a : a && a.action;
-  }
-
-  /* Home Assistant's action picker names each action through localize, so the card's own two are named here. */
-  _formHass() {
-    const h = this._hass;
-    if (!h || !h.localize) return h;
-    if (!this._wrapped || this._wrapped.from !== h) {
-      const own = { [ACTION_LABEL + "open"]: this._label("action_open"), [ACTION_LABEL + "next"]: this._label("action_next") };
-      this._wrapped = { from: h, hass: { ...h, localize: (key, ...args) => own[key] || h.localize(key, ...args) } };
-    }
-    return this._wrapped.hass;
-  }
-
   _tileLabel(key) {
     const h = this._hass;
     const borrowed = HA_TILE_LABELS[key] && h && h.localize ? h.localize(HA_TILE_LABELS[key]) : "";
@@ -5299,16 +5232,12 @@ class OrigamiNotificationsEditor extends HTMLElement {
       },
       ...(forecasts.length ? forecast : state),
       { name: "show_entity_picture", selector: { boolean: {} } },
-      { name: "tap_action", selector: { ui_action: { actions: ACTIONS, default_action: this._cardAction("tap") || "more-info" } }, context: actions },
+      { name: "tap_action", selector: { ui_action: { default_action: "more-info" } }, context: actions },
       {
         name: "",
         type: "optional_actions",
         flatten: true,
-        schema: ["hold_action", "double_tap_action"].map((name) => ({
-          name,
-          selector: { ui_action: { actions: ACTIONS, default_action: this._cardAction(name.replace("_action", "")) || "none" } },
-          context: actions,
-        })),
+        schema: ["hold_action", "double_tap_action"].map((name) => ({ name, selector: { ui_action: { default_action: "none" } }, context: actions })),
       },
     ];
   }
@@ -5378,7 +5307,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
     if (lead.localName === "ha-state-icon") Object.assign(lead, { hass: this._hass, stateObj: st, icon: info.icon || (st ? undefined : ICONS.generic) });
     else lead.icon = info.icon || (st && st.attributes.icon) || ICONS.generic;
     const form = item._form;
-    form.hass = this._formHass();
+    form.hass = this._hass;
     form.computeLabel = (s) => this._tileLabel(s.name);
     form.computeHelper = () => undefined;
     const schema = this._infoSchema(info);
@@ -5434,7 +5363,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
       this._schemaKey = null;
     }
     const sources = this._sources();
-    this._form.hass = this._formHass();
+    this._form.hass = this._hass;
     const schema = this._schema(sources);
     const schemaKey = JSON.stringify(schema);
     if (schemaKey !== this._schemaKey) {
