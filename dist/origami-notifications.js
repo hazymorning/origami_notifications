@@ -1222,6 +1222,8 @@ const renderEntity = (id, st, items, ctx, src) => {
   for (let i = before; i < items.length; i++) {
     if (src.icon) items[i].icon = src.icon;
     if (extra.length) items[i].actions = [...(items[i].actions || []), ...extra];
+    /* A to-do is a task on a list, so it keeps the icon of its kind. */
+    if (items[i].kind !== "todo") items[i].stateObj = st;
   }
 };
 
@@ -1297,6 +1299,7 @@ const alikeGroup = (dc, members, ctx) => {
     ts: sorted.reduce((ts, m) => Math.max(ts, m.ts), -Infinity),
     past: true,
     icon: sorted[0].icon,
+    stateObj: sorted[0].stateObj,
     members: sorted,
     dismiss: () => ctx.host._dismiss(sorted),
   };
@@ -1392,6 +1395,35 @@ const setImage = (tile, url) => {
     tile.prepend(img);
   }
   if (img.getAttribute("src") !== url) img.src = url;
+};
+
+/* Like Home Assistant's own icons, the option goes first, then the icon the user picked for the entity, then the
+ * one the entity names. */
+const fallbackIcon = (it, hass) => {
+  const st = it.stateObj;
+  const reg = st && hass && hass.entities && hass.entities[st.entity_id];
+  return it.icon || (reg && reg.icon) || (st && st.attributes && st.attributes.icon) || ICONS[it.kind] || ICONS.generic;
+};
+
+/* Home Assistant's state icon follows the state, like an open or a closed lock. Until Home Assistant has defined
+ * it, an entry shows the icon its entity names, or its kind's. */
+const setIcon = (tile, it, hass) => {
+  const state = it.stateObj && customElements.get("ha-state-icon") ? it.stateObj : null;
+  const tag = state ? "ha-state-icon" : "ha-icon";
+  let el = tile.querySelector("ha-icon, ha-state-icon");
+  if (!el || el.localName !== tag) {
+    const fresh = document.createElement(tag);
+    if (el) el.replaceWith(fresh);
+    else tile.insertBefore(fresh, tile.querySelector(".badge"));
+    el = fresh;
+  }
+  if (state) {
+    el.hass = hass;
+    el.stateObj = state;
+    el.icon = it.icon || undefined;
+  } else {
+    el.setAttribute("icon", fallbackIcon(it, hass));
+  }
 };
 
 const STYLES = `
@@ -1499,7 +1531,7 @@ const STYLES = `
     color: var(--primary-text-color);
     opacity: var(--origami-muted);
   }
-  .tile ha-icon { --mdc-icon-size: var(--origami-icon); }
+  .tile :is(ha-icon, ha-state-icon) { --mdc-icon-size: var(--origami-icon); }
 
   .badge {
     position: absolute;
@@ -1628,7 +1660,7 @@ const STYLES = `
     outline: none;
   }
   .rtile[role="button"] { cursor: pointer; }
-  .rtile ha-icon { --mdc-icon-size: var(--icon-size-xs, 18px); display: flex; }
+  .rtile :is(ha-icon, ha-state-icon) { --mdc-icon-size: var(--icon-size-xs, 18px); display: flex; }
   .rtile.warn { background: var(--warning-color); color: var(--text-color-active, var(--primary-background-color)); }
   .rtile.crit { background: var(--error-color); color: var(--text-color-active, var(--primary-background-color)); }
   .tile img, .rtile img {
@@ -1641,7 +1673,7 @@ const STYLES = `
   }
   img { -webkit-user-drag: none; }
   img.ready { opacity: 1; }
-  img.ready ~ ha-icon { visibility: hidden; }
+  img.ready ~ :is(ha-icon, ha-state-icon) { visibility: hidden; }
   .row .title {
     grid-area: rtitle;
     min-width: 0;
@@ -2002,6 +2034,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._painted = false;
     this._seq = 0;
     this._setLang("en");
+    /* Home Assistant may define its state icon after the card. Then every icon is drawn again. */
+    if (!customElements.get("ha-state-icon")) {
+      customElements.whenDefined("ha-state-icon").then(() => {
+        this._epoch++;
+        this._render();
+      });
+    }
   }
 
   setConfig(config) {
@@ -2618,7 +2657,6 @@ class OrigamiNotificationsCard extends HTMLElement {
       card: q("ha-card"),
       head: q(".head"),
       tile: q(".head .tile"),
-      icon: q(".head .tile ha-icon"),
       title: q(".head .title"),
       msg: q(".msg"),
       eta: q(".head .eta"),
@@ -2979,7 +3017,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     d.head.setAttribute("aria-disabled", String(empty));
 
     if (empty) {
-      d.icon.setAttribute("icon", "mdi:bell-outline");
+      setIcon(d.tile, { icon: "mdi:bell-outline" }, this._hass);
       d.tile.className = "tile idle";
       setText(d.title, this._t.idle_title);
       this._setMessage(this._t.idle_msg);
@@ -2987,7 +3025,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       d.chev.hidden = true;
     } else {
       const top = items[0];
-      d.icon.setAttribute("icon", top.icon || ICONS[top.kind]);
+      setIcon(d.tile, top, this._hass);
       d.tile.className = "tile" + sevClass(top.sev);
       setText(d.title, top.title);
       this._setMessage(top.message || "");
@@ -3095,6 +3133,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (hit && hit.sig === sig) {
         el = hit.el;
         this._setTime(el, it, now);
+        setIcon(el.querySelector(".rtile"), it, this._hass);
         setImage(el.querySelector(".rtile"), it.image);
       } else {
         el = this._row(it, now);
@@ -3184,9 +3223,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     row.setAttribute("role", "listitem");
     const tile = document.createElement("div");
     tile.className = "rtile" + sevClass(it.sev);
-    const ic = document.createElement("ha-icon");
-    ic.setAttribute("icon", it.icon || ICONS[it.kind]);
-    tile.append(ic);
+    setIcon(tile, it, this._hass);
     setImage(tile, it.image);
     const title = document.createElement("div");
     title.className = "title";

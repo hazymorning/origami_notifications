@@ -3239,3 +3239,61 @@ test("the first picture of a notification becomes its picture", () => {
     "the address may follow spaces and ends at a title, an empty first picture still counts, and a link is no picture"
   );
 });
+
+const rowOf = (el, title) => [...el.shadowRoot.querySelectorAll(".row")].find((r) => r.querySelector(".title").textContent === title);
+
+test("entity rows use Home Assistant's state icon", async () => {
+  const w = makeWindow({ stateIcon: true });
+  const subs = [];
+  const states = {
+    "lock.front": st("lock.front", "unlocked", { friendly_name: "Front" }),
+    "lock.back": st("lock.back", "unlocked", { friendly_name: "Back" }),
+    "todo.shopping": st("todo.shopping", "1", { friendly_name: "Shopping" }),
+  };
+  const hass = makeHass({ ...states, ...statesOf(KITCHEN, BATH) }, { subs, ...ROOMS });
+  const entities = ["lock.front", { entity: "lock.back", icon: "mdi:lock-alert" }, KITCHEN.entity_id, BATH.entity_id, { entity: "todo.shopping", type: "todo" }];
+  const el = mount(w, { type: "x", updates: false, entities }, hass);
+  subs[0].cb({ type: "current", notifications: { n1: { notification_id: "n1", title: "Backup", message: "done", created_at: "2026-09-21T09:00:00+00:00" } } });
+  todoSubs(subs, "todo.shopping")[0].cb({ items: [todoItem("1", "Milk", "2020-01-01")] });
+  const icon = (title) => rowOf(el, title).querySelector(".rtile ha-state-icon, .rtile ha-icon");
+  same(
+    [icon("Front").localName, icon("Front").stateObj.entity_id, icon("Front").hass === hass, icon("Front").icon === undefined],
+    ["ha-state-icon", "lock.front", true, true],
+    "an entity row shows the icon Home Assistant gives its state"
+  );
+  same([icon("Back").localName, icon("Back").icon], ["ha-state-icon", "mdi:lock-alert"], "the icon option still wins");
+  same([icon("2 windows open").localName, icon("2 windows open").stateObj.entity_id], ["ha-state-icon", BATH.entity_id], "a group shows the icon of its newest member");
+  same(
+    [icon("Backup").localName, icon("Backup").getAttribute("icon"), icon("Milk").localName, icon("Milk").getAttribute("icon")],
+    ["ha-icon", "mdi:bell", "ha-icon", "mdi:clipboard-check-outline"],
+    "a notification and a to-do keep the icon of their kind"
+  );
+  const head = el.shadowRoot.querySelector(".head .tile");
+  same([...head.children].map((c) => c.localName + (c.className ? "." + c.className : "")).slice(-2), [head.querySelector("ha-state-icon, ha-icon").localName, "div.badge"], "the head keeps its badge after the icon");
+  const row = rowOf(el, "Front");
+  const next = { ...states["lock.front"], last_updated: "2026-09-21T10:05:00+00:00" };
+  el.hass = { ...hass, states: { ...hass.states, "lock.front": next } };
+  same([rowOf(el, "Front") === row, icon("Front").stateObj === next], [true, true], "a new state reaches the icon without building the row again");
+
+  const later = makeWindow();
+  const own = {
+    "lock.front": st("lock.front", "unlocked", { friendly_name: "Front", icon: "mdi:door" }),
+    "lock.side": st("lock.side", "unlocked", { friendly_name: "Side", icon: "mdi:door" }),
+    "lock.back": st("lock.back", "unlocked", { friendly_name: "Back" }),
+  };
+  const registry = { "lock.side": { entity_id: "lock.side", icon: "mdi:gate", labels: [] } };
+  const plain = mount(later, { type: "x", updates: false, entities: Object.keys(own) }, makeHass(own, { entities: registry }));
+  same(
+    rows(plain).map((r) => [r.title, r.icon]),
+    [["Back", "mdi:devices"], ["Front", "mdi:door"], ["Side", "mdi:gate"]],
+    "until Home Assistant defines its state icon, an entry shows the icon the user picked, the one its entity names, or its kind's"
+  );
+  later.customElements.define("ha-state-icon", class extends later.HTMLElement {});
+  await Promise.resolve();
+  await Promise.resolve();
+  same(
+    [...plain.shadowRoot.querySelectorAll(".row .rtile")].map((t) => t.querySelector("ha-state-icon, ha-icon").localName),
+    ["ha-state-icon", "ha-state-icon", "ha-state-icon"],
+    "once it is defined, every icon is drawn again"
+  );
+});
