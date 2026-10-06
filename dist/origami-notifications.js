@@ -11,8 +11,8 @@ const DEFAULTS = {
   repairs: true,
 };
 
-const KEY_ORDER = ["entities", "label", "updates", "repairs", "hide_when_empty", "audience", "css"];
-const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "tap_action"];
+const KEY_ORDER = ["entities", "label", "weather", "updates", "repairs", "hide_when_empty", "audience", "css"];
+const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "before", "tap_action"];
 const ENTITY_KEY_ORDER = ["entity", ...OPTION_KEYS, "actions"];
 
 const ICONS = {
@@ -2080,9 +2080,13 @@ const checkConfig = (config) => {
     if (src.attribute != null && typeof src.attribute !== "string") fail("attribute must be the name of an attribute");
     if (src.image != null && typeof src.image !== "string") fail("image must be an attribute path or URL");
     if (src.background != null && typeof src.background !== "boolean") fail("background must be true or false");
+    if (src.before != null && !(parseBefore(src.before) >= 0)) fail("before must be minutes or a duration like 1:30:00");
     if (typeof src.tap_action === "string") src.tap_action = { action: src.tap_action };
     src.actions = Array.isArray(src.actions) ? src.actions.filter(isObject) : null;
     if (!sources.some((s) => s.entity === src.entity)) sources.push(src);
+  }
+  if (config.weather != null && !(typeof config.weather === "string" && config.weather.startsWith("weather."))) {
+    fail("weather must be a weather entity, e.g. weather.home");
   }
   if (config.css != null && typeof config.css !== "string") fail("css must be a string");
   return { sources, audience: checkAudience(config.audience) };
@@ -2307,8 +2311,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   }
 
   _weatherId() {
-    const id = this._config && this._config.weather;
-    return typeof id === "string" && id.startsWith("weather.") ? id : null;
+    return (this._config && this._config.weather) || null;
   }
 
   _absDate(ts, zone) {
@@ -3600,6 +3603,7 @@ const EDITOR_STRINGS = {
   en: {
     entities: "Entities",
     label: "Include entities by label",
+    weather: "Weather",
     updates: "Pending updates",
     repairs: "Repairs",
     hide_when_empty: "Hide when there is nothing to show",
@@ -3610,6 +3614,7 @@ const EDITOR_STRINGS = {
     icon: "Icon",
     image: "Picture",
     background: "Picture as card background",
+    before: "Show ahead of time",
     tap_action: "Tap behavior",
     audience: "Who sees what",
     visible: "Visible to",
@@ -3640,6 +3645,7 @@ const EDITOR_STRINGS = {
   de: {
     entities: "Entitäten",
     label: "Entitäten mit diesem Label einbeziehen",
+    weather: "Wetter",
     updates: "Ausstehende Updates",
     repairs: "Reparaturen",
     hide_when_empty: "Ausblenden, wenn nichts anliegt",
@@ -3650,6 +3656,7 @@ const EDITOR_STRINGS = {
     icon: "Symbol",
     image: "Bild",
     background: "Bild als Kartenhintergrund",
+    before: "Im Voraus zeigen",
     tap_action: "Verhalten beim Tippen",
     audience: "Wer sieht was",
     visible: "Sichtbar für",
@@ -3682,21 +3689,25 @@ const EDITOR_STRINGS = {
 const EDITOR_HELPERS = {
   en: {
     label: "Every entity with this label is added and detected automatically.",
+    weather: "Shows rain, snow and frost ahead.",
     visible: "Applies outside edit mode, like Home Assistant's own card visibility.",
     people: "Matches the user account linked to each person in Settings → People.",
     attribute: "An attribute that holds an object with a name or title, or a plain value. If empty, the card looks for an object with a description or a picture.",
     attribute_picture: "An attribute that holds an object with a name or title. The object is shown instead of the state.",
     image: "An attribute, a path into one like book.cover, or a URL. If empty, the card uses the picture of the shown object or of the entity.",
     background: "Blurred behind the card while this entity is on top.",
+    before: "How long before it starts or is due.",
   },
   de: {
     label: "Jede Entität mit diesem Label kommt dazu und wird automatisch erkannt.",
+    weather: "Zeigt Regen, Schnee und Frost im Voraus.",
     visible: "Gilt außerhalb des Bearbeitungsmodus, wie die Sichtbarkeit von Home Assistant selbst.",
     people: "Verglichen wird das Benutzerkonto, das unter Einstellungen → Personen verknüpft ist.",
     attribute: "Ein Attribut, das ein Objekt mit name oder title enthält, oder ein einfacher Wert. Bleibt es leer, sucht die Karte ein Objekt mit description oder Bild.",
     attribute_picture: "Ein Attribut, das ein Objekt mit name oder title enthält. Das Objekt erscheint statt des Zustands.",
     image: "Ein Attribut, ein Pfad darin wie book.cover, oder eine URL. Bleibt es leer, nimmt die Karte das Bild des gezeigten Objekts oder der Entität.",
     background: "Unscharf hinter der Karte, solange diese Entität oben steht.",
+    before: "Wie lange vor dem Beginn oder der Fälligkeit.",
   },
 };
 
@@ -3704,6 +3715,15 @@ const TYPES = ["auto", ...Object.keys(RENDERERS)];
 
 /* The kinds that read an attribute, so only they show the field. */
 const USES_ATTRIBUTE = ["auto", "attribute", "picture", "recipe"];
+const USES_BEFORE = ["calendar", "todo"];
+
+/* Home Assistant's duration field reads only parts. A bare number there would count as seconds. */
+const durationParts = (ms) => ({
+  days: Math.floor(ms / DAY_MS),
+  hours: Math.floor((ms % DAY_MS) / 3600000),
+  minutes: Math.floor((ms % 3600000) / MINUTE_MS),
+  seconds: (ms % MINUTE_MS) / 1000,
+});
 
 class OrigamiNotificationsEditor extends HTMLElement {
   setConfig(config) {
@@ -3754,6 +3774,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
     const sources = [{ key: "system", name: this._label("system"), icon: ICONS.system }];
     if (c.updates !== false) sources.push({ key: "updates", name: this._label("updates"), icon: ICONS.update });
     if (c.repairs !== false) sources.push({ key: "repairs", name: this._label("repairs"), icon: ICONS.repair });
+    if (c.weather) sources.push({ key: c.weather, name: this._name(c.weather), icon: ICONS.weather });
     for (const src of [...this._entries(c), ...labelled(this._hass, c.label).map((entity) => ({ entity }))]) {
       if (sources.some((s) => s.key === src.entity)) continue;
       sources.push({
@@ -3784,6 +3805,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
     return [
       { name: "entities", selector: { entity: { multiple: true } } },
       { name: "label", selector: { label: {} } },
+      { name: "weather", selector: { entity: { filter: { domain: "weather" } } } },
       {
         name: "",
         type: "grid",
@@ -3801,7 +3823,8 @@ class OrigamiNotificationsEditor extends HTMLElement {
               title: this._label("options"),
               icon: "mdi:tune-variant",
               schema: entries.map((e) => {
-                const icon = typeIcon(this._typeOf(e));
+                const kind = this._typeOf(e);
+                const icon = typeIcon(kind);
                 return {
                   name: e.entity,
                   type: "expandable",
@@ -3836,6 +3859,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
                     },
                     { name: "image", selector: { text: {} } },
                     { name: "background", selector: { boolean: {} } },
+                    ...(USES_BEFORE.includes(kind) ? [{ name: "before", selector: { duration: { enable_day: true } } }] : []),
                     { name: "tap_action", selector: { ui_action: { default_action: "more-info" } } },
                   ],
                 };
@@ -3878,6 +3902,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
           icon: e.icon,
           image: e.image,
           background: Boolean(e.background),
+          before: e.before == null ? undefined : durationParts(parseBefore(e.before)),
           tap_action: e.tap_action,
         },
       ])
@@ -3907,7 +3932,9 @@ class OrigamiNotificationsEditor extends HTMLElement {
         if (!(key in opt)) continue;
         const v = opt[key];
         if (key === "name" && isEmpty(v) && base.name != null && typeof base.name !== "string") continue;
-        if (isEmpty(v) || (key === "type" && v === "auto")) delete merged[key];
+        /* An unchanged duration keeps the way it was written. */
+        if (key === "before" && parseBefore(v) === parseBefore(base.before)) continue;
+        if (isEmpty(v) || (key === "type" && v === "auto") || (key === "before" && !parseBefore(v))) delete merged[key];
         else merged[key] = v;
       }
       if (!USES_ATTRIBUTE.includes(merged.type || "auto")) delete merged.attribute;
@@ -3941,8 +3968,8 @@ class OrigamiNotificationsEditor extends HTMLElement {
         delete audience[key];
       }
     }
-    if (this._swapped && audience[this._swapped[0]] && !audience[this._swapped[1]]) {
-      audience[this._swapped[1]] = audience[this._swapped[0]];
+    for (const [from, to] of [this._swapped || [], [this._config.weather, value.weather]]) {
+      if (from && to && audience[from] && !audience[to]) audience[to] = audience[from];
     }
     /* A rule goes when its source leaves the list, since the editor could no longer show it.
      * Rules for updates stay, because the card applies them to the updates it finds as well. */

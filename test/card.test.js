@@ -339,10 +339,10 @@ test("editor schema", () => {
   ed.setConfig({ type: "x", entities: ["calendar.family"] });
   ed.hass = makeHass({ "calendar.family": st("calendar.family", "off", { friendly_name: "Family" }) });
   const form = ed.querySelector("ha-form");
-  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "grid", "hide_when_empty", "options", "audience"]);
+  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "weather", "grid", "hide_when_empty", "options", "audience"]);
   same(
     form.schema.find((s) => s.name === "options").schema[0].schema.map((s) => s.name || s.type),
-    ["type", "attribute", "grid", "image", "background", "tap_action"],
+    ["type", "attribute", "grid", "image", "background", "before", "tap_action"],
     "entity options"
   );
   same(
@@ -1312,6 +1312,66 @@ describe("editor", () => {
     const { form } = edit(w, { entities: [{ entity: "sensor.book", type: "picture" }] }, makeHass({}), () => {});
     const field = form.schema.find((s) => s.name === "options").schema[0].schema.find((s) => s.name === "attribute");
     assert.notEqual(form.computeHelper(field), form.computeHelper({ name: "attribute" }));
+  });
+
+  const HOME = { "weather.home": st("weather.home", "rainy", { friendly_name: "Home" }) };
+
+  test("the weather is a field of its own and a source of its own", () => {
+    const w = makeWindow();
+    const { form, written } = edit(w, { label: "kitchen", entities: ["binary_sensor.door"] }, makeHass(HOME), (v) => {
+      v.weather = "weather.home";
+    });
+    same(Object.keys(written), ["type", "entities", "label", "weather"], "written after the label");
+    same(form.schema.find((s) => s.name === "weather").selector, { entity: { filter: { domain: "weather" } } });
+    same(
+      form.schema.find((s) => s.name === "audience").schema.map((s) => [s.name, s.title, s.icon]),
+      [
+        ["system", "System notifications · Everyone", "mdi:bell"],
+        ["updates", "Pending updates · Everyone", "mdi:rocket-launch"],
+        ["repairs", "Repairs · Everyone", "mdi:wrench"],
+        ["weather.home", "Home · Everyone", "mdi:weather-partly-rainy"],
+        ["binary_sensor.door", "binary_sensor.door · Everyone", "mdi:information-outline"],
+      ]
+    );
+  });
+
+  test("another weather entity keeps the rule, none drops it", () => {
+    const w = makeWindow();
+    const config = { weather: "weather.home", audience: { "weather.home": { only: ["person.anna"] } } };
+    const swapped = edit(w, config, makeHass(HOME), (v) => {
+      v.weather = "weather.office";
+    });
+    same(swapped.written, { type: "custom:origami-notifications", weather: "weather.office", audience: { "weather.office": { only: ["person.anna"] } } });
+    const cleared = edit(w, config, makeHass(HOME), (v) => {
+      v.weather = "";
+    });
+    same(cleared.written, { type: "custom:origami-notifications" });
+  });
+
+  test("calendars and to-do lists take a duration ahead, written as it was", () => {
+    const w = makeWindow();
+    const hass = makeHass({
+      "calendar.family": st("calendar.family", "off", { friendly_name: "Family" }),
+      "todo.shopping": st("todo.shopping", "2", { friendly_name: "Shopping" }),
+      "sensor.power": st("sensor.power", "12", { friendly_name: "Power" }),
+    });
+    const config = { entities: [{ entity: "calendar.family", before: 30 }, { entity: "todo.shopping", type: "todo" }, "sensor.power"] };
+    const fields = (form, id) => form.schema.find((s) => s.name === "options").schema.find((s) => s.name === id).schema.map((s) => s.name);
+    const kept = edit(w, config, hass, (v) => {
+      v.hide_when_empty = false;
+    });
+    same(kept.form.data.options["calendar.family"].before, { days: 0, hours: 0, minutes: 30, seconds: 0 }, "a bare number is minutes");
+    same(["calendar.family", "todo.shopping", "sensor.power"].map((id) => fields(kept.form, id).includes("before")), [true, true, false]);
+    same(kept.written.entities, config.entities, "an untouched duration stays as written");
+    const changed = edit(w, config, hass, (v) => {
+      v.options["calendar.family"].before = { days: 0, hours: 0, minutes: 0, seconds: 0 };
+      v.options["todo.shopping"].before = { days: 1, hours: 0, minutes: 0, seconds: 0 };
+    });
+    same(
+      changed.written.entities,
+      ["calendar.family", { entity: "todo.shopping", type: "todo", before: { days: 1, hours: 0, minutes: 0, seconds: 0 } }, "sensor.power"],
+      "zero removes it"
+    );
   });
 });
 
@@ -3513,6 +3573,25 @@ test("opening a window updates the rain entry at once", () => {
   same(rows(el), [], "rain seven hours ahead is not yet shown");
   mock.timers.tick(3600050);
   same(rows(el).map((r) => r.title), ["Rain from 7 PM"], "the next full hour moves the six hours on");
+});
+
+test("a broken weather or lead gets a clear error", () => {
+  const w = makeWindow();
+  const error = (config) => {
+    try {
+      w.document.createElement("origami-notifications").setConfig({ type: "x", ...config });
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  };
+  same(error({ weather: "sensor.rain" }), "origami-notifications: weather must be a weather entity, e.g. weather.home");
+  same(error({ entities: [{ entity: "calendar.family", before: "soon" }] }), "origami-notifications: before must be minutes or a duration like 1:30:00");
+  same(error({ entities: [{ entity: "calendar.family", before: { weeks: 1 } }] }) !== null, true, "Home Assistant has no weeks in a duration");
+  same(
+    [30, "1:30:00", "0:45", { hours: 2 }, { days: 1, minutes: "15" }].map((before) => error({ weather: "weather.home", entities: [{ entity: "calendar.family", before }] })),
+    [null, null, null, null, null]
+  );
 });
 
 test("a dismissed weather entry stays away while the weather lasts", () => {
