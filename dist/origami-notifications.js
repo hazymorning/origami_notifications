@@ -3,15 +3,18 @@
 const CARD = "origami-notifications";
 const EDITOR = CARD + "-editor";
 const REPO = "https://github.com/hazymorning/origami_notifications";
-const VERSION = "0.5.0";
+const VERSION = "0.6.0";
 
 const DEFAULTS = {
   hide_when_empty: true,
   updates: true,
   repairs: true,
+  rotate: 8,
+  slide: "up",
 };
 
-const KEY_ORDER = ["entities", "label", "weather", "updates", "repairs", "hide_when_empty", "audience", "css"];
+const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "rotate", "slide", "audience", "css"];
+const INFO_KEY_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
 const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "before", "tap_action"];
 const ENTITY_KEY_ORDER = ["entity", ...OPTION_KEYS, "actions"];
 
@@ -86,6 +89,8 @@ const STRINGS = {
     wx_chance: "{p} chance",
     wx_frost_from: "Frost from {t}",
     wx_low: "Low of {v}",
+    wx_day: "Day",
+    wx_night: "Night",
   },
   de: {
     idle_title: "Alles ruhig",
@@ -131,6 +136,8 @@ const STRINGS = {
     wx_chance: "{p} Wahrscheinlichkeit",
     wx_frost_from: "Frost ab {t}",
     wx_low: "Tiefstwert {v}",
+    wx_day: "Tag",
+    wx_night: "Nacht",
   },
 };
 
@@ -153,6 +160,8 @@ const HA_STRINGS = {
   act_dock: ["ui.card.vacuum.actions.return_to_base"],
   act_dock_mower: ["ui.card.lawn_mower.actions.dock"],
   act_off: ["ui.card.common.turn_off"],
+  wx_day: ["ui.card.weather.day"],
+  wx_night: ["ui.card.weather.night"],
 };
 
 const borrowedStrings = (localize) => {
@@ -268,6 +277,118 @@ const stateActive = (st) => {
   return !(IDLE_STATES[domain] || []).includes(s);
 };
 
+/* The domains Home Assistant colors by their state, and how its tile card builds that color from theme variables. */
+const STATE_COLORED = new Set([
+  "alarm_control_panel",
+  "alert",
+  "automation",
+  "binary_sensor",
+  "calendar",
+  "camera",
+  "climate",
+  "cover",
+  "device_tracker",
+  "fan",
+  "group",
+  "humidifier",
+  "input_boolean",
+  "lawn_mower",
+  "light",
+  "lock",
+  "media_player",
+  "person",
+  "plant",
+  "remote",
+  "schedule",
+  "script",
+  "siren",
+  "sun",
+  "switch",
+  "timer",
+  "update",
+  "vacuum",
+  "valve",
+  "water_heater",
+  "weather",
+]);
+
+const cssChain = (names) => names.reduceRight((rest, name) => "var(" + name + (rest ? ", " + rest : "") + ")", "");
+
+const stateKey = (state) => String(state).toLowerCase().replace(/[^a-z0-9]+/g, "_");
+
+const stateColorChain = (domain, deviceClass, state, active) => {
+  const level = active ? "active" : "inactive";
+  return cssChain([
+    ...(deviceClass ? ["--state-" + domain + "-" + deviceClass + "-" + stateKey(state) + "-color"] : []),
+    "--state-" + domain + "-" + stateKey(state) + "-color",
+    "--state-" + domain + "-" + level + "-color",
+    "--state-" + level + "-color",
+  ]);
+};
+
+/* A person or tracker has its color on a badge, so its icon stays plain, as on a tile. */
+const stateColor = (st) => {
+  if (st.state === "unavailable") return "var(--state-unavailable-color)";
+  const domain = st.entity_id.split(".")[0];
+  const a = st.attributes || {};
+  if (domain === "sensor" && a.device_class === "battery" && st.state !== "" && !isNaN(Number(st.state))) {
+    const n = Number(st.state);
+    return "var(--state-sensor-battery-" + (n >= 70 ? "high" : n >= 30 ? "medium" : "low") + "-color)";
+  }
+  const members = domain === "group" && Array.isArray(a.entity_id) ? [...new Set(a.entity_id.map((id) => String(id).split(".")[0]))] : [];
+  const colored = domain === "group" ? (members.length === 1 ? members[0] : null) : domain;
+  const active = stateActive(st);
+  if (!STATE_COLORED.has(colored) || domain === "person" || domain === "device_tracker") {
+    return active ? "var(--state-icon-color)" : "var(--state-inactive-color)";
+  }
+  return stateColorChain(colored, a.device_class, st.state, active);
+};
+
+/* Theme color names, as the color option of a tile takes them. */
+const THEME_COLORS = new Set([
+  "primary",
+  "accent",
+  "red",
+  "pink",
+  "purple",
+  "deep-purple",
+  "indigo",
+  "blue",
+  "light-blue",
+  "cyan",
+  "teal",
+  "green",
+  "light-green",
+  "lime",
+  "yellow",
+  "amber",
+  "orange",
+  "deep-orange",
+  "brown",
+  "light-grey",
+  "grey",
+  "dark-grey",
+  "blue-grey",
+  "black",
+  "white",
+  "primary-text",
+  "secondary-text",
+  "disabled",
+]);
+
+const themeColor = (color) => (THEME_COLORS.has(color) ? "var(--" + color + "-color)" : color);
+
+/* Urgency colors an entry first, then its own color, then its entity's state, like a tile. */
+const KIND_COLORS = { system: "var(--info-color)", repair: "var(--warning-color)" };
+
+const itemColor = (it) => {
+  if (it.sev === "crit") return "var(--error-color)";
+  if (it.sev === "warn") return "var(--warning-color)";
+  if (it.color) return it.color;
+  if (it.stateObj) return stateColor(it.stateObj);
+  return KIND_COLORS[it.kind] || "var(--state-icon-color)";
+};
+
 /* UpdateEntityFeature.INSTALL */
 const UPDATE_INSTALL = 1;
 
@@ -352,6 +473,25 @@ const SIZE_MS = 250;
 const EASE_STANDARD = "cubic-bezier(0.4, 0, 0.2, 1)";
 const EASE_FADE_OUT = "cubic-bezier(0.4, 0, 1, 1)";
 const EASE_FADE_IN = "cubic-bezier(0, 0, 0.2, 1)";
+
+/* A hold and a double tap take as long as on Home Assistant's own cards. */
+const HOLD_MS = 500;
+const DOUBLE_TAP_MS = 250;
+
+/* How recent an entry must be to count as news. */
+const NEWS_MS = 2 * 60000;
+
+/* Home Assistant's tokens set the pace, and drop to 1 ms where motion is reduced. */
+const tokenMs = (el, name, fallback) => {
+  const v = getComputedStyle(el).getPropertyValue(name).trim();
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? (/ms$/.test(v) ? n : n * 1000) : fallback;
+};
+
+const hasAction = (a) => Boolean(a && a.action && a.action !== "none");
+
+/* Below this width the list opens in Home Assistant's dialog instead of unfolding in the card. */
+const NARROW_PX = 300;
 
 /* Home Assistant drops the gap after a hidden card in one jump. Closing ends at a speed of
  * about one gap per frame, so the jump looks like the last frame. In the view footer the gap
@@ -454,6 +594,32 @@ const fill = (template, vars) =>
 const attrPath = (attrs, path) =>
   path.split(".").reduce((v, k) => (v == null ? v : v[k]), attrs);
 
+/* The conditions Home Assistant's frontend checks itself. It sends every other kind to the server. */
+const CLIENT_CONDITIONS = new Set(["state", "numeric_state", "screen", "user", "location", "time", "view_columns", "and", "or", "not"]);
+const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+const listOf = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]);
+
+const isEntityId = (v) => typeof v === "string" && /^\w+\.\w+$/.test(v);
+
+const userPerson = (hass) => {
+  const uid = hass.user && hass.user.id;
+  if (!uid) return null;
+  for (const id in hass.states) {
+    if (id.startsWith("person.") && hass.states[id].attributes.user_id === uid) return hass.states[id];
+  }
+  return null;
+};
+
+/* Read as leniently as Home Assistant reads it, so 8:00 AM counts as 8:00. */
+const daySeconds = (t) => {
+  const [h, m, s] = String(t).split(":").map((part) => parseInt(part, 10));
+  return h * 3600 + m * 60 + (s || 0);
+};
+
+/* Home Assistant skips a condition that is switched off. */
+const switchedOn = (c) => !(isObject(c) && c.enabled === false);
+
 const labelled = (hass, label) => {
   const reg = hass && hass.entities;
   if (!label || !reg) return [];
@@ -499,6 +665,14 @@ const fromServerTime = (text, timeZone) => {
   /* Where the clock skips midnight, as in Santiago, the day begins at the end of the gap. */
   if (zonedParts(ts, timeZone).day !== Number(m[3])) ts = wall - offset(wall);
   return ts + (m[7] ? Number(m[7].slice(0, 3).padEnd(3, "0")) : 0);
+};
+
+/* The moment the clock in timeZone shows the given seconds of a day. On the days the clock changes, that is not
+ * midnight plus the seconds. */
+const wallTime = (day, seconds, timeZone) => {
+  if (!(seconds < DAY_MS / 1000)) return seconds >= DAY_MS / 1000 ? dayStart(day + 1, timeZone) : NaN;
+  const time = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map((n) => String(n).padStart(2, "0"));
+  return fromServerTime(new Date(day * DAY_MS).toISOString().slice(0, 10) + "T" + time.join(":"), timeZone);
 };
 
 /* Home Assistant writes times as ISO text. Date.parse would also read a bare number like 5 as a year. */
@@ -1145,7 +1319,7 @@ const RENDERERS = {
   generic: renderGeneric,
 };
 
-/* Titles come from the integration translations, which _refreshRepairs loads. */
+/* Titles and integration names come from the translations _refreshRepairs loads. */
 const REPAIR_SEV = { critical: "crit", error: "crit", warning: "warn" };
 
 const renderRepair = (issue, items, ctx) => {
@@ -1153,16 +1327,16 @@ const renderRepair = (issue, items, ctx) => {
   const slug = issue.translation_key || issue.issue_id;
   const key = "component." + issue.domain + ".issues." + slug + ".title";
   const vars = issue.translation_placeholders || {};
-  const title =
-    (ctx.issueLocalize && ctx.issueLocalize(key, vars)) ||
-    (h.localize && h.localize(key, vars)) ||
-    prettySlug(slug);
+  const localize = (k, v) => (ctx.issueLocalize && ctx.issueLocalize(k, v)) || (h.localize && h.localize(k, v)) || "";
+  const title = localize(key, vars) || prettySlug(slug);
   items.push({
     key: "i:" + issue.domain + "/" + issue.issue_id,
     kind: "repair",
     sev: REPAIR_SEV[issue.severity] || "warn",
     title,
-    message: issue.breaks_in_ha_version ? fill(ctx.t.breaks_in, { v: issue.breaks_in_ha_version }) : "",
+    message: issue.breaks_in_ha_version
+      ? fill(ctx.t.breaks_in, { v: issue.breaks_in_ha_version })
+      : localize("component." + (issue.issue_domain || issue.domain) + ".title"),
     ts: parseTs(issue.created, ctx.now),
     past: true,
     dismiss: () =>
@@ -1338,13 +1512,26 @@ const alikeGroup = (dc, members, ctx) => {
 /* Forecasts by "<entity>|<type>", shared by every card and kept over a remount. */
 const FORECAST_CACHE = new Map();
 
-/* Home Assistant's feature bits for forecasts. The card asks for hourly, then twice daily, then daily. */
-const forecastType = (st) => {
-  const features = Number(st && st.attributes && st.attributes.supported_features) || 0;
-  return features & 2 ? "hourly" : features & 4 ? "twice_daily" : features & 1 ? "daily" : null;
-};
+/* Home Assistant's feature bits for forecasts. For rain ahead the card asks for hourly, then twice daily, then daily. */
+const FORECAST_BITS = { daily: 1, hourly: 2, twice_daily: 4 };
+const FORECAST_TYPES = Object.keys(FORECAST_BITS);
+
+const forecastSupported = (st, type) =>
+  FORECAST_TYPES.includes(type) && Boolean((Number(st && st.attributes && st.attributes.supported_features) || 0) & FORECAST_BITS[type]);
+
+const forecastType = (st) => ["hourly", "twice_daily", "daily"].find((type) => forecastSupported(st, type)) || null;
+
+/* An info shows the forecast it names while its weather entity has it. */
+const showsForecast = (info, st) => info.entity.startsWith("weather.") && info.show_forecast !== false && forecastSupported(st, info.forecast_type);
+
+/* Like Home Assistant's forecast card, a clear or partly cloudy night has a night icon. */
+const NIGHT_ICONS = { sunny: "mdi:weather-night", partlycloudy: "mdi:weather-night-partly-cloudy" };
 
 const FORECAST_SPAN = { hourly: 3600000, twice_daily: 43200000, daily: 86400000 };
+
+/* Where the profile picks a number format, Home Assistant formats numbers like these locales. None is en-US
+ * without grouping. */
+const NUMBER_LOCALES = { comma_decimal: "en-US", decimal_comma: "de", space_comma: "fr", quote_decimal: "de-CH", none: "en-US" };
 
 /* The entries that have not ended yet. Home Assistant sends null when it has no forecast. */
 const forecastFilterPast = (forecast, type, now) =>
@@ -1354,7 +1541,9 @@ const forecastFilterPast = (forecast, type, now) =>
 const forecastFingerprint = (forecast) =>
   Array.isArray(forecast)
     ? forecast
-        .map((f) => (f ? [f.datetime, f.condition, f.temperature, f.precipitation, f.precipitation_probability].join("|") : ""))
+        .map((f) =>
+          f ? [f.datetime, f.condition, f.temperature, f.templow, f.is_daytime, f.precipitation, f.precipitation_probability].join("|") : ""
+        )
         .join(";")
     : "";
 
@@ -1377,6 +1566,11 @@ const WEATHER_ICONS = {
   hail: "mdi:weather-hail",
   frost: "mdi:snowflake-thermometer",
 };
+
+/* The weather condition whose state color each entry takes. */
+const WEATHER_STATES = { rain: "rainy", snow: "snowy", thunder: "lightning", hail: "hail", frost: "snowy" };
+
+const weatherColor = (kind) => stateColorChain("weather", null, WEATHER_STATES[kind], true);
 
 /* Open windows anywhere in Home Assistant, but not a group of them. Every window is watched, so one that opens counts at once. */
 const openWindows = (states, watch) => {
@@ -1410,6 +1604,7 @@ const renderWeather = (id, st, forecast, type, items, ctx) => {
       kind: "weather",
       entity: id,
       icon: WEATHER_ICONS[kind],
+      color: weatherColor(kind),
       sev: windows ? "warn" : undefined,
       title,
       message,
@@ -1447,6 +1642,7 @@ const renderWeather = (id, st, forecast, type, items, ctx) => {
     kind: "weather",
     entity: id,
     icon: WEATHER_ICONS.frost,
+    color: weatherColor("frost"),
     title: fill(t.wx_frost_from, { t: ctx.hour(start) }),
     message: fill(t.wx_low, { v: ctx.formatAttribute(st, "temperature", Math.min(...ahead.map((f) => Number(f.temperature)))) }),
     ts: start,
@@ -1505,9 +1701,12 @@ const clockText = (ms) => {
 const nextTick = (items, head, open, now) => {
   const clock = (open ? items : head ? [head] : []).find((it) => it.clock && it.ts > now);
   if (clock) return (clock.ts - now) % 1000 || 1000;
-  if (open || items.some((it) => isAhead(it, now))) return 60000 - (now % 60000);
+  if (open || items.some((it) => isAhead(it, now)) || (head && !head.clock && headTime(head))) return 60000 - (now % 60000);
   return 0;
 };
+
+/* The closed card shows the time of an entry in place of its message while it runs, or when it has no message. */
+const headTime = (it) => Boolean(it.live || (!it.message && Number.isFinite(it.ts)));
 
 /* A row is built again only when something it shows has changed. Times change in place. */
 const rowSig = (it) =>
@@ -1516,7 +1715,7 @@ const rowSig = (it) =>
     it.icon || "",
     it.sev || "",
     it.title,
-    it.message,
+    it.message || Number.isFinite(it.ts),
     Boolean(it.dismiss),
     Boolean(it.open || it.entity) && !it.inert,
     (it.actions || []).map((a) => a.label + (a.disabled ? "!" : "")).join("|"),
@@ -1578,23 +1777,20 @@ const setIcon = (tile, it, hass) => {
 const STYLES = `
   *, *::before, *::after { box-sizing: border-box; }
   :host {
-    --origami-pad: var(--card-padding, 12px);
-    --origami-gap: var(--ha-space-3, 12px);
+    --origami-pad: 10px;
+    --origami-gap: 10px;
     --origami-gap-s: var(--ha-space-2, 8px);
-    --origami-radius: var(--radius-inner, var(--ha-border-radius-lg, 12px));
-    --origami-radius-s: var(--radius-small, var(--ha-border-radius-md, 8px));
-    --origami-tile: var(--control-height-icon, 40px);
-    --origami-tile-s: var(--control-height-mini, 32px);
-    --origami-muted: var(--opacity-muted, 0.6);
-    --origami-quiet: var(--opacity-quiet, 0.45);
-    --origami-ease: var(--ease-standard, cubic-bezier(0.22, 1, 0.36, 1));
-    --origami-time: var(--duration-normal, var(--ha-animation-duration-normal, 250ms));
-    --origami-icon: var(--icon-size-s, 20px);
-    --origami-focus: var(--fill-strong, var(--ha-color-focus, var(--primary-color)));
+    --origami-radius: var(--ha-border-radius-md, 8px);
+    --origami-tile: 36px;
+    --origami-icon: 24px;
     --origami-card-bg: var(--ha-card-background, var(--card-background-color, #fff));
-    --origami-row-bg: var(--card-item-background, var(--secondary-background-color));
-    --origami-hover: color-mix(in srgb, currentColor 7%, transparent);
+    --origami-row-bg: transparent;
+    --origami-hover: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+    --origami-focus: var(--ha-color-focus, var(--primary-color));
+    --origami-time: var(--ha-animation-duration-normal, 250ms);
+    --origami-ease: cubic-bezier(0.4, 0, 0.2, 1);
     --origami-bg-auto: 0.22;
+    --tile-color: var(--state-inactive-color);
     display: grid;
     grid-template-rows: 1fr;
     -webkit-tap-highlight-color: transparent;
@@ -1618,8 +1814,12 @@ const STYLES = `
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
-    touch-action: manipulation;
-    transition: transform 400ms var(--origami-ease);
+    transition: box-shadow 180ms ease-in-out, border-color 180ms ease-in-out;
+  }
+  /* Keyboard focus rings the card in the color of what it shows, like a tile. */
+  ha-card:has(.head:focus-visible) {
+    border-color: var(--tile-color);
+    box-shadow: var(--ha-card-box-shadow, 0 0 0 0 transparent), 0 0 0 1px var(--tile-color);
   }
   /* In the sections view footer the list scrolls within a quarter of the screen. */
   :host(.docked) ha-card { max-height: var(--origami-max-height, 25dvh); }
@@ -1627,9 +1827,9 @@ const STYLES = `
    * scrolls. ha-card is stretched rather than sized, so a margin from css stays inside the cell. */
   :host(.bounded) { height: 100%; }
   :host(.bounded) ha-card:not(.open) .hwrap { flex: 1 1 auto; }
-  ha-card.has-items:not(.open):active { transform: scale(0.98); transition-duration: 120ms; }
+  :host(.bounded) ha-card:not(.open) .head { height: 100%; }
 
-  .backdrop {
+  .backdrop, .alert {
     position: absolute;
     inset: 0;
     z-index: -1;
@@ -1650,68 +1850,119 @@ const STYLES = `
     transition: opacity 700ms var(--origami-ease);
   }
   .backdrop img.on { opacity: var(--origami-bg-opacity, var(--origami-bg-auto)); }
+  /* Something critical makes the closed card pulse, like Home Assistant's alert card. */
+  .alert { background: var(--error-color); opacity: 0; }
+  ha-card.crit:not(.open) .alert { animation: origami-pulse 1s ease-in-out infinite alternate; }
+  @keyframes origami-pulse { to { opacity: var(--origami-pulse-opacity, 0.2); } }
 
-  .head {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: "htl hti hsd" "htl hsub hsd";
-    align-content: center;
-    column-gap: var(--origami-gap);
-    padding: var(--origami-pad);
+  .head, .ebar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--origami-gap);
     outline: none;
   }
-  ha-card.has-items .head, .ebar { cursor: pointer; }
+  .head {
+    padding: 0 var(--origami-pad);
+    touch-action: pan-y;
+  }
+  ha-card.tappable .head, .ebar { cursor: pointer; }
+  ha-ripple {
+    --ha-ripple-color: var(--tile-color);
+    --ha-ripple-hover-opacity: 0.04;
+    --ha-ripple-pressed-opacity: 0.12;
+  }
+  ha-card:not(.tappable) .head ha-ripple { display: none; }
 
-  .tile {
-    grid-area: htl;
-    align-self: center;
+  .tile, .rtile {
     position: relative;
+    flex: none;
     width: var(--origami-tile);
     height: var(--origami-tile);
     display: flex; align-items: center; justify-content: center;
-    background: var(--fill-active, var(--primary-text-color));
-    color: var(--text-color-active, var(--origami-card-bg));
-    border-radius: var(--origami-radius);
+    border-radius: var(--ha-tile-icon-border-radius, var(--ha-border-radius-pill, 9999px));
+    color: var(--tile-color);
+    --mdc-icon-size: var(--origami-icon);
+    transition: color var(--origami-time) ease-in-out;
   }
-  .tile.warn { background: var(--warning-color); color: var(--text-color-active, var(--primary-background-color)); }
-  .tile.crit { background: var(--error-color); color: var(--text-color-active, var(--primary-background-color)); }
-  .tile.idle {
-    background: var(--origami-row-bg);
-    color: var(--primary-text-color);
-    opacity: var(--origami-muted);
+  .glyph {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: inherit;
   }
-  .tile :is(ha-icon, ha-state-icon) { --mdc-icon-size: var(--origami-icon); }
+  .tile :is(ha-icon, ha-state-icon), .rtile :is(ha-icon, ha-state-icon) { display: flex; }
+  .tile.idle { color: var(--state-inactive-color); }
 
   .badge {
     position: absolute;
-    top: calc(var(--ha-space-1, 4px) * -1);
-    inset-inline-end: calc(var(--ha-space-1, 4px) * -1);
-    min-width: 20px; height: 20px;
+    top: -2px;
+    inset-inline-end: -6px;
+    min-width: 16px; height: 16px;
     padding: 0 4px;
     display: flex; align-items: center; justify-content: center;
-    background: var(--origami-card-bg);
-    color: var(--primary-text-color);
-    border-radius: var(--origami-radius-s);
-    box-shadow: var(--ha-card-box-shadow, none);
-    font-size: var(--font-size-compact, 11px);
-    font-weight: var(--ha-font-weight-bold, 700);
+    background: var(--accent-color);
+    color: var(--text-accent-color, var(--text-primary-color, #fff));
+    border-radius: 8px;
+    box-shadow: 0 0 0 2px var(--origami-card-bg);
+    font-size: var(--ha-font-size-xs, 10px);
+    font-weight: var(--ha-font-weight-medium, 500);
     font-variant-numeric: tabular-nums;
     line-height: 1;
   }
   .badge[hidden] { display: none; }
 
-  .head .title {
-    grid-area: hti;
-    align-self: end;
+  /* Only the text moves when the card turns, and it is clipped here. The soft edges lie in the space around the
+   * text, so the text at rest never fades. The row height sits here too, so the open card folds the head away. */
+  .texts {
+    flex: 1 1 auto;
     min-width: 0;
-    color: var(--primary-text-color);
-    font-size: var(--ha-font-size-l, 16px);
-    font-weight: var(--ha-font-weight-bold, 700);
-    line-height: var(--ha-line-height-condensed, 1.2);
+    min-height: var(--row-height, 56px);
+    align-self: stretch;
+    display: flex;
+    margin-inline: calc(var(--origami-gap) * -1);
+    padding-inline: var(--origami-gap);
+    overflow: hidden;
+  }
+  .texts.up { mask-image: linear-gradient(to bottom, transparent, #000 8px, #000 calc(100% - 8px), transparent); }
+  .texts.side { mask-image: linear-gradient(to right, transparent, #000 var(--origami-gap), #000 calc(100% - var(--origami-gap)), transparent); }
+  .slide {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .head .title {
+    min-width: 0;
+    color: var(--ha-tile-info-primary-color, var(--primary-text-color));
+    font-size: var(--ha-tile-info-primary-font-size, var(--ha-font-size-m, 14px));
+    font-weight: var(--ha-tile-info-primary-font-weight, var(--ha-font-weight-medium, 500));
+    line-height: var(--ha-tile-info-primary-line-height, var(--ha-line-height-normal, 1.6));
+    letter-spacing: var(--ha-tile-info-primary-letter-spacing, 0.1px);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .head.single .title { grid-row: 1 / 3; align-self: center; }
-  .head.single .msg { display: none; }
+  .msg, .eta {
+    min-width: 0;
+    color: var(--ha-tile-info-secondary-color, var(--primary-text-color));
+    font-size: var(--ha-tile-info-secondary-font-size, var(--ha-font-size-s, 12px));
+    font-weight: var(--ha-tile-info-secondary-font-weight, var(--ha-font-weight-normal, 400));
+    line-height: var(--ha-tile-info-secondary-line-height, var(--ha-line-height-condensed, 1.2));
+    letter-spacing: var(--ha-tile-info-secondary-letter-spacing, 0.4px);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .msg state-display { display: inline; }
+  .msg state-display[hidden] { display: none; }
+  .eta { font-variant-numeric: tabular-nums; }
+  .msg[hidden], .eta[hidden], .head.single .msg { display: none; }
+
+  .chev {
+    flex: none;
+    color: var(--secondary-text-color);
+    --mdc-icon-size: 20px;
+  }
+  .chev[hidden], :host(.narrow) .head .chev { display: none; }
+
   /* Header and drawer swap through their grid rows, nothing is measured. */
   .hwrap, .drawer {
     display: grid;
@@ -1724,39 +1975,37 @@ const STYLES = `
   .inner { min-height: 0; }
   .head, .inner {
     overflow: hidden;
-    transition: opacity 200ms var(--origami-ease), padding 280ms var(--origami-ease), visibility 0s 280ms;
+    transition: opacity 200ms var(--origami-ease), visibility 0s 280ms;
   }
   .inner {
     display: flex; flex-direction: column;
     padding-bottom: 0; opacity: 0; visibility: hidden;
+    transition: opacity 200ms var(--origami-ease), padding 280ms var(--origami-ease), visibility 0s 280ms;
   }
-  ha-card.open .head { padding-block: 0; opacity: 0; visibility: hidden; }
+  ha-card.open .head { opacity: 0; visibility: hidden; }
   ha-card.open .inner {
-    padding-bottom: var(--origami-pad);
+    padding-bottom: var(--origami-gap-s);
     opacity: 1;
     visibility: visible;
     transition: opacity 200ms 80ms var(--origami-ease), padding 280ms var(--origami-ease), visibility 0s;
   }
   ha-card:not(.open) .head {
-    transition: opacity 200ms 80ms var(--origami-ease), padding 280ms var(--origami-ease), visibility 0s;
+    transition: opacity 200ms 80ms var(--origami-ease), visibility 0s;
   }
   .ebar {
     flex: none;
-    display: flex; align-items: center;
-    gap: var(--origami-gap-s);
-    padding: var(--origami-pad);
-    outline: none;
+    min-height: 48px;
+    padding: 0 var(--origami-pad);
   }
-  .head:focus-visible, .ebar:focus-visible {
+  .ebar:focus-visible, .row .rtile:focus-visible, .x:focus-visible, .act:focus-visible, .clear:focus-visible {
     outline: 2px solid var(--origami-focus);
     outline-offset: -2px;
-    border-radius: var(--origami-radius);
   }
+  .ebar:focus-visible { border-radius: var(--ha-card-border-radius, var(--ha-border-radius-lg, 12px)); }
   .count {
     flex: 1 1 auto;
-    color: var(--primary-text-color);
-    opacity: var(--origami-muted);
-    font-size: var(--ha-font-size-s, 12px);
+    color: var(--secondary-text-color);
+    font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
     font-variant-numeric: tabular-nums;
   }
@@ -1765,8 +2014,8 @@ const STYLES = `
     flex: 0 1 auto;
     min-height: 0;
     display: flex; flex-direction: column;
-    gap: var(--origami-pad);
-    padding: 0 var(--origami-pad);
+    gap: 2px;
+    padding: 0 calc(var(--origami-pad) - 4px);
   }
   :host(.docked) .list,
   :host(.bounded) .list,
@@ -1780,39 +2029,31 @@ const STYLES = `
   :host(.capped) ha-card.settled .list { overflow-y: auto; }
   /* An animating row hides its overflow, so in a scrolling list it would shrink without flex none. */
   .row {
+    position: relative;
     flex: none;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: var(--origami-tile) minmax(0, 1fr) auto;
     grid-template-areas: "rtile rtitle rmeta" "rtile rbody rbody";
     align-items: center;
     column-gap: var(--origami-gap);
-    row-gap: 2px;
-    padding: var(--origami-pad);
+    padding: 6px 4px;
     background: var(--origami-row-bg);
     border-radius: var(--origami-radius);
-    transition: box-shadow 150ms ease, background-color var(--origami-time) var(--origami-ease);
+    transition: background-color var(--origami-time) var(--origami-ease);
   }
+  .row.crit { background: color-mix(in srgb, var(--error-color) 12%, var(--origami-row-bg)); }
   .row.link, .row.expandable, .row.open { cursor: pointer; }
   .row.moving, .foot.moving { overflow: hidden; }
   .row.leaving, .foot.leaving { pointer-events: none; }
-  :host(.has-bg) .row { background: color-mix(in srgb, var(--origami-row-bg) 72%, transparent); }
+  :host(.has-bg) .row { background: color-mix(in srgb, var(--origami-card-bg) 60%, transparent); }
+  :host(.has-bg) .row.crit { background: color-mix(in srgb, var(--error-color) 16%, color-mix(in srgb, var(--origami-card-bg) 60%, transparent)); }
   .rtile {
     grid-area: rtile;
     align-self: start;
-    position: relative;
-    width: var(--origami-tile-s);
-    height: var(--origami-tile-s);
-    display: flex; align-items: center; justify-content: center;
-    background: var(--fill-active, var(--primary-text-color));
-    color: var(--text-color-active, var(--origami-card-bg));
-    border-radius: var(--origami-radius-s);
     outline: none;
   }
   .rtile[role="button"] { cursor: pointer; }
-  .rtile :is(ha-icon, ha-state-icon) { --mdc-icon-size: var(--icon-size-xs, 18px); display: flex; }
-  .rtile.warn { background: var(--warning-color); color: var(--text-color-active, var(--primary-background-color)); }
-  .rtile.crit { background: var(--error-color); color: var(--text-color-active, var(--primary-background-color)); }
-  .tile img, .rtile img {
+  .glyph img, .rtile img {
     position: absolute; inset: 0;
     width: 100%; height: 100%;
     object-fit: cover;
@@ -1828,8 +2069,9 @@ const STYLES = `
     min-width: 0;
     color: var(--primary-text-color);
     font-size: var(--ha-font-size-m, 14px);
-    font-weight: var(--ha-font-weight-bold, 700);
+    font-weight: var(--ha-font-weight-medium, 500);
     line-height: var(--ha-line-height-normal, 1.6);
+    letter-spacing: 0.1px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   /* Only a pointer can open a row, so keyboard focus on its buttons shows all of the text. */
@@ -1840,12 +2082,11 @@ const STYLES = `
     justify-self: end;
     min-height: calc(var(--ha-font-size-m, 14px) * var(--ha-line-height-normal, 1.6));
     display: flex; align-items: center;
-    gap: var(--origami-gap-s);
+    gap: 2px;
   }
   .when {
-    color: var(--primary-text-color);
-    opacity: var(--origami-quiet);
-    font-size: var(--font-size-compact, 11px);
+    color: var(--secondary-text-color);
+    font-size: var(--ha-font-size-s, 12px);
     font-variant-numeric: tabular-nums;
     line-height: 1;
     white-space: nowrap;
@@ -1858,36 +2099,46 @@ const STYLES = `
   }
   .x {
     position: relative;
-    width: 28px; height: 28px;
-    margin: calc((var(--icon-size-xs, 18px) - 28px) / 2);
+    width: 32px; height: 32px;
+    margin: -5px -4px -5px 0;
     display: flex; align-items: center; justify-content: center;
     padding: 0;
     border: none;
     background: transparent;
-    color: var(--primary-text-color);
-    opacity: var(--origami-quiet);
-    border-radius: var(--origami-radius-s);
+    color: var(--secondary-text-color);
+    border-radius: 50%;
     cursor: pointer;
-    transition: opacity 150ms ease, background-color 150ms ease, transform 150ms ease;
+    --mdc-icon-size: 20px;
+  }
+  .x::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity 150ms ease;
   }
   /* A bigger touch target. */
-  .x::before { content: ""; position: absolute; inset: -8px -4px; }
-  .x ha-icon { --mdc-icon-size: var(--icon-size-xs, 18px); display: flex; }
+  .x::before { content: ""; position: absolute; inset: -6px -4px; }
+  .x ha-icon { display: flex; }
   .row .body {
     grid-area: rbody;
-    color: var(--primary-text-color);
-    opacity: var(--origami-muted);
+    color: var(--secondary-text-color);
     font-size: var(--ha-font-size-s, 12px);
-    line-height: var(--ha-line-height-normal, 1.6);
+    line-height: 1.4;
+    letter-spacing: 0.2px;
     overflow-wrap: anywhere;
     text-wrap: pretty;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;
-    max-height: calc(2 * var(--ha-line-height-normal, 1.6) * 1em);
+    max-height: calc(2 * 1.4em);
     overflow: hidden;
   }
+  .row .body:empty { display: none; }
+  .row .body .when { font-size: inherit; line-height: inherit; }
   /* An opened message can be selected and copied. */
   .row:is(.open, :has(:focus-visible)) .body {
     display: block;
@@ -1905,102 +2156,67 @@ const STYLES = `
     display: flex;
     flex-wrap: wrap;
     gap: var(--origami-gap-s);
-    margin-top: var(--origami-gap-s);
+    margin: var(--origami-gap-s) 0 2px;
   }
+  /* Buttons look like Home Assistant's filled buttons. */
   .act {
     border: none; cursor: pointer;
-    height: 28px;
-    padding: 0 var(--origami-gap);
-    background: var(--fill-strong, color-mix(in srgb, currentColor 10%, transparent));
-    color: var(--primary-text-color);
-    border-radius: var(--origami-radius-s);
-    font-size: var(--font-size-compact, 11px);
+    height: 32px;
+    padding: 0 12px;
+    background: var(--ha-color-fill-primary-normal-resting, color-mix(in srgb, var(--primary-color) 14%, transparent));
+    color: var(--ha-color-on-primary-normal, var(--primary-color));
+    border-radius: var(--ha-border-radius-pill, 9999px);
+    font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
     font-variant-numeric: tabular-nums;
+    line-height: 1;
     white-space: nowrap;
-    transition: box-shadow 150ms ease, transform 150ms ease;
+    transition: background-color 150ms ease-out;
   }
+  .act:active { background: var(--ha-color-fill-primary-normal-active, color-mix(in srgb, var(--primary-color) 24%, transparent)); }
   .act[disabled] {
-    opacity: var(--opacity-disabled, 0.3);
+    background: var(--ha-color-fill-disabled-normal-resting, color-mix(in srgb, var(--primary-text-color) 8%, transparent));
+    color: var(--ha-color-on-disabled-normal, var(--disabled-text-color));
     pointer-events: none;
   }
-  .msg, .eta {
-    grid-area: hsub;
-    align-self: start;
-    margin-top: 2px;
-    overflow: hidden;
-    color: var(--primary-text-color);
-    opacity: var(--origami-muted);
-    font-size: var(--ha-font-size-s, 12px);
-    line-height: var(--ha-line-height-normal, 1.6);
-    white-space: nowrap;
-  }
-  .msg.fade { mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%); }
-  .eta { min-width: 0; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
-  .msg[hidden], .eta[hidden] { display: none; }
-  .track { display: inline-flex; max-width: 100%; }
-  .track .t { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .track .dup { display: none; }
-  .track.scroll { max-width: none; animation: marquee var(--scroll-s, 12s) linear infinite; }
-  .track.scroll:dir(rtl) { animation-name: marquee-rtl; }
-  .track.scroll .t { overflow: visible; max-width: none; padding-inline-end: var(--origami-gap); }
-  .track.scroll .t::after {
-    content: "\\2022";
-    padding-inline-start: var(--origami-gap);
-    opacity: var(--origami-quiet);
-  }
-  .track.scroll .dup { display: inline; }
-  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-  @keyframes marquee-rtl { from { transform: translateX(0); } to { transform: translateX(50%); } }
-
-  .head .chev {
-    grid-area: hsd;
-    align-self: center;
-    justify-self: end;
-    margin-inline-end: var(--origami-gap-s);
-  }
-  .chev {
-    flex: 0 0 auto;
-    color: var(--primary-text-color);
-    opacity: var(--origami-muted);
-    --mdc-icon-size: var(--icon-size-m, 24px);
-    transition: opacity 150ms ease;
-  }
-  .chev[hidden] { display: none; }
-
   .foot {
     flex: none;
-    margin: var(--origami-pad) var(--origami-pad) 0;
-    border-top: var(--separator, 2px solid var(--divider-color, color-mix(in srgb, currentColor 10%, transparent)));
+    margin: var(--origami-gap-s) var(--origami-pad) 0;
+    border-top: 1px solid var(--divider-color, color-mix(in srgb, currentColor 12%, transparent));
     padding-top: var(--origami-gap-s);
     text-align: end;
   }
   .foot[hidden] { display: none; }
   .clear {
     border: none; cursor: pointer;
-    height: var(--origami-tile-s);
-    padding: 0 var(--origami-gap);
+    height: 36px;
+    padding: 0 12px;
     background: transparent;
-    color: var(--primary-text-color);
-    opacity: var(--origami-muted);
-    border-radius: var(--origami-radius);
-    font-size: var(--ha-font-size-s, 12px);
+    color: var(--ha-color-on-primary-normal, var(--primary-color));
+    border-radius: var(--ha-border-radius-pill, 9999px);
+    font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
-    transition: opacity 150ms ease, background-color 150ms ease, transform 150ms ease;
+    transition: background-color 150ms ease-out;
   }
-  .x:focus-visible, .act:focus-visible, .clear:focus-visible, .rtile:focus-visible {
-    outline: 2px solid var(--origami-focus);
-    outline-offset: 2px;
-  }
-  .x:active, .clear:active { transform: scale(0.92); }
-  .act:active { transform: scale(0.96); }
+  .clear:active { background: var(--ha-color-fill-primary-quiet-active, color-mix(in srgb, var(--primary-color) 12%, transparent)); }
+  .x:active::after { opacity: 0.16; }
 
   @media (hover: hover) {
-    .msg:hover .track.scroll { animation-play-state: paused; }
-    .head:hover .chev, .ebar:hover .chev { opacity: 1; }
-    .row.link:hover, .row.expandable:hover, .row.open:hover { box-shadow: inset 0 0 0 100vmax var(--origami-hover); }
-    .x:hover, .clear:hover { opacity: 1; background-color: var(--origami-hover); }
-    .act:hover { box-shadow: inset 0 0 0 100vmax var(--origami-hover); }
+    .row.link:hover, .row.expandable:hover, .row.open:hover { background-color: var(--origami-hover); }
+    .row.crit.link:hover { background-color: color-mix(in srgb, var(--error-color) 16%, var(--origami-hover)); }
+    .x:hover::after { opacity: 0.1; }
+    .act:hover { background: var(--ha-color-fill-primary-normal-hover, color-mix(in srgb, var(--primary-color) 20%, transparent)); }
+    .clear:hover { background: var(--ha-color-fill-primary-quiet-hover, color-mix(in srgb, var(--primary-color) 8%, transparent)); }
+    .ebar:hover .chev { color: var(--primary-text-color); }
+  }
+
+  /* Read by screen readers only. */
+  .say {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   /* The background picture is decoration, so it goes for less transparency or more contrast. */
@@ -2014,6 +2230,7 @@ const STYLES = `
       transition: none !important;
       animation: none !important;
     }
+    ha-card.crit:not(.open) .alert { opacity: var(--origami-pulse-opacity, 0.2); }
   }
 `;
 
@@ -2021,12 +2238,17 @@ const TEMPLATE = `
   <style>${STYLES}</style>
   <ha-card>
     <div class="backdrop" aria-hidden="true"><img alt="" draggable="false"><img alt="" draggable="false"></div>
+    <div class="alert" aria-hidden="true"></div>
     <div class="hwrap">
-      <div class="head" role="button" tabindex="0" aria-expanded="false" aria-live="polite">
-        <div class="tile"><ha-icon></ha-icon><div class="badge"></div></div>
-        <div class="title"></div>
-        <div class="msg"><div class="track"><span class="t"></span><span class="t dup" aria-hidden="true"></span></div></div>
-        <div class="eta" aria-live="off" hidden></div>
+      <div class="head" role="button" tabindex="0">
+        <div class="tile"><div class="glyph"><ha-icon></ha-icon></div><div class="badge" hidden></div></div>
+        <div class="texts">
+          <div class="slide">
+            <div class="title"></div>
+            <div class="msg"><span class="t"></span></div>
+            <div class="eta" aria-live="off" hidden></div>
+          </div>
+        </div>
         <ha-icon class="chev" icon="mdi:chevron-down"></ha-icon>
       </div>
     </div>
@@ -2038,6 +2260,7 @@ const TEMPLATE = `
       <div class="list" role="list"></div>
       <div class="foot"><button class="clear" type="button"></button></div>
     </div></div>
+    <div class="say" aria-live="polite"></div>
   </ha-card>
 `;
 
@@ -2089,7 +2312,31 @@ const checkConfig = (config) => {
     fail("weather must be a weather entity, e.g. weather.home");
   }
   if (config.css != null && typeof config.css !== "string") fail("css must be a string");
-  return { sources, audience: checkAudience(config.audience) };
+  if (config.infos != null && !Array.isArray(config.infos)) fail("infos must be a list");
+  const infos = [];
+  for (const entry of config.infos || []) {
+    const info = typeof entry === "string" ? { entity: entry } : isObject(entry) ? { ...entry } : null;
+    if (!info || typeof info.entity !== "string" || !info.entity.includes(".")) {
+      fail("infos must contain entity ids, got " + JSON.stringify(entry));
+    }
+    if (info.visibility != null && !Array.isArray(info.visibility)) fail("visibility of " + info.entity + " must be a list of conditions");
+    if (info.forecast_type != null && !FORECAST_TYPES.includes(info.forecast_type)) fail("forecast_type must be daily, hourly or twice_daily");
+    for (const key of ["show_current", "show_forecast"]) {
+      if (info[key] != null && typeof info[key] !== "boolean") fail(key + " must be true or false");
+    }
+    if (info.forecast_slots != null && !(Number.isInteger(info.forecast_slots) && info.forecast_slots > 0)) {
+      fail("forecast_slots must be a whole number above 0");
+    }
+    for (const key of ["tap_action", "hold_action", "double_tap_action"]) {
+      if (typeof info[key] === "string") info[key] = { action: info[key] };
+    }
+    infos.push(info);
+  }
+  if (config.rotate != null && config.rotate !== false && !(typeof config.rotate === "number" && config.rotate >= 0)) {
+    fail("rotate must be the seconds between turns, or 0 to turn them off");
+  }
+  if (config.slide != null && config.slide !== "up" && config.slide !== "side") fail("slide must be up or side");
+  return { sources, audience: checkAudience(config.audience), infos };
 };
 
 /* Local dismissals, shared by every card in this browser. Where storage is blocked, the copy
@@ -2166,7 +2413,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._unsub = null;
     this._unsubRepairs = null;
     this._todos = new Map();
-    this._forecast = null;
+    this._forecasts = new Map();
     this._pictures = new Map();
     this._clock = null;
     this._boundaryTimer = null;
@@ -2175,8 +2422,26 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._onVisibility = () => {
       if (!document.hidden) this._refreshTimes();
       this._tick();
+      this._rotate();
     };
-    this._lastMsg = null;
+    this._infos = [];
+    this._serverSubs = new Map();
+    this._serverUsed = new Set();
+    this._slides = [];
+    this._slideKey = null;
+    this._seenKeys = null;
+    this._news = null;
+    this._headSlide = null;
+    this._swapping = null;
+    this._held = new Set();
+    this._stopped = false;
+    this._rotateTimer = null;
+    this._press = null;
+    this._noClick = false;
+    this._swiped = false;
+    this._ownCancel = null;
+    this._tapWait = null;
+    this._narrow = false;
     this._bgUrl = null;
     this._hostAnim = null;
     this._enterFrom = null;
@@ -2188,18 +2453,21 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._painted = false;
     this._seq = 0;
     this._setLang("en");
-    /* Home Assistant may define its state icon after the card. Then every icon is drawn again. */
-    if (!customElements.get("ha-state-icon")) {
-      customElements.whenDefined("ha-state-icon").then(() => {
+    /* Home Assistant may define its state icon and its state text after the card. Then everything is drawn again. */
+    for (const tag of ["ha-state-icon", "state-display"]) {
+      if (customElements.get(tag)) continue;
+      customElements.whenDefined(tag).then(() => {
         this._epoch++;
+        this._headSlide = null;
         this._render();
       });
     }
   }
 
   setConfig(config) {
-    const { sources, audience } = checkConfig(config);
+    const { sources, audience, infos } = checkConfig(config);
     this._config = { ...DEFAULTS, ...config };
+    this._infoConfig = infos;
     /* Home Assistant reads layout_options only when grid_options is missing. */
     const rows = config.grid_options
       ? config.grid_options.rows
@@ -2293,13 +2561,15 @@ class OrigamiNotificationsCard extends HTMLElement {
     return this._abs.format(ts);
   }
 
-  /* An hour as the profile writes it, like 7 PM or 19 Uhr. */
+  /* An hour as the profile writes it, like 7 PM or 19 Uhr. Intl writes 01 Uhr where people write 1 Uhr. */
   _hourText(ts) {
+    let text;
     try {
-      return dateFormat(this._lang, { hour: "numeric", ...this._clockOpts() }).format(ts);
+      text = dateFormat(this._lang, { hour: "numeric", ...this._clockOpts() }).format(ts);
     } catch (e) {
-      return dateFormat(undefined, { hour: "numeric" }).format(ts);
+      text = dateFormat(undefined, { hour: "numeric" }).format(ts);
     }
+    return text.replace(/^0(?=\d\D)/, "");
   }
 
   _percentText(p) {
@@ -2434,16 +2704,19 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
     CARDS.add(this);
     if (this._hass) this._subscribe();
+    /* Conditions the server checks were given up when the card left. */
+    if (this._hass && (this._infoConfig || []).some((info) => info.visibility)) this._recompute();
     if (this._hostAnim) this._hostAnim.finish();
     document.addEventListener("visibilitychange", this._onVisibility);
     this._scheduleDay();
     this._scheduleBoundary();
     if (this._dom) {
-      this._ro.observe(this._dom.msg);
+      this._ro.observe(this._dom.card);
       if (this._io) this._io.observe(this);
       this._suppressAnim();
       this._refreshTimes();
       this._tick();
+      this._rotate();
     }
   }
 
@@ -2459,7 +2732,14 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (sub.unsub) sub.unsub.then((u) => u()).catch(() => {});
       this._todos.set(id, { items: sub.items });
     }
-    this._unsubscribeForecast();
+    this._unsubscribeForecasts();
+    this._dropServerConditions();
+    /* A card that leaves gets no pointerleave or pointerup, so what held its turns is let go here. */
+    if (this._press) clearTimeout(this._press.timer);
+    this._press = null;
+    this._held.clear();
+    for (const mql of (this._mediaWatch || new Map()).values()) mql.onchange = null;
+    this._mediaWatch = null;
     CARDS.delete(this);
     clearTimeout(this._repairsTimer);
     clearTimeout(this._dayTimer);
@@ -2469,6 +2749,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (this._io) this._io.disconnect();
     document.removeEventListener("visibilitychange", this._onVisibility);
     this._stopClock();
+    this._rotate();
     /* Collapse only if the card stays detached. The dashboard editor re-parents it all the time. */
     this._detachReset = setTimeout(() => this._collapse(), 150);
   }
@@ -2491,7 +2772,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       });
     }
     this._subscribeTodos();
-    this._subscribeForecast();
+    this._subscribeForecasts();
     /* Like the repairs page in Home Assistant's settings, repairs are for admins only. A new
      * subscription also fetches the list, which may have changed while the card was away. */
     if (!this._unsubRepairs && conn.subscribeEvents && this._config && this._config.repairs && this._isAdmin()) {
@@ -2546,44 +2827,55 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
   }
 
-  /* One forecast subscription per card. Like a to-do list, a forecast Home Assistant refused is asked for again once
-   * the weather changes, since the entity may still be loading. */
-  _subscribeForecast() {
+  /* One forecast subscription for each weather entity and type the card reads, for rain ahead and for infos. Like a
+   * to-do list, a forecast Home Assistant refused is asked for again once the weather changes, since the entity may
+   * still be loading. */
+  _subscribeForecasts() {
     const h = this._hass;
-    const id = this._weatherId();
-    const type = id && h && this.isConnected ? forecastType(h.states[id]) : null;
-    const key = type ? id + "|" + type : null;
-    const old = this._forecast;
-    if (old && old.key === key && (old.failed === undefined || old.failed === h.states[id])) return;
-    this._unsubscribeForecast();
-    if (!key || !h.connection) return;
-    const sub = { key };
-    this._forecast = sub;
-    sub.unsub = h.connection.subscribeMessage((msg) => this._onForecast(sub, msg), {
-      type: "weather/subscribe_forecast",
-      entity_id: id,
-      forecast_type: type,
-    });
-    sub.unsub.catch(() => {
-      sub.failed = (this._hass && this._hass.states[id]) || null;
-    });
+    const want = new Map();
+    if (h && this.isConnected) {
+      const id = this._weatherId();
+      const type = id ? forecastType(h.states[id]) : null;
+      if (type) want.set(id + "|" + type, [id, type]);
+      for (const info of this._infoConfig || []) {
+        if (showsForecast(info, h.states[info.entity])) want.set(info.entity + "|" + info.forecast_type, [info.entity, info.forecast_type]);
+      }
+    }
+    for (const [key, sub] of this._forecasts) {
+      if (want.has(key) && (sub.failed === undefined || sub.failed === h.states[sub.id])) continue;
+      this._forecasts.delete(key);
+      sub.unsub.then((unsub) => unsub()).catch(() => {});
+    }
+    if (!h || !h.connection) return;
+    for (const [key, [id, type]] of want) {
+      if (this._forecasts.has(key)) continue;
+      const sub = { key, id };
+      this._forecasts.set(key, sub);
+      sub.unsub = h.connection.subscribeMessage((msg) => this._onForecast(sub, msg), {
+        type: "weather/subscribe_forecast",
+        entity_id: id,
+        forecast_type: type,
+      });
+      sub.unsub.catch(() => {
+        sub.failed = (this._hass && this._hass.states[id]) || null;
+      });
+    }
   }
 
-  _unsubscribeForecast() {
-    const sub = this._forecast;
-    this._forecast = null;
-    if (sub) sub.unsub.then((unsub) => unsub()).catch(() => {});
+  _unsubscribeForecasts() {
+    for (const sub of this._forecasts.values()) sub.unsub.then((unsub) => unsub()).catch(() => {});
+    this._forecasts.clear();
   }
 
   /* Every card on the same forecast takes the news at once. A repeat of what the cache holds changes nothing. */
   _onForecast(sub, msg) {
-    if (this._forecast !== sub) return;
+    if (this._forecasts.get(sub.key) !== sub) return;
     const forecast = msg && Array.isArray(msg.forecast) ? msg.forecast : null;
     const print = forecastFingerprint(forecast);
     const cached = FORECAST_CACHE.get(sub.key);
     if (cached && cached.print === print) return;
     FORECAST_CACHE.set(sub.key, { forecast, print });
-    for (const card of CARDS) if (card._forecast && card._forecast.key === sub.key) card._recompute();
+    for (const card of CARDS) if (card._forecasts.has(sub.key)) card._recompute();
   }
 
   _onNotifications(msg) {
@@ -2629,11 +2921,15 @@ class OrigamiNotificationsCard extends HTMLElement {
         this._repairs = ((res && res.issues) || []).filter((i) => !i.ignored);
         this._recompute();
         const domains = [...new Set(this._repairs.map((i) => i.domain))];
+        const named = [...new Set(this._repairs.map((i) => i.issue_domain || i.domain))];
         if (domains.length && typeof h.loadBackendTranslation === "function") {
-          return h.loadBackendTranslation("issues", domains).then((localize) => {
-            this._issueLocalize = localize;
-            this._recompute();
-          });
+          const load = (category, list) =>
+            h.loadBackendTranslation(category, list).then((localize) => {
+              this._issueLocalize = localize;
+              this._recompute();
+            });
+          /* Each load returns Home Assistant's localize with everything loaded so far. */
+          return load("issues", domains).then(() => load("title", named));
         }
       })
       .catch(() => {});
@@ -2783,7 +3079,6 @@ class OrigamiNotificationsCard extends HTMLElement {
       /* The six and eighteen hours ahead move on with every hour. */
       if (cached && type !== "daily") ctx.wake(Math.floor(now / 3600000) * 3600000 + 3600000);
     }
-    this._readIds = read;
 
     /* Dismissed, but Home Assistant has not removed them yet. */
     if (this._pending.size) {
@@ -2862,11 +3157,265 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (acksDirty) saveAcks(present);
     items = groupAlike(items, ctx);
     this._items = sortItems(items, now);
+    /* An entry is news when it was not there at the last look and began just now. One that only comes into view,
+     * like after a reload, when a group splits or when an alarm ends, is not. */
+    const seen = this._seenKeys;
+    this._seenKeys = new Set(this._items.map((it) => it.key));
+    const news = seen && this._items.find((it) => !seen.has(it.key) && Math.abs(now - it.ts) < NEWS_MS);
+    if (news) this._news = news;
+    this._infos = h ? this._infosNow(ctx, read) : [];
+    this._readIds = read;
     const reorder = nextReorder(this._items, now);
     if (reorder !== null) ctx.wake(reorder);
     this._render(now);
     this._scheduleDay();
     this._scheduleBoundary(wakes, now);
+  }
+
+  /* The infos a quiet card shows, in their order, while their entity is there and their conditions hold. */
+  _infosNow(ctx, read) {
+    const h = ctx.hass;
+    const out = [];
+    const keys = new Set();
+    this._serverUsed = new Set();
+    for (const info of this._infoConfig || []) {
+      const st = h.states[info.entity];
+      read.push(info.entity);
+      if (!st || st.state === "unavailable" || st.state === "unknown") continue;
+      if (!this._conditionsMet(info.visibility, info.entity, ctx, read)) continue;
+      let key = "i:" + info.entity;
+      while (keys.has(key)) key += "+";
+      keys.add(key);
+      const own = info.color && info.color !== "state";
+      const colorOf = (s) => (own ? (stateActive(s) ? themeColor(info.color) : "var(--state-inactive-color)") : stateColor(s));
+      const base = {
+        kind: "info",
+        info,
+        entity: info.entity,
+        icon: info.icon || undefined,
+        image: info.show_entity_picture ? ctx.url(findPicture(st.attributes)) : null,
+      };
+      /* Like Home Assistant's forecast card, the current weather shows unless only the forecast is asked for. */
+      const slots = this._forecastSlots(info, st, ctx);
+      if (!slots || info.show_current !== false) {
+        out.push({ ...base, key, stateObj: st, title: ctx.name(st, info.name), color: colorOf(st), content: info.state_content, timeFormat: info.time_format });
+      }
+      if (!slots) continue;
+      /* Each forecast slot turns by like an info of its own, with the condition as its state. A name of the
+       * info's own comes first, and the day or hour moves to the second line. */
+      const named = isEmpty(info.name) ? "" : ctx.name(st, info.name);
+      slots.forEach((slot, n) => {
+        const shown = { ...st, state: slot.condition || "unknown" };
+        const label = this._slotLabel(Date.parse(slot.datetime), info.forecast_type, ctx.now);
+        out.push({
+          ...base,
+          key: key + "#" + n,
+          stateObj: shown,
+          title: named || label,
+          text: [named ? label : "", this._slotText(slot, shown, info.forecast_type)].filter(Boolean).join(" · "),
+          icon: base.icon || (slot.is_daytime === false && NIGHT_ICONS[slot.condition]) || undefined,
+          color: colorOf(shown),
+        });
+      });
+    }
+    this._dropServerConditions(this._serverUsed);
+    return out;
+  }
+
+  /* The forecast slots an info shows, none while the forecast loads, or null without a forecast. Like Home
+   * Assistant's forecast card, a type the entity lacks or a forecast that came empty shows the current weather. */
+  _forecastSlots(info, st, ctx) {
+    const type = info.forecast_type;
+    if (!showsForecast(info, st)) return null;
+    const cached = FORECAST_CACHE.get(info.entity + "|" + type);
+    if (!cached) return [];
+    /* A day lasts until midnight where the user is, whatever hour the integration gives it. */
+    const today = dayNumber(ctx.now, ctx.zone);
+    const slots = (Array.isArray(cached.forecast) ? cached.forecast : [])
+      .filter((f) => f && Number.isFinite(Date.parse(f.datetime)))
+      .filter((f) => (type === "daily" ? dayNumber(Date.parse(f.datetime), ctx.zone) >= today : Date.parse(f.datetime) + FORECAST_SPAN[type] > ctx.now))
+      .slice(0, info.forecast_slots || 1);
+    if (!slots.length) return null;
+    /* Today and Tomorrow move on at midnight, and an hour or half a day when it ends. */
+    ctx.wake(dayStart(today + 1, ctx.zone));
+    if (type !== "daily") ctx.wake(Date.parse(slots[0].datetime) + FORECAST_SPAN[type]);
+    return slots;
+  }
+
+  /* Today, Tomorrow or the weekday, and the hour for an hourly forecast. */
+  _slotLabel(ts, type, now) {
+    const zone = this._clockOpts().timeZone;
+    const diff = dayNumber(ts, zone) - dayNumber(now, zone);
+    let day;
+    try {
+      day = Math.abs(diff) <= 1 ? this._rel.format(diff, "day") : dateFormat(this._lang, { weekday: "long", timeZone: zone }).format(ts);
+    } catch (e) {
+      day = dateFormat(undefined, { weekday: "long" }).format(ts);
+    }
+    let text = day;
+    if (type === "hourly") {
+      let time;
+      try {
+        time = new Date(ts).toLocaleTimeString(this._lang, { hour: "numeric", minute: "2-digit", ...this._clockOpts() });
+      } catch (e) {
+        time = new Date(ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      }
+      text = diff === 0 ? time : fill(this._t.day_at, { d: day, t: time });
+    }
+    return text.charAt(0).toLocaleUpperCase(this._lang) + text.slice(1);
+  }
+
+  /* Day or night, the temperatures and the condition, like a slot of Home Assistant's forecast card. */
+  _slotText(slot, shown, type) {
+    const h = this._hass;
+    const temps = [slot.temperature, slot.templow]
+      .filter((v) => v != null && v !== "" && Number.isFinite(Number(v)))
+      .map((v) => this._numText(Number(v)) + "°")
+      .join(" / ");
+    return [
+      type === "twice_daily" ? (slot.is_daytime === false ? this._t.wx_night : this._t.wx_day) : "",
+      temps,
+      slot.condition ? (h && h.formatEntityState ? h.formatEntityState(shown) : slot.condition) : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  /* A number as the profile writes numbers. */
+  _numText(v) {
+    const l = (this._hass && this._hass.locale) || {};
+    const locale = l.number_format === "system" ? undefined : NUMBER_LOCALES[l.number_format] || this._lang;
+    try {
+      return new Intl.NumberFormat(locale, { maximumFractionDigits: 1, useGrouping: l.number_format !== "none" }).format(v);
+    } catch (e) {
+      return String(v);
+    }
+  }
+
+  /* Visibility as Home Assistant checks it for cards. An entity a condition reads counts as watched, and the
+   * moment a time condition can change wakes the card. */
+  _conditionsMet(conditions, entity, ctx, read) {
+    this._conditionFailed = false;
+    const met = listOf(conditions).filter(switchedOn).map((c) => this._conditionMet(c, entity, ctx, read));
+    /* An error from the server hides the info, as it hides a card. */
+    return met.every(Boolean) && !this._conditionFailed;
+  }
+
+  _conditionMet(c, entity, ctx, read) {
+    if (!isObject(c) || ("enabled" in c && typeof c.enabled !== "boolean")) return false;
+    const h = ctx.hass;
+    const type = "condition" in c ? c.condition : "state";
+    if (type === "and" || type === "or" || type === "not") {
+      if (c.conditions == null) return true;
+      const met = listOf(c.conditions).filter(switchedOn).map((k) => this._conditionMet(k, entity, ctx, read));
+      return type === "and" ? met.every(Boolean) : type === "or" ? met.some(Boolean) : !met.every(Boolean);
+    }
+    if ("entity_id" in c || !CLIENT_CONDITIONS.has(type)) return this._serverCondition(c, ctx);
+    /* A value that names an entity also stands for that entity's state. */
+    const refer = (v) => {
+      if (!isEntityId(v) || !h.states[v]) return undefined;
+      read.push(v);
+      return h.states[v].state;
+    };
+    const own = () => {
+      const id = c.entity || entity;
+      read.push(id);
+      const st = h.states[id];
+      return st && c.attribute ? st.attributes[c.attribute] : st && st.state;
+    };
+    if (type === "screen") return Boolean(c.media_query) && this._media(c.media_query);
+    if (type === "user") return Boolean(c.users && h.user && h.user.id) && c.users.includes(h.user.id);
+    if (type === "view_columns") return true;
+    if (type === "time") return this._timeMet(c, ctx);
+    if (type === "location") {
+      const person = userPerson(h);
+      if (person) read.push(person.entity_id);
+      return Boolean(person && c.locations && c.locations.includes(person.state));
+    }
+    if (type === "numeric_state") {
+      const n = Number(own());
+      if (isNaN(n)) return false;
+      const bound = (v) => Number(typeof v === "string" ? (refer(v) !== undefined ? refer(v) : v) : v);
+      const above = bound(c.above);
+      const below = bound(c.below);
+      return (c.above == null || isNaN(above) || above < n) && (c.below == null || isNaN(below) || below > n);
+    }
+    const raw = own();
+    const state = raw == null ? "unknown" : String(raw);
+    const value = c.state != null ? c.state : c.state_not;
+    if (value === undefined) return false;
+    const values = listOf(value).flatMap((v) => (refer(v) !== undefined ? [v, refer(v)] : [v]));
+    return c.state != null ? values.includes(state) : !values.includes(state);
+  }
+
+  /* Like Home Assistant, a time condition reads today in the zone of the profile and includes both ends. */
+  _timeMet(c, ctx) {
+    const zone = this._clockOpts().timeZone;
+    const p = zonedParts(ctx.now, zone);
+    const day = dayNumber(ctx.now, zone);
+    const now = p.hour * 3600 + p.minute * 60 + p.second;
+    const after = c.after ? daySeconds(c.after) : null;
+    const before = c.before ? daySeconds(c.before) : null;
+    for (const at of [after, before == null ? null : before + 1]) {
+      if (at == null) continue;
+      ctx.wake(wallTime(day, at, zone));
+      ctx.wake(wallTime(day + 1, at, zone));
+    }
+    ctx.wake(dayStart(day + 1, zone));
+    if (c.weekdays && c.weekdays.length && !c.weekdays.includes(WEEKDAYS[new Date(day * DAY_MS).getUTCDay()])) return false;
+    if (after != null && before != null) return before < after ? now >= after || now <= before : now >= after && now <= before;
+    if (after != null) return now >= after;
+    return before == null || now <= before;
+  }
+
+  /* A media query is asked again whenever its answer changes. */
+  _media(query) {
+    if (!window.matchMedia) return false;
+    this._mediaWatch = this._mediaWatch || new Map();
+    let mql = this._mediaWatch.get(query);
+    if (!mql) {
+      mql = window.matchMedia(query);
+      mql.onchange = () => this._recompute();
+      this._mediaWatch.set(query, mql);
+    }
+    return mql.matches;
+  }
+
+  /* From 2026.10 Home Assistant checks conditions like sun or template on the server and sends each change. Until
+   * the first answer, and where the server does not know the command, the condition counts as not met. */
+  _serverCondition(c, ctx) {
+    const key = JSON.stringify(c);
+    this._serverUsed.add(key);
+    let sub = this._serverSubs.get(key);
+    if (!sub) {
+      sub = { result: false, failed: false };
+      this._serverSubs.set(key, sub);
+    }
+    /* Home Assistant hands a card its hass before it puts the card on the page, so the card asks once it is there. */
+    const conn = ctx.hass.connection;
+    if (!sub.unsub && conn && this.isConnected) {
+      sub.unsub = conn.subscribeMessage(
+        (msg) => {
+          const result = Boolean(msg && msg.result === true);
+          const failed = Boolean(msg && msg.error);
+          if (result === sub.result && failed === sub.failed) return;
+          Object.assign(sub, { result, failed });
+          this._recompute();
+        },
+        { type: "subscribe_condition", condition: c }
+      );
+      sub.unsub.catch(() => {});
+    }
+    if (sub.failed) this._conditionFailed = true;
+    return sub.result;
+  }
+
+  _dropServerConditions(keep = new Set()) {
+    for (const [key, sub] of this._serverSubs) {
+      if (keep.has(key)) continue;
+      if (sub.unsub) sub.unsub.then((u) => u()).catch(() => {});
+      this._serverSubs.delete(key);
+    }
   }
 
   /* Calendar rows and entries for a day say today or tomorrow, so they are built again after midnight. */
@@ -2898,49 +3447,98 @@ class OrigamiNotificationsCard extends HTMLElement {
       card: q("ha-card"),
       head: q(".head"),
       tile: q(".head .tile"),
+      glyph: q(".head .glyph"),
+      texts: q(".texts"),
+      slide: q(".slide"),
       title: q(".head .title"),
       msg: q(".msg"),
+      t: q(".msg .t"),
       eta: q(".head .eta"),
-      track: q(".track"),
-      t1: q(".track .t:not(.dup)"),
-      t2: q(".track .dup"),
       badge: q(".badge"),
-      chev: q(".chev"),
+      chev: q(".head .chev"),
       list: q(".list"),
       foot: q(".foot"),
       clear: q(".clear"),
       ebar: q(".ebar"),
       count: q(".count"),
+      say: q(".say"),
       bgs: [...this.shadowRoot.querySelectorAll(".backdrop img")],
       userCss,
     };
-    for (const img of this._dom.bgs) img.referrerPolicy = "no-referrer";
-    this._dom.clear.textContent = this._t.clear;
+    const d = this._dom;
+    for (const img of d.bgs) img.referrerPolicy = "no-referrer";
+    d.clear.textContent = this._t.clear;
     this._applyCustomStyles();
-    for (const el of [this._dom.head, this._dom.ebar]) {
-      el.addEventListener("click", () => this._toggle());
-      el.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-        e.preventDefault();
-        this._toggle();
-      });
+    /* Home Assistant's own ripple gives the hover and press feedback of its cards. */
+    if (customElements.get("ha-ripple")) {
+      for (const el of [d.head, d.ebar]) el.prepend(document.createElement("ha-ripple"));
     }
-    this._dom.card.addEventListener("keydown", (e) => {
+    d.head.addEventListener("click", () => {
+      if (this._noClick) {
+        this._noClick = false;
+        return;
+      }
+      this._activate();
+    });
+    d.head.addEventListener("keydown", (e) => {
+      const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (step && this._slides.length > 1) {
+        e.preventDefault();
+        this._step(step * ((e.key === "ArrowLeft" || e.key === "ArrowRight") && this._rtl() ? -1 : 1), "key");
+        return;
+      }
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      this._activate();
+    });
+    d.head.addEventListener("pointerdown", (e) => this._onPress(e));
+    d.head.addEventListener("pointermove", (e) => this._onDrag(e));
+    d.head.addEventListener("pointerup", (e) => this._onRelease(e, false));
+    d.head.addEventListener("pointercancel", (e) => e !== this._ownCancel && this._onRelease(e, true));
+    d.head.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && this._hold("hover", true));
+    d.head.addEventListener("pointerleave", (e) => {
+      if (e.pointerType === "mouse") this._hold("hover", false);
+      /* A press that leaves the card ends there, like on Home Assistant's ripple. */
+      if (this._press && !this._press.drag) this._onRelease(e, true);
+    });
+    d.head.addEventListener("focusin", () => this._hold("focus", d.head.matches(":focus-visible")));
+    d.head.addEventListener("focusout", () => this._hold("focus", false));
+    /* The click that ends a swipe reaches neither the card nor its ripple. */
+    d.card.addEventListener(
+      "click",
+      (e) => {
+        if (!this._swiped || !d.head.contains(e.target)) return;
+        this._swiped = false;
+        e.stopPropagation();
+      },
+      true
+    );
+    d.ebar.addEventListener("click", () => this._toggle());
+    d.ebar.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      this._toggle();
+    });
+    d.card.addEventListener("keydown", (e) => {
       if (e.key !== "Escape" || !this._expanded) return;
       e.stopPropagation();
       this._toggle();
-      this._dom.head.focus({ preventScroll: true });
+      d.head.focus({ preventScroll: true });
     });
-    this._dom.clear.addEventListener("click", (e) => {
+    d.clear.addEventListener("click", (e) => {
       this._clearAll();
       if (e.detail === 0) this._focusAfter(0);
     });
-    this._ro = new ResizeObserver(() => {
-      const t = this._lastMsg;
-      this._lastMsg = null;
-      if (t !== null) this._setMessage(t);
+    /* Like Home Assistant's own cards, the card measures its width to fit a narrow cell. */
+    this._ro = new ResizeObserver((entries) => {
+      const width = entries[entries.length - 1].contentRect.width;
+      const narrow = width > 0 && width < NARROW_PX;
+      if (narrow === this._narrow) return;
+      this._narrow = narrow;
+      this.classList.toggle("narrow", narrow);
+      this._render();
     });
-    this._ro.observe(this._dom.msg);
+    this._ro.observe(d.card);
     if (window.IntersectionObserver) {
       this._io = new IntersectionObserver((entries) => this._onView(entries), { threshold: 0.01 });
       if (this.isConnected) this._io.observe(this);
@@ -2956,6 +3554,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._visible = visible;
     if (visible) this._refreshTimes();
     this._tick();
+    this._rotate();
   }
 
   /* No transitions on the first paint after attaching, and none in the dashboard editor. */
@@ -2973,6 +3572,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   /* Focus follows the toggle, which hides itself as it opens or closes. */
   _toggle() {
     if (!this._items.length) return;
+    if (this._narrow && !this._expanded && this._openDialog()) return;
     const d = this._dom;
     const active = this.shadowRoot.activeElement;
     const refocus = active === d.head || active === d.ebar;
@@ -2986,11 +3586,19 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (refocus) (this._expanded ? d.ebar : d.head).focus({ preventScroll: true });
   }
 
+  /* Where the card is narrow, the list opens in Home Assistant's own dialog. It is a bottom sheet on a phone.
+   * Until Home Assistant has loaded that dialog, and in the dashboard editor, the list unfolds in the card. */
+  _openDialog() {
+    if (this._editMode || !customElements.get("ha-adaptive-dialog")) return false;
+    fire(this._dom.head, "show-dialog", { dialogTag: DIALOG, dialogImport: () => Promise.resolve(), dialogParams: { card: this } });
+    return true;
+  }
+
   /* One clock per card, and only while a time on show can change. */
   _tick() {
     this._stopClock();
     if (!this._dom || !this.isConnected || !this._visible || document.hidden) return;
-    const ms = nextTick(this._items, this._items[0], this._expanded, Date.now());
+    const ms = nextTick(this._items, this._headItem(), this._expanded || Boolean(this._dialogEl), Date.now());
     if (!ms) return;
     this._clock = setTimeout(() => {
       this._clock = null;
@@ -3006,11 +3614,14 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   _refreshTimes(now = Date.now()) {
     if (!this._dom) return;
-    const top = this._items[0];
-    if (top && top.live) setText(this._dom.eta, this._timeText(top, now));
-    for (const it of this._items) {
-      const entry = this._rowCache.get(it.key);
-      if (entry) this._setTime(entry.el, it, now);
+    const top = this._headItem();
+    if (top && headTime(top) && !this._swapping) setText(this._dom.eta, this._timeText(top, now));
+    for (const rows of [this._rowCache, this._dialogEl && this._dialogEl._cache]) {
+      if (!rows) continue;
+      for (const it of this._items) {
+        const entry = rows.get(it.key);
+        if (entry) this._setTime(entry.el, it, now);
+      }
     }
   }
 
@@ -3078,15 +3689,17 @@ class OrigamiNotificationsCard extends HTMLElement {
     return this.hidden || Boolean(this._hostAnim && !this._hostAnim.showing);
   }
 
-  /* After a dismissal by keyboard, focus the row that took its place. */
-  _focusAfter(index) {
-    if (this._hiding()) return;
+  /* After a dismissal by keyboard, focus the row that took its place, in the card or in the dialog. */
+  _focusAfter(index, root = this.shadowRoot, cache) {
+    const inCard = root === this.shadowRoot;
+    if (inCard && this._hiding()) return;
+    const rows = cache || (inCard ? this._rowCache : (this._dialogEl && this._dialogEl._cache) || new Map());
     const it = this._items[Math.min(Math.max(index, 0), this._items.length - 1)];
-    const entry = it && this._rowCache.get(it.key);
+    const entry = it && rows.get(it.key);
     const target =
       (entry && (entry.el.querySelector(".x") || entry.el.querySelector(".rtile[role=button]"))) ||
-      (this._expanded ? this._dom.ebar : this._dom.head);
-    target.focus({ preventScroll: true });
+      (inCard ? (this._expanded ? this._dom.ebar : this._dom.head) : null);
+    if (target) target.focus({ preventScroll: true });
   }
 
   /* The hidden attribute plus card-visibility-changed make Home Assistant drop the slot. A slot
@@ -3186,7 +3799,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     fire(this, "card-visibility-changed", { value: false });
     this._collapse();
     this._stopClock();
-    this._lastMsg = null;
     clearTimeout(this._listTimer);
     this._listTimer = null;
     if (!d) return;
@@ -3229,21 +3841,21 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (!this._dom || !this._config) return;
     const d = this._dom;
     const items = this._items;
-    const empty = items.length === 0;
+    const empty = items.length === 0 && this._infos.length === 0;
 
     /* The card keeps showing what it showed while it fades away. */
     if (empty && this._config.hide_when_empty && !this._editMode && !this._inPicker) {
       this._setShown(false);
+      this._news = null;
       this._painted = true;
       this._stopClock();
+      this._rotate();
+      if (this._dialogEl) this._dialogEl.update();
       return;
     }
     this._setShown(true);
 
-    if (empty) {
-      this._expanded = false;
-      d.head.setAttribute("aria-expanded", "false");
-    }
+    if (!items.length) this._expanded = false;
     const wasOpen = this._shownOpen;
     this._shownOpen = this._expanded;
     d.card.classList.toggle("open", this._expanded);
@@ -3254,35 +3866,19 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (this._expanded && !this._animOK()) d.card.classList.add("settled");
       else if (this._expanded) this._settleTimer = setTimeout(() => d.card.classList.add("settled"), 300);
     }
-    d.card.classList.toggle("has-items", !empty);
-    d.head.setAttribute("aria-disabled", String(empty));
+    d.card.classList.toggle("has-items", items.length > 0);
 
-    if (empty) {
-      setIcon(d.tile, { icon: "mdi:bell-outline" }, this._hass);
-      d.tile.className = "tile idle";
-      setText(d.title, this._t.idle_title);
-      this._setMessage(this._t.idle_msg);
-      d.badge.hidden = true;
-      d.chev.hidden = true;
-    } else {
-      const top = items[0];
-      setIcon(d.tile, top, this._hass);
-      d.tile.className = "tile" + sevClass(top.sev);
-      setText(d.title, top.title);
-      this._setMessage(top.message || "");
-      d.badge.hidden = false;
-      setText(d.badge, badgeText(items.length));
-      d.chev.hidden = false;
-    }
-    /* A running time takes the place of the message, without the marquee. */
-    const live = !empty && Boolean(items[0].live);
-    d.msg.hidden = live;
-    d.eta.hidden = !live;
-    setText(d.eta, live ? this._timeText(items[0], now) : "");
-    d.head.classList.toggle("single", !empty && !items[0].message && !live);
-
-    setImage(d.tile, empty ? null : items[0].image);
-    this._setBackdrop(!empty && items[0].backdrop ? items[0].image : null);
+    const { slide, moved } = this._pickSlide();
+    /* The head opens the list, or the dialog where the card is narrow, or what an info leads to. */
+    if (items.length && !this._narrow) d.head.setAttribute("aria-expanded", String(this._expanded));
+    else d.head.removeAttribute("aria-expanded");
+    if (items.length && this._narrow) d.head.setAttribute("aria-haspopup", "dialog");
+    else d.head.removeAttribute("aria-haspopup");
+    d.badge.hidden = items.length < 2;
+    setText(d.badge, badgeText(items.length));
+    d.chev.hidden = !items.length;
+    const shown = this._painted && !this._hiding() && !this._expanded;
+    this._paintHead(slide, now, moved && shown ? { dir: 1 } : null);
 
     /* The list animates only while open. A closing drawer keeps its rows until it is shut. */
     if (!this._expanded && (wasOpen || this._listTimer)) {
@@ -3299,7 +3895,284 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
     this._painted = true;
     if (this._enterFrom) this._playEnter();
+    if (this._dialogEl) this._dialogEl.update();
     this._tick();
+    this._rotate(moved);
+  }
+
+  /* What the closed card turns through. Critical entries take it alone, and infos fill a quiet card. A new
+   * entry comes forward at once and is read out, and so does a new first entry. */
+  _pickSlide() {
+    const items = this._items;
+    const crit = items.filter((it) => it.sev === "crit");
+    const slides = crit.length ? crit : items.length ? items : this._infos;
+    const top = slides[0] || null;
+    const topMoved = Boolean(top && top.kind !== "info" && top.key !== this._topKey);
+    this._slides = slides;
+    this._topKey = top ? top.key : null;
+    let slide = slides.find((s) => s.key === this._slideKey) || null;
+    const news = this._news;
+    this._news = null;
+    /* News comes forward on a card that turns, and is read out. A card that holds still keeps its first entry. */
+    const fresh = news && this._turns() ? slides.find((s) => s.key === news.key) : null;
+    if (fresh) {
+      slide = fresh;
+      this._stopped = false;
+    } else if (!slide || topMoved || !(this._turns() || this._stopped)) {
+      slide = top;
+    }
+    /* Written anew each time, so the same news is read out again. */
+    if (news) this._dom.say.textContent = [news.title, news.message].filter(Boolean).join(". ");
+    const key = slide ? slide.key : null;
+    const moved = key !== this._slideKey;
+    this._slideKey = key;
+    return { slide, moved };
+  }
+
+  /* The entry on show, unless it is an info. */
+  _headItem() {
+    const s = this._headSlide;
+    return s && s.kind !== "info" ? s : null;
+  }
+
+  /* A turn moves only the text, and fades the icon out and in again. The card keeps its size. A turn that
+   * is under way paints whatever is current once its text is out of sight. */
+  _paintHead(slide, now, motion) {
+    this._headSlide = slide;
+    if (this._swapping) return;
+    if (!motion || !this._animOK() || !this._dom.slide.animate) {
+      this._dom.slide.style.transform = this._dom.slide.style.opacity = "";
+      this._fillHead(slide, now);
+      return;
+    }
+    const d = this._dom;
+    const side = motion.side || this._config.slide === "side";
+    const sign = (motion.dir < 0 ? -1 : 1) * (side && this._rtl() ? -1 : 1);
+    const move = (k) => (side ? "translateX(" + k * 24 + "px)" : "translateY(" + k * 14 + "px)");
+    const ms = tokenMs(this, "--ha-animation-duration-slow", 350) * 1.6;
+    const from = { transform: d.slide.style.transform || "none", opacity: d.slide.style.opacity || "1" };
+    d.slide.style.transform = d.slide.style.opacity = "";
+    for (const a of [...d.slide.getAnimations(), ...d.glyph.getAnimations()]) a.cancel();
+    d.texts.classList.remove("up", "side");
+    d.texts.classList.add(side ? "side" : "up");
+    const away = { duration: ms * 0.4, easing: EASE_FADE_OUT, fill: "forwards" };
+    const out = d.slide.animate([from, { transform: move(-sign), opacity: 0 }], away);
+    const iconOut = d.glyph.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(0.6)" }], away);
+    this._swapping = out;
+    out.onfinish = () => {
+      if (this._swapping !== out) return;
+      this._swapping = null;
+      this._fillHead(this._headSlide, Date.now());
+      const back = { duration: ms * 0.6, easing: EASE_FADE_IN };
+      const into = d.slide.animate([{ transform: move(sign), opacity: 0 }, { transform: "none", opacity: 1 }], back);
+      d.glyph.animate([{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "none" }], back);
+      out.cancel();
+      iconOut.cancel();
+      into.onfinish = () => d.texts.classList.remove("up", "side");
+    };
+  }
+
+  _fillHead(slide, now) {
+    const d = this._dom;
+    const info = Boolean(slide && slide.kind === "info");
+    const tappable = this._items.length > 0 || Boolean(info && this._infoActs(slide));
+    d.card.classList.toggle("tappable", tappable);
+    d.head.setAttribute("aria-disabled", String(!tappable));
+    d.card.style.setProperty("--tile-color", slide ? itemColor(slide) : "var(--state-inactive-color)");
+    d.card.classList.toggle("crit", Boolean(slide && slide.sev === "crit"));
+    setIcon(d.glyph, slide || { icon: "mdi:bell-outline" }, this._hass);
+    d.tile.className = "tile" + (slide ? sevClass(slide.sev) : " idle");
+    setText(d.title, slide ? slide.title : this._t.idle_title);
+    const live = Boolean(slide && !info && headTime(slide));
+    d.msg.hidden = live;
+    d.eta.hidden = !live;
+    setText(d.eta, live ? this._timeText(slide, now) : "");
+    let sd = d.msg.querySelector("state-display");
+    if (info && slide.text == null && customElements.get("state-display")) {
+      if (!sd) {
+        sd = document.createElement("state-display");
+        d.msg.append(sd);
+      }
+      Object.assign(sd, { hass: this._hass, stateObj: slide.stateObj, content: slide.content, timeFormat: slide.timeFormat, name: slide.title });
+      sd.hidden = false;
+      d.t.hidden = true;
+      setText(d.t, "");
+    } else {
+      if (sd) sd.hidden = true;
+      d.t.hidden = false;
+      setText(d.t, info ? (slide.text != null ? slide.text : this._infoText(slide)) : slide ? slide.message || "" : this._t.idle_msg);
+    }
+    d.head.classList.toggle("single", Boolean(slide) && !info && !slide.message && !live);
+    setImage(d.glyph, slide ? slide.image : null);
+    this._setBackdrop(slide && slide.backdrop ? slide.image : null);
+  }
+
+  /* What an info says where Home Assistant's state text is missing. Like it, the state fills in for parts that
+   * have nothing to say. */
+  _infoText(slide) {
+    const h = this._hass;
+    const st = slide.stateObj;
+    const state = () => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state));
+    const text = [].concat(slide.content == null ? "state" : slide.content)
+      .map((c) => {
+        if (c === "state") return state();
+        if (c === "name") return slide.title;
+        const ts = st[String(c).replace("-", "_")];
+        if (/^last[_-](changed|updated)$/.test(c)) return this._relTime(parseTs(ts, Date.now()));
+        if (!(c in st.attributes) || st.attributes[c] == null) return "";
+        return h && h.formatEntityAttributeValue ? h.formatEntityAttributeValue(st, c) : String(st.attributes[c]);
+      })
+      .filter(Boolean)
+      .join(" · ");
+    return text || state();
+  }
+
+  _rtl() {
+    return getComputedStyle(this).direction === "rtl";
+  }
+
+  /* One timer turns the card while it shows more than one entry. Pointer, focus, an open list, a swipe or the
+   * card being out of sight stop it. */
+  _rotate(restart = false) {
+    const go =
+      this._turns() > 0 && Boolean(this._dom) && this._slides.length > 1 && !this._expanded && !this._stopped && !this._held.size &&
+      this.isConnected && this._visible && !document.hidden && !this._hiding();
+    /* Home Assistant sends new states all the time. They must not push the next turn back. */
+    if (go && this._rotateTimer && !restart) return;
+    clearTimeout(this._rotateTimer);
+    this._rotateTimer = null;
+    if (!go) return;
+    this._rotateTimer = setTimeout(() => {
+      this._rotateTimer = null;
+      this._step(1, "auto");
+    }, this._turns() * 1000);
+  }
+
+  /* Seconds between turns, or 0 when the card holds still. */
+  _turns() {
+    const r = this._config && this._config.rotate;
+    const seconds = r == null ? DEFAULTS.rotate : Number(r);
+    return seconds > 0 ? seconds : 0;
+  }
+
+  _step(dir, how) {
+    const slides = this._slides;
+    if (slides.length < 2) return;
+    if (how !== "auto") this._stopped = true;
+    const i = Math.max(0, slides.findIndex((s) => s.key === this._slideKey));
+    const next = slides[(i + dir + slides.length) % slides.length];
+    this._slideKey = next.key;
+    this._paintHead(next, Date.now(), { dir, side: how === "swipe" });
+    this._tick();
+    this._rotate(true);
+  }
+
+  _hold(reason, on) {
+    if (on === this._held.has(reason)) return;
+    if (on) this._held.add(reason);
+    else this._held.delete(reason);
+    this._rotate(true);
+  }
+
+  /* A press can become a hold, a horizontal drag turns the card. */
+  _onPress(e) {
+    if (e.button > 0 || !e.isPrimary) return;
+    this._noClick = this._swiped = false;
+    this._hold("press", true);
+    const slide = this._headSlide;
+    const p = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, dx: 0, drag: false };
+    if (slide && slide.kind === "info" && hasAction(slide.info.hold_action)) {
+      p.timer = setTimeout(() => {
+        p.timer = null;
+        this._noClick = true;
+        this._infoAction(slide, "hold");
+      }, HOLD_MS);
+    }
+    this._press = p;
+  }
+
+  _onDrag(e) {
+    const p = this._press;
+    if (!p || e.pointerId !== p.id) return;
+    const dx = e.clientX - p.x;
+    const dy = e.clientY - p.y;
+    if (!p.drag) {
+      if (Math.hypot(dx, dy) > 10) clearTimeout(p.timer);
+      if (this._slides.length < 2 || this._expanded || Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      p.drag = true;
+      this._swiped = true;
+      try {
+        this._dom.head.setPointerCapture(p.id);
+      } catch (err) {
+        /* the pointer is gone */
+      }
+      this._endRipple(e);
+    }
+    p.dx = dx;
+    if (this._swapping) return;
+    this._dom.slide.style.transform = "translateX(" + dx * 0.6 + "px)";
+    this._dom.slide.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 160));
+  }
+
+  /* A swipe ends the press on Home Assistant's ripple, as scrolling the page does. */
+  _endRipple(e) {
+    if (!this._dom.head.querySelector("ha-ripple")) return;
+    this._ownCancel = new PointerEvent("pointercancel", { pointerId: e.pointerId, pointerType: e.pointerType, isPrimary: true, buttons: e.buttons });
+    this._dom.head.dispatchEvent(this._ownCancel);
+  }
+
+  _onRelease(e, cancelled) {
+    const p = this._press;
+    if (!p || e.pointerId !== p.id) return;
+    this._press = null;
+    clearTimeout(p.timer);
+    this._hold("press", false);
+    if (!p.drag) return;
+    const fast = Math.abs(p.dx) / Math.max(e.timeStamp - p.t, 1) > 0.5;
+    if (!cancelled && (Math.abs(p.dx) > 48 || fast)) {
+      this._step((p.dx < 0) !== this._rtl() ? 1 : -1, "swipe");
+      return;
+    }
+    const s = this._dom.slide;
+    const from = { transform: s.style.transform || "none", opacity: s.style.opacity || "1" };
+    s.style.transform = s.style.opacity = "";
+    if (s.animate && this._animOK()) s.animate([from, { transform: "none", opacity: 1 }], { duration: SIZE_MS, easing: EASE_STANDARD });
+  }
+
+  /* A tap opens the list, or does what the info on show is set to do. */
+  _activate() {
+    const slide = this._headSlide;
+    if (slide && slide.kind === "info") {
+      const info = slide.info;
+      if (!hasAction(info.double_tap_action)) {
+        this._infoAction(slide, "tap");
+      } else if (this._tapWait) {
+        clearTimeout(this._tapWait);
+        this._tapWait = null;
+        this._infoAction(slide, "double_tap");
+      } else {
+        this._tapWait = setTimeout(() => {
+          this._tapWait = null;
+          this._infoAction(slide, "tap");
+        }, DOUBLE_TAP_MS);
+      }
+      return;
+    }
+    this._toggle();
+  }
+
+  /* Home Assistant runs the action as for its own cards. Without a tap action it opens the entity. */
+  _infoAction(slide, action) {
+    const info = slide.info;
+    const config = { entity: slide.entity, tap_action: info.tap_action || { action: "more-info" } };
+    if (info.hold_action) config.hold_action = info.hold_action;
+    if (info.double_tap_action) config.double_tap_action = info.double_tap_action;
+    if (action !== "tap" || hasAction(config.tap_action)) fire(this, "hass-action", { config, action });
+  }
+
+  _infoActs(slide) {
+    const info = slide.info;
+    return !info.tap_action || hasAction(info.tap_action) || hasAction(info.hold_action) || hasAction(info.double_tap_action);
   }
 
   _renderDrawer(animate, now = Date.now()) {
@@ -3309,7 +4182,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (items.length) {
       setText(d.count, fill(items.length === 1 ? this._t.count_one : this._t.count_other, { n: items.length }));
     }
-    this._renderList(items, animate, now);
+    this._rowCache = this._renderList(items, animate, now);
     this._setFoot(items.length > 1 && items.some((it) => it.dismiss), animate);
   }
 
@@ -3354,10 +4227,8 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   /* Rows are keyed and reused while their content stays the same. With animate, rows
    * leave and arrive as in playLeave and playEnter, and moved rows slide. */
-  _renderList(items, animate, now) {
-    const list = this._dom.list;
-    const cache = this._rowCache;
-    const active = this.shadowRoot.activeElement;
+  _renderList(items, animate, now, list = this._dom.list, cache = this._rowCache, root = this.shadowRoot) {
+    const active = root.activeElement;
     let refocus = null;
     const before = new Map();
     if (animate) {
@@ -3373,6 +4244,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       let el;
       if (hit && hit.sig === sig) {
         el = hit.el;
+        el.style.setProperty("--tile-color", itemColor(it));
         this._setTime(el, it, now);
         setIcon(el.querySelector(".rtile"), it, this._hass);
         setImage(el.querySelector(".rtile"), it.image);
@@ -3391,7 +4263,6 @@ class OrigamiNotificationsCard extends HTMLElement {
       next.set(it.key, { sig, el });
       els.push(el);
     }
-    this._rowCache = next;
     const kept = new Set(els);
     const gone = new Set(old.filter((el) => !kept.has(el) && !replaced.has(el)));
     /* A button can end its own row, like Cancel on a timer. Focus then goes where it goes after a dismissal. */
@@ -3400,13 +4271,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     const focus = () => {
       const target = refocus && refocus[0].querySelectorAll(refocus[1])[refocus[2]];
       if (target) target.focus({ preventScroll: true });
-      else if (lost >= 0) this._focusAfter(lost);
+      else if (lost >= 0) this._focusAfter(lost, root, next);
     };
     if (!animate) {
       for (const el of old) stopMotion(el);
       list.replaceChildren(...els);
       focus();
-      return;
+      return next;
     }
 
     /* Rows on their way out stay where they were, after the row above them. */
@@ -3455,12 +4326,14 @@ class OrigamiNotificationsCard extends HTMLElement {
         });
       }
     }
+    return next;
   }
 
   _row(it, now) {
     const row = document.createElement("div");
     row.className = "row" + sevClass(it.sev);
     row.dataset.kind = it.kind;
+    row.style.setProperty("--tile-color", itemColor(it));
     row.setAttribute("role", "listitem");
     const tile = document.createElement("div");
     tile.className = "rtile" + sevClass(it.sev);
@@ -3488,13 +4361,15 @@ class OrigamiNotificationsCard extends HTMLElement {
         /* The row may be older than the item, so dismiss the current one. */
         const index = this._items.findIndex((i) => i.key === it.key);
         this._dismiss([index < 0 ? it : this._items[index]]);
-        if (e.detail === 0) this._focusAfter(index);
+        if (e.detail === 0) this._focusAfter(index, row.getRootNode());
       });
       meta.append(x);
     }
     const body = document.createElement("div");
     body.className = "body";
     body.textContent = it.message;
+    /* Without a message the time takes its place, like on the repairs page of Home Assistant. */
+    if (!it.message && Number.isFinite(it.ts)) body.append(when);
     row.append(tile, title, meta, body);
     this._setTime(row, it, now);
     if (it.actions && it.actions.length) {
@@ -3552,35 +4427,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     return row;
   }
 
-  _setMessage(text) {
-    const d = this._dom;
-    if (this._expanded) {
-      this._lastMsg = null;
-      setText(d.t1, text);
-      setText(d.t2, text);
-      return;
-    }
-    if (text === this._lastMsg) return;
-    this._lastMsg = text;
-    setText(d.t1, text);
-    setText(d.t2, text);
-    d.track.classList.remove("scroll");
-    d.msg.classList.remove("fade");
-    d.track.style.removeProperty("--scroll-s");
-    requestAnimationFrame(() => {
-      if (this._lastMsg !== text) return;
-      const w = d.t1.scrollWidth;
-      if (motionOK() && w > d.msg.clientWidth + 2) {
-        d.track.style.setProperty(
-          "--scroll-s",
-          Math.max(6, Math.round(w / 30)) + "s"
-        );
-        d.track.classList.add("scroll");
-        d.msg.classList.add("fade");
-      }
-    });
-  }
-
   getCardSize() {
     return this._expanded ? 1 + this._items.length : 1;
   }
@@ -3589,6 +4435,130 @@ class OrigamiNotificationsCard extends HTMLElement {
     return { columns: 12, rows: "auto", min_columns: 6 };
   }
 }
+
+const DIALOG = CARD + "-dialog";
+
+const DIALOG_STYLES = `
+  ha-adaptive-dialog { --dialog-content-padding: 0; }
+  .list { padding: 0 12px 12px; }
+`;
+
+/* Home Assistant creates this element once, next to its own dialogs, and calls showDialog for every open. It
+ * shows the rows of the card that opened it. A new ha-adaptive-dialog each time picks dialog or bottom sheet anew. */
+class OrigamiNotificationsDialog extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._style = document.createElement("style");
+    this.shadowRoot.append(this._style);
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    if (this._dialog) this._dialog.hass = hass;
+  }
+
+  showDialog({ card }) {
+    if (this._card && this._card !== card) this._card._dialogEl = null;
+    this._card = card;
+    card._dialogEl = this;
+    /* The card's clock runs on the minute while the dialog shows its times. */
+    card._tick();
+    if (this._dialog) {
+      this.update();
+      return;
+    }
+    this._style.textContent = STYLES + DIALOG_STYLES + (card._config.css || "");
+    const dialog = document.createElement("ha-adaptive-dialog");
+    /* 2026.4 reads hass for its close button. Later versions ignore it. */
+    dialog.hass = this._hass || card._hass;
+    dialog.setAttribute("flexcontent", "");
+    dialog.addEventListener("opened", (e) => {
+      if (e.target === dialog) this._shown = true;
+    });
+    dialog.addEventListener("closed", (e) => {
+      if (e.target === dialog) this._closed(dialog);
+    });
+    const clear = document.createElement("ha-icon-button");
+    clear.slot = "headerActionItems";
+    const icon = document.createElement("ha-icon");
+    icon.icon = "mdi:notification-clear-all";
+    clear.append(icon);
+    clear.addEventListener("click", () => {
+      if (this._card) this._card._clearAll();
+    });
+    this._list = document.createElement("div");
+    this._list.className = "list";
+    this._list.setAttribute("role", "list");
+    this._cache = new Map();
+    dialog.append(clear, this._list);
+    Object.assign(this, { _dialog: dialog, _clear: clear, _shown: false });
+    this.update();
+    this.shadowRoot.append(dialog);
+    dialog.open = true;
+  }
+
+  /* The card calls this whenever its entries change. With nothing left, the dialog closes. */
+  update() {
+    const card = this._card;
+    if (!card || !this._dialog) return;
+    const items = card._hiding() ? [] : card._items;
+    if (!items.length) {
+      this.closeDialog();
+      return;
+    }
+    this._dialog.setAttribute("header-title", fill(items.length === 1 ? card._t.count_one : card._t.count_other, { n: items.length }));
+    this._clear.label = card._t.clear;
+    this._clear.hidden = !(items.length > 1 && items.some((it) => it.dismiss));
+    this._cache = card._renderList(items, this._shown && card._animOK(), Date.now(), this._list, this._cache, this.shadowRoot);
+  }
+
+  /* Home Assistant calls this on back and before it navigates. Closing before the dialog showed skips its animation. */
+  closeDialog() {
+    if (this._dialog && this._shown) this._dialog.open = false;
+    else if (this._dialog) this._closed(this._dialog);
+    return true;
+  }
+
+  _closed(dialog) {
+    if (dialog !== this._dialog) return;
+    dialog.remove();
+    if (this._card && this._card._dialogEl === this) {
+      this._card._dialogEl = null;
+      this._card._tick();
+    }
+    Object.assign(this, { _dialog: null, _list: null, _cache: null, _card: null });
+    this.dispatchEvent(new CustomEvent("dialog-closed", { bubbles: true, composed: true, detail: { dialog: this.localName } }));
+  }
+}
+
+/* An info is edited like a tile, so its fields take Home Assistant's own labels in every language. */
+const HA_TILE_LABELS = {
+  name: "ui.panel.lovelace.editor.card.generic.name",
+  icon: "ui.panel.lovelace.editor.card.generic.icon",
+  color: "ui.panel.lovelace.editor.card.tile.color",
+  state_content: "ui.panel.lovelace.editor.card.tile.state_content",
+  time_format: "ui.panel.lovelace.editor.card.generic.time_format",
+  show_entity_picture: "ui.panel.lovelace.editor.card.tile.show_entity_picture",
+  tap_action: "ui.panel.lovelace.editor.card.generic.tap_action",
+  hold_action: "ui.panel.lovelace.editor.card.generic.hold_action",
+  double_tap_action: "ui.panel.lovelace.editor.card.generic.double_tap_action",
+  visibility: "ui.panel.lovelace.editor.card.heading.entity_config.visibility",
+  visibility_intro: "ui.panel.lovelace.editor.card.heading.entity_config.visibility_explanation",
+  forecast: "ui.panel.lovelace.editor.card.weather-forecast.weather_to_show",
+  show_both: "ui.panel.lovelace.editor.card.weather-forecast.show_both",
+  show_current: "ui.panel.lovelace.editor.card.weather-forecast.show_only_current",
+  show_forecast: "ui.panel.lovelace.editor.card.weather-forecast.show_only_forecast",
+  forecast_type: "ui.panel.lovelace.editor.card.weather-forecast.forecast_type",
+  forecast_slots: "ui.panel.lovelace.editor.card.weather-forecast.forecast_slots",
+  daily: "ui.panel.lovelace.editor.card.weather-forecast.daily",
+  hourly: "ui.panel.lovelace.editor.card.weather-forecast.hourly",
+  twice_daily: "ui.panel.lovelace.editor.card.weather-forecast.twice_daily",
+};
+
+/* What weather an info shows, in the terms of Home Assistant's forecast card editor. */
+const forecastShow = (info) =>
+  !info.forecast_type || info.show_forecast === false ? "show_current" : info.show_current === false ? "show_forecast" : "show_both";
 
 /* Languages the card doesn't ship get these labels from Home Assistant. */
 const HA_EDITOR = {
@@ -3607,6 +4577,28 @@ const EDITOR_STRINGS = {
     updates: "Pending updates",
     repairs: "Repairs",
     hide_when_empty: "Hide when there is nothing to show",
+    infos: "Infos",
+    info_options: "Info options",
+    rotate: "Seconds between turns",
+    slide: "Turn",
+    slide_up: "Upwards",
+    slide_side: "Sideways",
+    color: "Color",
+    state_content: "State content",
+    time_format: "Time format",
+    show_entity_picture: "Show entity picture",
+    hold_action: "Hold behavior",
+    double_tap_action: "Double tap behavior",
+    visibility: "Visibility",
+    forecast: "Weather to show",
+    show_both: "Current weather and forecast",
+    show_current: "Only the current weather",
+    show_forecast: "Only the forecast",
+    forecast_type: "Forecast",
+    forecast_slots: "Forecasts to show",
+    daily: "Daily",
+    hourly: "Hourly",
+    twice_daily: "Twice daily",
     options: "Entity options",
     type: "Kind",
     attribute: "Attribute",
@@ -3649,6 +4641,28 @@ const EDITOR_STRINGS = {
     updates: "Ausstehende Updates",
     repairs: "Reparaturen",
     hide_when_empty: "Ausblenden, wenn nichts anliegt",
+    infos: "Infos",
+    info_options: "Optionen je Info",
+    rotate: "Sekunden bis zum Wechsel",
+    slide: "Wechsel",
+    slide_up: "Nach oben",
+    slide_side: "Seitlich",
+    color: "Farbe",
+    state_content: "Zustandsinhalt",
+    time_format: "Zeitformat",
+    show_entity_picture: "Entitätsbild anzeigen",
+    hold_action: "Verhalten beim Halten",
+    double_tap_action: "Verhalten beim Doppeltippen",
+    visibility: "Sichtbarkeit",
+    forecast: "Anzuzeigendes Wetter",
+    show_both: "Aktuelles Wetter und Vorhersage",
+    show_current: "Nur das aktuelle Wetter",
+    show_forecast: "Nur die Vorhersage",
+    forecast_type: "Vorhersage",
+    forecast_slots: "Anzahl der Vorhersagen",
+    daily: "Täglich",
+    hourly: "Stündlich",
+    twice_daily: "Zweimal täglich",
     options: "Optionen je Entität",
     type: "Art",
     attribute: "Attribut",
@@ -3697,6 +4711,9 @@ const EDITOR_HELPERS = {
     image: "An attribute, a path into one like book.cover, or a URL. If empty, the card uses the picture of the shown object or of the entity.",
     background: "Blurred behind the card while this entity is on top.",
     before: "How long before it starts or is due.",
+    infos: "Shown in turn while nothing needs attention.",
+    rotate: "At 0 the card holds still.",
+    visibility_intro: "The info shows while all of these conditions hold.",
   },
   de: {
     label: "Jede Entität mit diesem Label kommt dazu und wird automatisch erkannt.",
@@ -3708,6 +4725,9 @@ const EDITOR_HELPERS = {
     image: "Ein Attribut, ein Pfad darin wie book.cover, oder eine URL. Bleibt es leer, nimmt die Karte das Bild des gezeigten Objekts oder der Entität.",
     background: "Unscharf hinter der Karte, solange diese Entität oben steht.",
     before: "Wie lange vor dem Beginn oder der Fälligkeit.",
+    infos: "Erscheinen im Wechsel, solange nichts anliegt.",
+    rotate: "Bei 0 bleibt die Karte stehen.",
+    visibility_intro: "Die Info erscheint, solange alle diese Bedingungen erfüllt sind.",
   },
 };
 
@@ -3806,6 +4826,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
       { name: "entities", selector: { entity: { multiple: true } } },
       { name: "label", selector: { label: {} } },
       { name: "weather", selector: { entity: { filter: { domain: "weather" } } } },
+      { name: "infos", selector: { entity: { multiple: true, reorder: true } } },
       {
         name: "",
         type: "grid",
@@ -3815,6 +4836,17 @@ class OrigamiNotificationsEditor extends HTMLElement {
         ],
       },
       { name: "hide_when_empty", selector: { boolean: {} } },
+      {
+        name: "",
+        type: "grid",
+        schema: [
+          { name: "rotate", selector: { number: { min: 0, max: 60, step: 1, mode: "box", unit_of_measurement: "s" } } },
+          {
+            name: "slide",
+            selector: { select: { mode: "dropdown", options: ["up", "side"].map((value) => ({ value, label: this._label("slide_" + value) })) } },
+          },
+        ],
+      },
       ...(entries.length
         ? [
             {
@@ -3892,6 +4924,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
     const audience = this._config.audience || {};
     const data = { ...DEFAULTS, ...this._config };
     data.entities = this._entries().map((e) => e.entity);
+    data.infos = this._infos().map((info) => info.entity);
     data.options = Object.fromEntries(
       this._entries().map((e) => [
         e.entity,
@@ -3960,6 +4993,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
       value.entities = this._mergeEntities(value.entities, value.options);
     }
     delete value.options;
+    if (Array.isArray(value.infos)) value.infos = this._mergeInfos(value.infos);
     const audience = { ...(this._config.audience || {}) };
     for (const [key, v] of Object.entries(value.audience || {})) {
       if (v && (v.visible === "only" || v.visible === "except")) {
@@ -3977,7 +5011,11 @@ class OrigamiNotificationsEditor extends HTMLElement {
     const kept = (key) => after.has(key) || key === "updates" || key.startsWith("update.");
     for (const key of before) if (!kept(key)) delete audience[key];
     value.audience = Object.keys(audience).length ? audience : null;
-    /* Only what differs from the defaults is written, in a fixed order. */
+    this._write(value);
+  }
+
+  /* Only what differs from the defaults is written, in a fixed order. */
+  _write(value) {
     const merged = { ...this._config, ...value };
     const config = { type: "custom:" + CARD };
     for (const k of [...KEY_ORDER, ...Object.keys(merged)]) {
@@ -3988,6 +5026,10 @@ class OrigamiNotificationsEditor extends HTMLElement {
       if (k in DEFAULTS && v === DEFAULTS[k]) continue;
       config[k] = v;
     }
+    this._fire(config);
+  }
+
+  _fire(config) {
     this._config = config;
     this._renderForm();
     this.dispatchEvent(
@@ -3997,6 +5039,215 @@ class OrigamiNotificationsEditor extends HTMLElement {
         composed: true,
       })
     );
+  }
+
+  _infos(c = this._config) {
+    return (c.infos || []).map((info) => (typeof info === "string" ? { entity: info } : { ...info }));
+  }
+
+  /* Picked infos keep their options, also when the picker swaps or moves them. */
+  _mergeInfos(ids) {
+    const prev = this._infos();
+    const used = new Set();
+    const take = (i) => i >= 0 && !used.has(i) && used.add(i) && prev[i];
+    return ids.map((id, i) => {
+      const base = take(prev.findIndex((info, j) => info.entity === id && !used.has(j))) ||
+        (prev.length === ids.length && !ids.includes(prev[i].entity) && take(i)) || {};
+      return this._infoEntry({ ...base, entity: id });
+    });
+  }
+
+  /* An info without options is written as its entity alone. The weather to show is on unless it is off. */
+  _infoEntry(info) {
+    const out = {};
+    for (const key of [...INFO_KEY_ORDER, ...Object.keys(info)]) {
+      if (key in out || !(key in info)) continue;
+      const on = key === "show_current" || key === "show_forecast";
+      if (on ? info[key] !== false : isEmpty(info[key])) continue;
+      if (key === "color" && info[key] === "state") continue;
+      out[key] = info[key];
+    }
+    return Object.keys(out).length === 1 ? out.entity : out;
+  }
+
+  _tileLabel(key) {
+    const h = this._hass;
+    const borrowed = HA_TILE_LABELS[key] && h && h.localize ? h.localize(HA_TILE_LABELS[key]) : "";
+    return borrowed || this._label(key);
+  }
+
+  /* The keys behind a choice of what weather to show. A forecast starts with the first type the entity has. */
+  _forecastKeys(info, show) {
+    if (show === "show_current") return { forecast_type: undefined, forecast_slots: undefined, show_current: undefined, show_forecast: undefined };
+    return {
+      forecast_type: info.forecast_type || this._forecastTypes(info)[0],
+      show_current: show === "show_forecast" ? false : undefined,
+      show_forecast: undefined,
+    };
+  }
+
+  /* The forecast types a weather info can show, like in Home Assistant's forecast card editor. */
+  _forecastTypes(info) {
+    const st = this._hass && this._hass.states[info.entity];
+    if (!info.entity.startsWith("weather.")) return [];
+    return FORECAST_TYPES.filter((type) => forecastSupported(st, type) || info.forecast_type === type);
+  }
+
+  /* The fields of a tile card. The time format shows only where the content holds a time. */
+  _infoSchema(info) {
+    const st = this._hass && this._hass.states[info.entity];
+    const domain = info.entity.split(".")[0];
+    const timed = [].concat(info.state_content == null ? "state" : info.state_content).some(
+      (c) =>
+        /^last[_-](changed|updated|triggered)$/.test(c) ||
+        (domain === "sun" && /^next_/.test(c)) ||
+        (domain === "calendar" && /_time$/.test(c)) ||
+        (c === "state" && Boolean(st) && (st.attributes.device_class === "timestamp" || TIME_STATE_DOMAINS.has(domain)))
+    );
+    const actions = { entity_id: "entity" };
+    const forecasts = this._forecastTypes(info);
+    const state = [
+      { name: "state_content", selector: { ui_state_content: {} }, context: { filter_entity: "entity" } },
+      ...(timed ? [{ name: "time_format", selector: { ui_time_format: {} } }] : []),
+    ];
+    const show = forecastShow(info);
+    const forecast = [
+      {
+        name: "forecast",
+        selector: { select: { mode: "dropdown", options: ["show_both", "show_current", "show_forecast"].map((value) => ({ value, label: this._tileLabel(value) })) } },
+      },
+      ...(show === "show_current"
+        ? []
+        : [
+            { name: "forecast_type", selector: { select: { mode: "dropdown", options: forecasts.map((value) => ({ value, label: this._tileLabel(value) })) } } },
+            { name: "forecast_slots", selector: { number: { min: 1, max: 12, mode: "box" } } },
+          ]),
+      ...(show === "show_forecast" ? [] : state),
+    ];
+    return [
+      { name: "name", selector: { entity_name: {} }, context: { entity: "entity" } },
+      {
+        name: "",
+        type: "grid",
+        schema: [
+          { name: "icon", selector: { icon: {} }, context: { icon_entity: "entity" } },
+          { name: "color", selector: { ui_color: { default_color: "state", include_state: true } } },
+        ],
+      },
+      ...(forecasts.length ? forecast : state),
+      { name: "show_entity_picture", selector: { boolean: {} } },
+      { name: "tap_action", selector: { ui_action: { default_action: "more-info" } }, context: actions },
+      {
+        name: "",
+        type: "optional_actions",
+        flatten: true,
+        schema: ["hold_action", "double_tap_action"].map((name) => ({ name, selector: { ui_action: { default_action: "none" } }, context: actions })),
+      },
+    ];
+  }
+
+  /* Each info gets the fields of a tile and Home Assistant's own editor for visibility conditions, which no
+   * form field offers. */
+  _renderInfos() {
+    const infos = this._infos();
+    if (!this._infoBox) {
+      this._infoBox = document.createElement("div");
+      this._infoBox.style.marginTop = "24px";
+      this.appendChild(this._infoBox);
+    }
+    const box = this._infoBox;
+    box.hidden = !infos.length;
+    if (!infos.length) {
+      box.replaceChildren();
+      this._infoPanel = null;
+      return;
+    }
+    if (!this._infoPanel || !box.contains(this._infoPanel)) {
+      this._infoPanel = panelOf("mdi:information-outline");
+      box.replaceChildren(this._infoPanel);
+    }
+    this._infoPanel.header = this._label("info_options");
+    const body = this._infoPanel.querySelector(".content");
+    while (body.children.length > infos.length) body.lastElementChild.remove();
+    infos.forEach((info, i) => {
+      const item = body.children[i] || this._infoItem();
+      this._fillInfo(item, info, i);
+      if (!item.parentNode) body.append(item);
+    });
+  }
+
+  _infoItem() {
+    const item = panelOf("mdi:information-outline");
+    const form = document.createElement("ha-form");
+    form.addEventListener("value-changed", (e) => this._onInfo(e, item._index, e.detail.value));
+    const vis = panelOf("mdi:eye");
+    const intro = document.createElement("p");
+    intro.style.cssText = "margin: 0 0 12px; color: var(--secondary-text-color);";
+    const conditions = document.createElement("ha-card-conditions-editor");
+    conditions.conditions = [];
+    conditions.addEventListener("value-changed", (e) => {
+      const list = Array.isArray(e.detail.value) ? e.detail.value : [];
+      this._onInfo(e, item._index, { visibility: list.length ? list : undefined });
+    });
+    vis.querySelector(".content").append(intro, conditions);
+    item.querySelector(".content").append(form, vis);
+    Object.assign(item, { _form: form, _vis: vis, _intro: intro, _conditions: conditions });
+    return item;
+  }
+
+  _fillInfo(item, info, i) {
+    item._index = i;
+    const st = this._hass && this._hass.states[info.entity];
+    item.header = typeof info.name === "string" && info.name ? info.name : this._name(info.entity);
+    item.secondary = this._forecastTypes(info).length && forecastShow(info) !== "show_current" ? this._tileLabel(info.forecast_type) : "";
+    /* Like the row editors of Home Assistant, the panel shows the state icon of its entity. */
+    let lead = item.querySelector(":scope > [slot=leading-icon]");
+    if (st && customElements.get("ha-state-icon") && lead.localName !== "ha-state-icon") {
+      const icon = document.createElement("ha-state-icon");
+      icon.slot = "leading-icon";
+      lead.replaceWith(icon);
+      lead = icon;
+    }
+    if (lead.localName === "ha-state-icon") Object.assign(lead, { hass: this._hass, stateObj: st, icon: info.icon || (st ? undefined : ICONS.generic) });
+    else lead.icon = info.icon || (st && st.attributes.icon) || ICONS.generic;
+    const form = item._form;
+    form.hass = this._hass;
+    form.computeLabel = (s) => this._tileLabel(s.name);
+    form.computeHelper = () => undefined;
+    const schema = this._infoSchema(info);
+    const schemaKey = JSON.stringify(schema);
+    if (schemaKey !== item._schemaKey) {
+      item._schemaKey = schemaKey;
+      form.schema = schema;
+    }
+    /* Which weather shows is one choice, as in Home Assistant's forecast card editor. */
+    const data = this._forecastTypes(info).length ? { ...info, forecast: forecastShow(info) } : info;
+    const dataKey = JSON.stringify(data);
+    if (dataKey !== item._dataKey) {
+      item._dataKey = dataKey;
+      form.data = data;
+    }
+    item._vis.header = this._tileLabel("visibility");
+    const h = this._hass;
+    const own = (EDITOR_HELPERS[this._lang()] || {}).visibility_intro;
+    item._intro.textContent = own || (h && h.localize && h.localize(HA_TILE_LABELS.visibility_intro)) || EDITOR_HELPERS.en.visibility_intro;
+    item._conditions.hass = this._hass;
+    const conditions = Array.isArray(info.visibility) ? info.visibility : [];
+    if (JSON.stringify(conditions) !== JSON.stringify(item._conditions.conditions || [])) item._conditions.conditions = conditions;
+  }
+
+  _onInfo(e, index, value) {
+    e.stopPropagation();
+    const infos = this._infos();
+    if (!infos[index]) return;
+    const { forecast: show, ...rest } = value;
+    const info = { ...infos[index], ...rest, entity: infos[index].entity };
+    /* Only a new choice of weather sets its keys. A cleared choice is the current weather, like a tile. */
+    const choice = "forecast" in value ? show || "show_current" : null;
+    if (choice && choice !== forecastShow(infos[index])) Object.assign(info, this._forecastKeys(info, choice));
+    if (!info.forecast_type) for (const key of ["forecast_slots", "show_current", "show_forecast"]) delete info[key];
+    infos[index] = info;
+    this._write({ infos: infos.map((i) => this._infoEntry(i)) });
   }
 
   /* ha-form gets a new schema or new data only when they change, so fields keep their focus. */
@@ -4029,8 +5280,23 @@ class OrigamiNotificationsEditor extends HTMLElement {
       this._dataKey = dataKey;
       this._form.data = data;
     }
+    this._renderInfos();
   }
 }
+
+/* An outlined panel like the ones ha-form draws, with an icon and room for content. */
+const panelOf = (icon) => {
+  const panel = document.createElement("ha-expansion-panel");
+  panel.outlined = true;
+  const lead = document.createElement("ha-icon");
+  lead.slot = "leading-icon";
+  lead.icon = icon;
+  const content = document.createElement("div");
+  content.className = "content";
+  content.style.cssText = "display: flex; flex-direction: column; gap: 12px; padding: 12px;";
+  panel.append(lead, content);
+  return panel;
+};
 
 /* The file may be loaded twice, e.g. by HACS and a manual resource. */
 if (!customElements.get(CARD)) {
@@ -4038,6 +5304,7 @@ if (!customElements.get(CARD)) {
   console.info("%c Origami Notifications %c v" + VERSION + " ", "font-weight:bold", "opacity:0.7");
 }
 if (!customElements.get(EDITOR)) customElements.define(EDITOR, OrigamiNotificationsEditor);
+if (!customElements.get(DIALOG)) customElements.define(DIALOG, OrigamiNotificationsDialog);
 window.customCards = window.customCards || [];
 if (!window.customCards.some((c) => c.type === CARD)) {
   window.customCards.push({
@@ -4064,6 +5331,7 @@ if (window.__origamiTest) {
     endOf,
     parseBefore,
     stateActive,
+    stateColor,
     alikeTitle,
     firstPicture,
     forecastType,
