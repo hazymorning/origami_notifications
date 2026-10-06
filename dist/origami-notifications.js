@@ -5126,7 +5126,17 @@ class OrigamiNotificationsEditor extends HTMLElement {
     item._index = i;
     const st = this._hass && this._hass.states[info.entity];
     item.header = typeof info.name === "string" && info.name ? info.name : this._name(info.entity);
-    item.querySelector("[slot=leading-icon]").icon = info.icon || (st && st.attributes.icon) || ICONS.generic;
+    item.secondary = info.forecast_type && this._forecastTypes(info).length ? this._tileLabel(info.forecast_type) : "";
+    /* Like the row editors of Home Assistant, the panel shows the state icon of its entity. */
+    let lead = item.querySelector(":scope > [slot=leading-icon]");
+    if (st && customElements.get("ha-state-icon") && lead.localName !== "ha-state-icon") {
+      const icon = document.createElement("ha-state-icon");
+      icon.slot = "leading-icon";
+      lead.replaceWith(icon);
+      lead = icon;
+    }
+    if (lead.localName === "ha-state-icon") Object.assign(lead, { hass: this._hass, stateObj: st, icon: info.icon || (st ? undefined : ICONS.generic) });
+    else lead.icon = info.icon || (st && st.attributes.icon) || ICONS.generic;
     const form = item._form;
     form.hass = this._hass;
     form.computeLabel = (s) => this._tileLabel(s.name);

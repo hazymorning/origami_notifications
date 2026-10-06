@@ -4246,9 +4246,16 @@ describe("editor for infos", () => {
       "a forecast asks for the number of slots in place of the state content"
     );
     send(w, form(), { ...form().data, forecast_slots: 3 });
-    same(written.at(-1).infos, [{ entity: "weather.home", forecast_type: "daily", forecast_slots: 3 }]);
+    same([written.at(-1).infos, form().closest("ha-expansion-panel").secondary], [[{ entity: "weather.home", forecast_type: "daily", forecast_slots: 3 }], "Daily"], "the panel names the forecast it shows");
     send(w, form(), { ...form().data, forecast_type: "" });
     same(written.at(-1).infos, ["weather.home"], "the current weather drops the forecast options");
+  });
+
+  test("an info panel shows the state icon of its entity, like Home Assistant's row editors", () => {
+    const w = makeWindow({ stateIcon: true });
+    const { ed } = open(w, { infos: ["sun.sun", { entity: "weather.home", icon: "mdi:umbrella" }] });
+    const leads = [...ed.querySelectorAll("ha-expansion-panel")].filter((p) => p.querySelector(":scope > ha-form, :scope > .content > ha-form")).map((p) => p.querySelector(":scope > [slot=leading-icon]"));
+    same(leads.map((l) => [l.localName, l.stateObj.entity_id, l.icon]), [["ha-state-icon", "sun.sun", null], ["ha-state-icon", "weather.home", "mdi:umbrella"]]);
   });
 
   test("moving, swapping and removing infos keeps their options", () => {
