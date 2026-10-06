@@ -3297,3 +3297,247 @@ test("entity rows use Home Assistant's state icon", async () => {
     "once it is defined, every icon is drawn again"
   );
 });
+
+
+/* A weather entity as Home Assistant writes it, with an hourly forecast unless told otherwise. */
+const weatherAt = (state = "cloudy", attributes = {}) =>
+  st("weather.home", state, { friendly_name: "Home", temperature: 12, temperature_unit: "°C", precipitation_unit: "mm", supported_features: 2, ...attributes });
+/* An hourly forecast from the top of the mocked hour on, one entry per argument. */
+const hourly = (...hours) => hours.map((h, i) => ({ datetime: new Date(NOW + i * 3600000).toISOString(), condition: "cloudy", temperature: 10, ...h }));
+const windowOn = (id, state = "on") => ({ [id]: st(id, state, { device_class: "window", friendly_name: id.split(".")[1] }) });
+/* A card with the weather and nothing else, and the forecast subscription it opened. */
+const weatherCard = (w, states, extra = {}, opts = {}) => {
+  const subs = [];
+  const hass = makeHass(states, { subs, ...opts });
+  hass.formatEntityAttributeValue = (s, attribute, value) => (value === undefined ? s.attributes[attribute] : value) + " " + s.attributes.temperature_unit;
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false, weather: "weather.home", ...extra }, hass);
+  return [el, subs.find((s) => s.msg && s.msg.type === "weather/subscribe_forecast"), hass];
+};
+const shownRows = (el) => rows(el).map((r) => [r.title, r.body, r.tile, r.icon]);
+
+test("rain ahead shows the hour it starts", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const [el, sub] = weatherCard(w, { "weather.home": weatherAt() });
+  same(sub.msg, { type: "weather/subscribe_forecast", entity_id: "weather.home", forecast_type: "hourly" }, "the card asks Home Assistant for the hourly forecast");
+  sub.cb({ type: "hourly", forecast: hourly({}, {}, {}, { condition: "rainy", precipitation_probability: 70 }) });
+  same(shownRows(el), [["Rain from 3 PM", "70% chance", "rtile", "mdi:weather-rainy"]], "the first wet hour within six hours, with its chance");
+  const row = el.shadowRoot.querySelector(".row");
+  same(
+    [row.dataset.kind, row.querySelector(".when").dateTime, head(el).title],
+    ["weather", new Date(NOW + 3 * 3600000).toISOString(), "Rain from 3 PM"],
+    "a weather entry that points to that hour"
+  );
+  const opened = [];
+  el.addEventListener("hass-more-info", (e) => opened.push(e.detail.entityId));
+  row.querySelector(".rtile").click();
+  same(opened, ["weather.home"], "a tap opens the weather entity");
+  const of = (...hours) => {
+    sub.cb({ type: "hourly", forecast: hourly(...hours) });
+    return rows(el).map((r) => [r.title, r.body]);
+  };
+  same(
+    [
+      of({}, { condition: "snowy" }),
+      of({}, { condition: "lightning-rainy" }),
+      of({}, { condition: "hail" }),
+      of({}, { condition: "rainy", temperature: 1 }),
+      of({}, { precipitation: 0.2 }),
+      of({}, { precipitation_probability: 60 }),
+    ],
+    [[["Snow from 1 PM", ""]], [["Thunderstorms from 1 PM", ""]], [["Hail from 1 PM", ""]], [["Snow from 1 PM", ""]], [["Rain from 1 PM", ""]], [["Rain from 1 PM", "60% chance"]]],
+    "snow, thunder and hail by name, snow at 1 °C, and 0.2 mm or a chance of 60 % make an hour wet"
+  );
+  same(
+    [of({}, {}, {}, {}, {}, {}, { condition: "pouring" }), of({ precipitation: 0.1, precipitation_probability: 59 }), of({ condition: "pouring", datetime: new Date(NOW - 3600000).toISOString() })],
+    [[], [], []],
+    "nothing beyond six hours, nothing below the marks, and nothing from an hour that has ended"
+  );
+  const de = makeWindow({ clock: true, zone: "UTC" });
+  const [german, gsub] = weatherCard(de, { "weather.home": weatherAt() }, {}, { lang: "de" });
+  gsub.cb({ type: "hourly", forecast: hourly({}, {}, {}, {}, {}, { condition: "rainy", precipitation_probability: 80 }) });
+  const percent = new Intl.NumberFormat("de", { style: "percent" }).format(0.8);
+  same(rows(german).map((r) => [r.title, r.body]), [["Regen ab 17 Uhr", percent + " Wahrscheinlichkeit"]], "in German, with the hour and the percent as German writes them");
+  const { isWet, wetKind } = w.__origamiTest;
+  same(
+    [isWet({ precipitation: 0.01 }, "in"), isWet({ precipitation: 0.009 }, "in"), isWet({ condition: "snowy-rainy" }, "mm"), wetKind("rainy", 34, 34), wetKind("rainy", 35, 34), wetKind("lightning", 0, 1)],
+    [true, false, true, "snow", "rain", "thunder"],
+    "inches have their own mark, and so has Fahrenheit"
+  );
+});
+
+test("rain ahead with an open window is a warning", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const all = { "binary_sensor.all_windows": st("binary_sensor.all_windows", "on", { device_class: "window", entity_id: ["binary_sensor.kitchen_window"] }) };
+  const states = { "weather.home": weatherAt(), ...windowOn("binary_sensor.kitchen_window"), ...windowOn("cover.roof_window", "open"), ...all };
+  const [el, sub] = weatherCard(w, states);
+  sub.cb({ type: "hourly", forecast: hourly({}, { condition: "rainy", precipitation_probability: 90 }) });
+  same(shownRows(el), [["Rain from 1 PM", "2 windows open", "rtile warn", "mdi:weather-rainy"]], "a warning that counts the open windows instead of the chance, without a group of them");
+  const closed = { ...states, ...windowOn("cover.roof_window", "closed"), ...windowOn("binary_sensor.hall_window", "unavailable"), ...windowOn("cover.attic_window", "unavailable") };
+  el.hass = { ...el._hass, states: closed };
+  same(shownRows(el), [["Rain from 1 PM", "1 window open", "rtile warn", "mdi:weather-rainy"]], "a closed or unavailable window does not count");
+});
+
+test("rain now shows only while a window is open", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const rainy = { ...weatherAt("rainy"), last_changed: new Date(NOW - 600000).toISOString() };
+  const [el, sub, hass] = weatherCard(w, { "weather.home": rainy, ...windowOn("binary_sensor.kitchen_window", "off") });
+  sub.cb({ type: "hourly", forecast: hourly({ condition: "rainy" }, { condition: "rainy" }) });
+  same(rows(el), [], "while it rains, an entry for rain ahead would say nothing new");
+  el.hass = { ...hass, states: { "weather.home": rainy, ...windowOn("binary_sensor.kitchen_window") } };
+  same(shownRows(el), [["It is raining", "1 window open", "rtile warn", "mdi:weather-rainy"]], "with a window open it is a warning");
+  same(el.shadowRoot.querySelector(".row .when").dateTime, new Date(NOW - 600000).toISOString(), "since it began to rain");
+  const now = (state, temperature = 12) => {
+    el.hass = { ...hass, states: { "weather.home": { ...rainy, state, attributes: { ...rainy.attributes, temperature } }, ...windowOn("binary_sensor.kitchen_window") } };
+    return rows(el).map((r) => r.title);
+  };
+  same([now("snowy"), now("lightning"), now("hail"), now("rainy", 0)], [["It is snowing"], ["Thunderstorm"], ["Hail"], ["It is snowing"]], "snow, thunder, hail, and snow at 1 °C or colder");
+});
+
+test("frost ahead shows the hour and the low", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const [el, sub, hass] = weatherCard(w, { "weather.home": weatherAt("clear-night", { temperature: 3 }) });
+  sub.cb({ type: "hourly", forecast: hourly({ temperature: 3 }, { temperature: 1 }, { temperature: -1 }, { temperature: -3 }, { temperature: -2 }) });
+  same(shownRows(el), [["Frost from 2 PM", "Low of -3 °C", "rtile", "mdi:snowflake-thermometer"]], "the first hour below 0 °C and the lowest within 18 hours");
+  el.hass = { ...hass, states: { "weather.home": weatherAt("clear-night", { temperature: 0 }) } };
+  same(rows(el), [], "nothing while it freezes already");
+  el.hass = { ...hass, states: { "weather.home": weatherAt("clear-night", { temperature: 3 }) } };
+  sub.cb({ type: "hourly", forecast: hourly(...Array.from({ length: 18 }, () => ({ temperature: 2 })), { temperature: -5 }) });
+  same(rows(el), [], "nor for frost more than 18 hours ahead");
+  const us = makeWindow({ clock: true, zone: "UTC" });
+  const [f, fsub] = weatherCard(us, { "weather.home": weatherAt("clear-night", { temperature: 33, temperature_unit: "°F" }) });
+  fsub.cb({ type: "hourly", forecast: hourly({ temperature: 33 }, { temperature: 31 }) });
+  same(rows(f).map((r) => [r.title, r.body]), [["Frost from 1 PM", "Low of 31 °F"]], "in Fahrenheit below 32");
+});
+
+test("a daily forecast alone gives no weather entries", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const [el, sub] = weatherCard(w, { "weather.home": weatherAt("cloudy", { supported_features: 1, temperature: 3 }) });
+  same(sub.msg.forecast_type, "daily");
+  sub.cb({ type: "daily", forecast: hourly({ condition: "rainy", temperature: -4 }, { condition: "pouring", temperature: -6 }) });
+  same(rows(el), [], "without hours, neither rain nor frost");
+  const twice = makeWindow({ clock: true, zone: "UTC" });
+  const [el2, sub2] = weatherCard(twice, { "weather.home": weatherAt("cloudy", { supported_features: 5 }) });
+  sub2.cb({ type: "twice_daily", forecast: [{ datetime: new Date(NOW + 2 * 3600000).toISOString(), is_daytime: true, condition: "rainy", temperature: 9 }] });
+  same([sub2.msg.forecast_type, rows(el2).map((r) => r.title)], ["twice_daily", ["Rain from 2 PM"]], "twice a day is enough");
+  const { forecastType } = w.__origamiTest;
+  same([2, 4, 1, 7, 6, 0, undefined].map((f) => forecastType({ attributes: { supported_features: f } })), ["hourly", "twice_daily", "daily", "hourly", "hourly", null, null], "hourly first, then twice a day, then daily");
+});
+
+test("cards share one forecast and ignore a repeat", async () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const states = { "weather.home": weatherAt() };
+  const [first, sub] = weatherCard(w, states);
+  const [second, own] = weatherCard(w, states);
+  const counted = (el) => {
+    const recompute = el._recompute.bind(el);
+    el._count = 0;
+    el._recompute = () => {
+      el._count++;
+      recompute();
+    };
+  };
+  counted(first);
+  counted(second);
+  const forecast = hourly({ condition: "rainy" });
+  sub.cb({ type: "hourly", forecast });
+  same([rows(first).length, rows(second).length, first._count, second._count], [1, 1, 1, 1], "news on one subscription reaches every card on the same forecast");
+  own.cb({ type: "hourly", forecast: forecast.map((f) => ({ ...f })) });
+  sub.cb({ type: "hourly", forecast });
+  same([first._count, second._count], [1, 1], "the same forecast again changes nothing");
+  const [third] = weatherCard(w, states);
+  same(rows(third).map((r) => r.title), ["Rain from 12 PM"], "a card that comes later shows it before its own subscription answers");
+  sub.cb({ type: "hourly", forecast: null });
+  same([rows(first).length, rows(third).length], [0, 0], "no forecast means no entries");
+});
+
+test("the forecast subscription ends when the card goes", async () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const subs = [];
+  const states = { "weather.home": weatherAt(), "weather.cabin": { ...weatherAt(), entity_id: "weather.cabin" } };
+  const el = mount(w, { type: "x", hide_when_empty: false, updates: false, weather: "weather.home" }, makeHass(states, { subs }));
+  const forecasts = () => subs.filter((s) => s.msg && s.msg.type === "weather/subscribe_forecast");
+  await Promise.resolve();
+  el.setConfig({ type: "x", hide_when_empty: false, updates: false, weather: "weather.cabin" });
+  await Promise.resolve();
+  same(forecasts().map((s) => [s.msg.entity_id, s.closed]), [["weather.home", true], ["weather.cabin", false]], "a new weather option ends the old subscription and opens one for the new entity");
+  el.remove();
+  await Promise.resolve();
+  same(forecasts().map((s) => s.closed), [true, true], "a card that leaves ends it");
+  const ended = [];
+  const subscribe = el._hass.connection.subscribeMessage;
+  el._hass.connection.subscribeMessage = (cb, msg) => subscribe(cb, msg).then((unsub) => () => ended.push(msg.type) && unsub());
+  w.document.body.append(el);
+  el.remove();
+  await Promise.resolve();
+  await Promise.resolve();
+  same(forecasts().map((s) => s.closed), [true, true, true], "also one that arrives after the card has gone");
+  same(ended.filter((type) => type === "weather/subscribe_forecast").length, 1, "which ends once");
+
+  const refused = makeWindow({ clock: true, zone: "UTC" });
+  const restored = weatherAt("unavailable", { restored: true });
+  const hass = makeHass({ "weather.home": restored });
+  let asked = 0;
+  hass.connection.subscribeMessage = (cb, msg) => {
+    if (msg.type !== "weather/subscribe_forecast") return Promise.resolve(() => {});
+    asked++;
+    return Promise.reject({ code: "invalid_entity_id" });
+  };
+  const quiet = mount(refused, { type: "x", hide_when_empty: false, updates: false, weather: "weather.home" }, hass);
+  await Promise.resolve();
+  quiet.hass = { ...hass };
+  same([asked, rows(quiet).length], [1, 0], "a refusal ends it quietly");
+  quiet.hass = { ...hass, states: { "weather.home": weatherAt("sunny") } };
+  same(asked, 2, "and the card asks again once the weather has loaded");
+});
+
+test("opening a window updates the rain entry at once", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const states = { "weather.home": weatherAt(), ...windowOn("binary_sensor.kitchen_window", "off") };
+  const [el, sub, hass] = weatherCard(w, states);
+  sub.cb({ type: "hourly", forecast: hourly({}, { condition: "rainy", precipitation_probability: 90 }) });
+  el.shadowRoot.querySelector(".row .x").click();
+  same(rows(el), [], "a hint dismissed");
+  el.hass = { ...hass, states: { ...states, ...windowOn("binary_sensor.kitchen_window") } };
+  same(shownRows(el), [["Rain from 1 PM", "1 window open", "rtile warn", "mdi:weather-rainy"]], "comes back as a warning once a window opens, since that is new");
+  el.hass = { ...hass, states };
+  same(rows(el).map((r) => r.body), ["90% chance"], "once the window is closed, the hint is back, since the warning took the place of the dismissed one");
+  sub.cb({ type: "hourly", forecast: hourly({}, {}, {}, {}, {}, {}, {}, { condition: "rainy" }) });
+  same(rows(el), [], "rain seven hours ahead is not yet shown");
+  mock.timers.tick(3600050);
+  same(rows(el).map((r) => r.title), ["Rain from 7 PM"], "the next full hour moves the six hours on");
+});
+
+test("a dismissed weather entry stays away while the weather lasts", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const [el, sub] = weatherCard(w, { "weather.home": weatherAt("cloudy", { temperature: 3 }) });
+  const wet = { condition: "rainy", temperature: 2 };
+  sub.cb({ type: "hourly", forecast: hourly({ temperature: 3 }, wet, wet, wet, { temperature: -1 }) });
+  same(rows(el).map((r) => r.title), ["Rain from 1 PM", "Frost from 4 PM"]);
+  for (const x of el.shadowRoot.querySelectorAll(".row .x")) x.click();
+  mock.timers.tick(2 * 3600000 + 50);
+  same(rows(el), [], "two hours later the rain and the frost still lie ahead, so they stay dismissed");
+  sub.cb({ type: "hourly", forecast: hourly({}, {}, {}, {}) });
+  sub.cb({ type: "hourly", forecast: hourly({}, {}, {}, wet, { temperature: -1 }) });
+  same(rows(el).map((r) => r.title), ["Rain from 3 PM", "Frost from 4 PM"], "once they were gone from the forecast, they are new");
+});
+
+test("a forecast hour that has begun counts from now", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const [el, sub] = weatherCard(w, { "weather.home": weatherAt("cloudy", { supported_features: 4, temperature: 3 }) });
+  const half = (hours, condition, temperature) => ({ datetime: new Date(NOW + hours * 3600000).toISOString(), condition, temperature });
+  sub.cb({ type: "twice_daily", forecast: [half(-6, "rainy", 5), half(6, "clear-night", -2)] });
+  same(rows(el).map((r) => r.title), ["Rain from 12 PM", "Frost from 6 PM"], "a half day of rain since 6 AM says from now");
+  same(el.shadowRoot.querySelector(".row .when").dateTime, new Date(NOW).toISOString());
+  sub.cb({ type: "twice_daily", forecast: [half(-6, "cloudy", -2)] });
+  same(rows(el).map((r) => r.title), ["Frost from 12 PM"], "and so does a half day of frost");
+});

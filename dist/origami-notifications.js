@@ -30,6 +30,7 @@ const ICONS = {
   device: "mdi:devices",
   warning: "mdi:alert-circle",
   group: "mdi:google-circles-communities",
+  weather: "mdi:weather-partly-rainy",
   attribute: "mdi:card-text-outline",
   picture: "mdi:image-outline",
   generic: "mdi:information-outline",
@@ -74,6 +75,17 @@ const STRINGS = {
     act_dock_mower: "Dock",
     act_off: "Turn off",
     act_done: "Done",
+    wx_rain_from: "Rain from {t}",
+    wx_snow_from: "Snow from {t}",
+    wx_thunder_from: "Thunderstorms from {t}",
+    wx_hail_from: "Hail from {t}",
+    wx_rain_now: "It is raining",
+    wx_snow_now: "It is snowing",
+    wx_thunder_now: "Thunderstorm",
+    wx_hail_now: "Hail",
+    wx_chance: "{p} chance",
+    wx_frost_from: "Frost from {t}",
+    wx_low: "Low of {v}",
   },
   de: {
     idle_title: "Alles ruhig",
@@ -108,6 +120,17 @@ const STRINGS = {
     act_dock_mower: "Zur Station",
     act_off: "Ausschalten",
     act_done: "Erledigt",
+    wx_rain_from: "Regen ab {t}",
+    wx_snow_from: "Schnee ab {t}",
+    wx_thunder_from: "Gewitter ab {t}",
+    wx_hail_from: "Hagel ab {t}",
+    wx_rain_now: "Es regnet",
+    wx_snow_now: "Es schneit",
+    wx_thunder_now: "Gewitter",
+    wx_hail_now: "Hagel",
+    wx_chance: "{p} Wahrscheinlichkeit",
+    wx_frost_from: "Frost ab {t}",
+    wx_low: "Tiefstwert {v}",
   },
 };
 
@@ -141,6 +164,13 @@ const borrowedStrings = (localize) => {
     }
     const title = localize("ui.notification_drawer.title");
     if (title) t.count_one = t.count_other = title + " ({n})";
+    /* Home Assistant names the weather in every language, so rain ahead reads like "Pluie, 19 h". */
+    for (const [kind, condition] of [["rain", "rainy"], ["snow", "snowy"], ["thunder", "lightning"], ["hail", "hail"]]) {
+      const name = localize("component.weather.entity_component._.state." + condition);
+      if (!name) continue;
+      t["wx_" + kind + "_now"] = name;
+      t["wx_" + kind + "_from"] = name + ", {t}";
+    }
   }
   return t;
 };
@@ -1305,6 +1335,125 @@ const alikeGroup = (dc, members, ctx) => {
   };
 };
 
+/* Forecasts by "<entity>|<type>", shared by every card and kept over a remount. */
+const FORECAST_CACHE = new Map();
+
+/* Home Assistant's feature bits for forecasts. The card asks for hourly, then twice daily, then daily. */
+const forecastType = (st) => {
+  const features = Number(st && st.attributes && st.attributes.supported_features) || 0;
+  return features & 2 ? "hourly" : features & 4 ? "twice_daily" : features & 1 ? "daily" : null;
+};
+
+const FORECAST_SPAN = { hourly: 3600000, twice_daily: 43200000, daily: 86400000 };
+
+/* The entries that have not ended yet. Home Assistant sends null when it has no forecast. */
+const forecastFilterPast = (forecast, type, now) =>
+  (Array.isArray(forecast) ? forecast : []).filter((f) => f && Date.parse(f.datetime) + FORECAST_SPAN[type] > now);
+
+/* What the card reads from a forecast. A new one with the same print changes nothing. */
+const forecastFingerprint = (forecast) =>
+  Array.isArray(forecast)
+    ? forecast
+        .map((f) => (f ? [f.datetime, f.condition, f.temperature, f.precipitation, f.precipitation_probability].join("|") : ""))
+        .join(";")
+    : "";
+
+const WET = new Set(["rainy", "pouring", "lightning", "lightning-rainy", "snowy", "snowy-rainy", "hail"]);
+
+const isWet = (f, unit) =>
+  WET.has(f.condition) || Number(f.precipitation) >= (unit === "in" ? 0.01 : 0.2) || Number(f.precipitation_probability) >= 60;
+
+const wetKind = (condition, temperature, cold) => {
+  const c = String(condition || "");
+  if (c.startsWith("lightning")) return "thunder";
+  if (c === "hail") return "hail";
+  return c.startsWith("snowy") || (temperature != null && temperature !== "" && Number(temperature) <= cold) ? "snow" : "rain";
+};
+
+const WEATHER_ICONS = {
+  rain: "mdi:weather-rainy",
+  snow: "mdi:weather-snowy",
+  thunder: "mdi:weather-lightning",
+  hail: "mdi:weather-hail",
+  frost: "mdi:snowflake-thermometer",
+};
+
+/* Open windows anywhere in Home Assistant, but not a group of them. Every window is watched, so one that opens counts at once. */
+const openWindows = (states, watch) => {
+  let open = 0;
+  for (const id in states) {
+    const st = states[id];
+    if (!st || !st.attributes || st.attributes.device_class !== "window" || Array.isArray(st.attributes.entity_id)) continue;
+    if (id.startsWith("binary_sensor.")) {
+      watch(id);
+      if (st.state === "on") open++;
+    } else if (id.startsWith("cover.")) {
+      watch(id);
+      if (st.state !== "closed" && st.state !== "unavailable" && st.state !== "unknown") open++;
+    }
+  }
+  return open;
+};
+
+/* Rain, snow, thunder or hail in the next 6 hours, and frost in the next 18. With a window open, wet weather is a
+ * warning, also while it already rains. A daily forecast has no hours, so it gives neither. */
+const renderWeather = (id, st, forecast, type, items, ctx) => {
+  if (!st) return;
+  const t = ctx.t;
+  const a = st.attributes;
+  const fahrenheit = a.temperature_unit === "°F";
+  const hours = type === "hourly" || type === "twice_daily" ? forecast : [];
+  const windows = openWindows(ctx.hass.states, ctx.watch);
+  const wet = (kind, title, message, ts, past) =>
+    items.push({
+      key: "wx:" + id + ":wet",
+      kind: "weather",
+      entity: id,
+      icon: WEATHER_ICONS[kind],
+      sev: windows ? "warn" : undefined,
+      title,
+      message,
+      ts,
+      past,
+      /* An open window makes it new, so a hint dismissed before comes back as a warning. */
+      ack: kind + (windows ? " open" : ""),
+    });
+  if (WET.has(st.state)) {
+    const kind = wetKind(st.state, a.temperature, fahrenheit ? 34 : 1);
+    if (windows) wet(kind, t["wx_" + kind + "_now"], ctx.alikeTitle("window", windows), parseTs(st.last_changed, ctx.now), true);
+  } else {
+    const hour = hours.find((f) => Date.parse(f.datetime) < ctx.now + 6 * 3600000 && isWet(f, a.precipitation_unit));
+    if (hour) {
+      /* A forecast hour that has begun counts from now. */
+      const start = Math.max(Date.parse(hour.datetime), ctx.now);
+      const kind = wetKind(hour.condition, hour.temperature, fahrenheit ? 34 : 1);
+      const chance = Number(hour.precipitation_probability);
+      const message = windows
+        ? ctx.alikeTitle("window", windows)
+        : hour.precipitation_probability != null && Number.isFinite(chance)
+          ? fill(t.wx_chance, { p: ctx.percent(chance) })
+          : "";
+      wet(kind, fill(t["wx_" + kind + "_from"], { t: ctx.hour(start) }), message, start, false);
+    }
+  }
+  const freeze = fahrenheit ? 32 : 0;
+  if (!hours.length || a.temperature == null || !(Number(a.temperature) > freeze)) return;
+  const ahead = hours.filter((f) => Date.parse(f.datetime) < ctx.now + 18 * 3600000 && f.temperature != null && Number.isFinite(Number(f.temperature)));
+  const first = ahead.find((f) => Number(f.temperature) < freeze);
+  if (!first) return;
+  const start = Math.max(Date.parse(first.datetime), ctx.now);
+  items.push({
+    key: "wx:" + id + ":frost",
+    kind: "weather",
+    entity: id,
+    icon: WEATHER_ICONS.frost,
+    title: fill(t.wx_frost_from, { t: ctx.hour(start) }),
+    message: fill(t.wx_low, { v: ctx.formatAttribute(st, "temperature", Math.min(...ahead.map((f) => Number(f.temperature)))) }),
+    ts: start,
+    ack: "frost",
+  });
+};
+
 /* Only moments ahead count. One that has passed would wake the card again and again. */
 const waker = (times, now) => (ts) => {
   if (ts > now) times.push(ts);
@@ -2013,6 +2162,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._unsub = null;
     this._unsubRepairs = null;
     this._todos = new Map();
+    this._forecast = null;
     this._pictures = new Map();
     this._clock = null;
     this._boundaryTimer = null;
@@ -2137,6 +2287,28 @@ class OrigamiNotificationsCard extends HTMLElement {
       }
     }
     return this._abs.format(ts);
+  }
+
+  /* An hour as the profile writes it, like 7 PM or 19 Uhr. */
+  _hourText(ts) {
+    try {
+      return dateFormat(this._lang, { hour: "numeric", ...this._clockOpts() }).format(ts);
+    } catch (e) {
+      return dateFormat(undefined, { hour: "numeric" }).format(ts);
+    }
+  }
+
+  _percentText(p) {
+    try {
+      return new Intl.NumberFormat(this._lang, { style: "percent", maximumFractionDigits: 0 }).format(p / 100);
+    } catch (e) {
+      return Math.round(p) + " %";
+    }
+  }
+
+  _weatherId() {
+    const id = this._config && this._config.weather;
+    return typeof id === "string" && id.startsWith("weather.") ? id : null;
   }
 
   _absDate(ts, zone) {
@@ -2284,6 +2456,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (sub.unsub) sub.unsub.then((u) => u()).catch(() => {});
       this._todos.set(id, { items: sub.items });
     }
+    this._unsubscribeForecast();
     CARDS.delete(this);
     clearTimeout(this._repairsTimer);
     clearTimeout(this._dayTimer);
@@ -2315,6 +2488,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       });
     }
     this._subscribeTodos();
+    this._subscribeForecast();
     /* Like the repairs page in Home Assistant's settings, repairs are for admins only. A new
      * subscription also fetches the list, which may have changed while the card was away. */
     if (!this._unsubRepairs && conn.subscribeEvents && this._config && this._config.repairs && this._isAdmin()) {
@@ -2367,6 +2541,46 @@ class OrigamiNotificationsCard extends HTMLElement {
         sub.failed = (this._hass && this._hass.states[id]) || null;
       });
     }
+  }
+
+  /* One forecast subscription per card. Like a to-do list, a forecast Home Assistant refused is asked for again once
+   * the weather changes, since the entity may still be loading. */
+  _subscribeForecast() {
+    const h = this._hass;
+    const id = this._weatherId();
+    const type = id && h && this.isConnected ? forecastType(h.states[id]) : null;
+    const key = type ? id + "|" + type : null;
+    const old = this._forecast;
+    if (old && old.key === key && (old.failed === undefined || old.failed === h.states[id])) return;
+    this._unsubscribeForecast();
+    if (!key || !h.connection) return;
+    const sub = { key };
+    this._forecast = sub;
+    sub.unsub = h.connection.subscribeMessage((msg) => this._onForecast(sub, msg), {
+      type: "weather/subscribe_forecast",
+      entity_id: id,
+      forecast_type: type,
+    });
+    sub.unsub.catch(() => {
+      sub.failed = (this._hass && this._hass.states[id]) || null;
+    });
+  }
+
+  _unsubscribeForecast() {
+    const sub = this._forecast;
+    this._forecast = null;
+    if (sub) sub.unsub.then((unsub) => unsub()).catch(() => {});
+  }
+
+  /* Every card on the same forecast takes the news at once. A repeat of what the cache holds changes nothing. */
+  _onForecast(sub, msg) {
+    if (this._forecast !== sub) return;
+    const forecast = msg && Array.isArray(msg.forecast) ? msg.forecast : null;
+    const print = forecastFingerprint(forecast);
+    const cached = FORECAST_CACHE.get(sub.key);
+    if (cached && cached.print === print) return;
+    FORECAST_CACHE.set(sub.key, { forecast, print });
+    for (const card of CARDS) if (card._forecast && card._forecast.key === sub.key) card._recompute();
   }
 
   _onNotifications(msg) {
@@ -2487,6 +2701,10 @@ class OrigamiNotificationsCard extends HTMLElement {
         return memberText(h, ids, name);
       },
       alikeTitle: (dc, n) => alikeTitle(this._lang, dc, n, h && h.localize),
+      /* An entity read besides the card's own, so a change to it counts. */
+      watch: (id) => read.push(id),
+      hour: (ts) => this._hourText(ts),
+      percent: (p) => this._percentText(p),
       name,
       format: (st) => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state)),
       formatAttribute: (st, path, value) => {
@@ -2550,6 +2768,18 @@ class OrigamiNotificationsCard extends HTMLElement {
         renderEntity(src.entity, st, items, ctx, src);
       }
     }
+    const weather = this._weatherId();
+    let forecastKnown = false;
+    if (h && weather && allowed(weather)) {
+      read.push(weather);
+      const st = h.states[weather];
+      const type = forecastType(st);
+      const cached = type && FORECAST_CACHE.get(weather + "|" + type);
+      forecastKnown = Boolean(cached);
+      renderWeather(weather, st, cached ? forecastFilterPast(cached.forecast, type, now) : [], type, items, ctx);
+      /* The six and eighteen hours ahead move on with every hour. */
+      if (cached && type !== "daily") ctx.wake(Math.floor(now / 3600000) * 3600000 + 3600000);
+    }
     this._readIds = read;
 
     /* Dismissed, but Home Assistant has not removed them yet. */
@@ -2584,7 +2814,8 @@ class OrigamiNotificationsCard extends HTMLElement {
         if (acks[it.key] !== undefined || heldBefore) items.splice(i, 1);
         continue;
       }
-      const once = it.kind === "attribute" || it.kind === "picture";
+      /* Weather ahead keeps its dismissal while its first hour moves on. */
+      const once = it.kind === "attribute" || it.kind === "picture" || (it.kind === "weather" && !it.past);
       const sig = ACK_MARK + (once ? it.ack : it.ack + "\u0000" + it.ts);
       /* A dismissal from an older version moves to the new key, so it can't hide the entry again once it changes. */
       if (heldBefore || isOldAck(acks[oldKey], it, once)) {
@@ -2615,6 +2846,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     for (const id of this._thingIds) {
       if (available.has(id) && !present.has("r:" + id) && acks["r:" + id] !== undefined) {
         delete acks["r:" + id];
+        acksDirty = true;
+      }
+    }
+    /* So does weather that was gone while the forecast was known. */
+    for (const key of forecastKnown ? ["wx:" + weather + ":wet", "wx:" + weather + ":frost"] : []) {
+      if (!present.has(key) && acks[key] !== undefined) {
+        delete acks[key];
         acksDirty = true;
       }
     }
@@ -3801,5 +4039,8 @@ if (window.__origamiTest) {
     stateActive,
     alikeTitle,
     firstPicture,
+    forecastType,
+    isWet,
+    wetKind,
   });
 }
