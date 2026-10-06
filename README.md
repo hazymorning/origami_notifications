@@ -8,8 +8,6 @@ Home Assistant's notifications, repairs and updates show up without setup. Add a
 
 While nothing needs attention, the card shows your infos instead, like the weather forecast or the next sunrise. You set them up like tiles.
 
-![What the closed card shows](https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/states-preview.png)
-
 **You can style the card with plain CSS.**
 
 ```yaml
