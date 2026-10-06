@@ -478,6 +478,9 @@ const EASE_FADE_IN = "cubic-bezier(0, 0, 0.2, 1)";
 const HOLD_MS = 500;
 const DOUBLE_TAP_MS = 250;
 
+/* How recent an entry must be to count as news. */
+const NEWS_MS = 2 * 60000;
+
 /* Home Assistant's tokens set the pace, and drop to 1 ms where motion is reduced. */
 const tokenMs = (el, name, fallback) => {
   const v = getComputedStyle(el).getPropertyValue(name).trim();
@@ -662,6 +665,14 @@ const fromServerTime = (text, timeZone) => {
   /* Where the clock skips midnight, as in Santiago, the day begins at the end of the gap. */
   if (zonedParts(ts, timeZone).day !== Number(m[3])) ts = wall - offset(wall);
   return ts + (m[7] ? Number(m[7].slice(0, 3).padEnd(3, "0")) : 0);
+};
+
+/* The moment the clock in timeZone shows the given seconds of a day. On the days the clock changes, that is not
+ * midnight plus the seconds. */
+const wallTime = (day, seconds, timeZone) => {
+  if (!(seconds < DAY_MS / 1000)) return seconds >= DAY_MS / 1000 ? dayStart(day + 1, timeZone) : NaN;
+  const time = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map((n) => String(n).padStart(2, "0"));
+  return fromServerTime(new Date(day * DAY_MS).toISOString().slice(0, 10) + "T" + time.join(":"), timeZone);
 };
 
 /* Home Assistant writes times as ISO text. Date.parse would also read a bare number like 5 as a year. */
@@ -1518,8 +1529,9 @@ const NIGHT_ICONS = { sunny: "mdi:weather-night", partlycloudy: "mdi:weather-nig
 
 const FORECAST_SPAN = { hourly: 3600000, twice_daily: 43200000, daily: 86400000 };
 
-/* Where the profile picks a number format, Home Assistant formats numbers like these locales. */
-const NUMBER_LOCALES = { comma_decimal: "en-US", decimal_comma: "de", space_comma: "fr" };
+/* Where the profile picks a number format, Home Assistant formats numbers like these locales. None is en-US
+ * without grouping. */
+const NUMBER_LOCALES = { comma_decimal: "en-US", decimal_comma: "de", space_comma: "fr", quote_decimal: "de-CH", none: "en-US" };
 
 /* The entries that have not ended yet. Home Assistant sends null when it has no forecast. */
 const forecastFilterPast = (forecast, type, now) =>
@@ -2417,7 +2429,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._serverUsed = new Set();
     this._slides = [];
     this._slideKey = null;
-    this._slideKeys = null;
+    this._seenKeys = null;
+    this._news = null;
     this._headSlide = null;
     this._swapping = null;
     this._held = new Set();
@@ -2721,6 +2734,10 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
     this._unsubscribeForecasts();
     this._dropServerConditions();
+    /* A card that leaves gets no pointerleave or pointerup, so what held its turns is let go here. */
+    if (this._press) clearTimeout(this._press.timer);
+    this._press = null;
+    this._held.clear();
     for (const mql of (this._mediaWatch || new Map()).values()) mql.onchange = null;
     this._mediaWatch = null;
     CARDS.delete(this);
@@ -3140,6 +3157,12 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (acksDirty) saveAcks(present);
     items = groupAlike(items, ctx);
     this._items = sortItems(items, now);
+    /* An entry is news when it was not there at the last look and began just now. One that only comes into view,
+     * like after a reload, when a group splits or when an alarm ends, is not. */
+    const seen = this._seenKeys;
+    this._seenKeys = new Set(this._items.map((it) => it.key));
+    const news = seen && this._items.find((it) => !seen.has(it.key) && Math.abs(now - it.ts) < NEWS_MS);
+    if (news) this._news = news;
     this._infos = h ? this._infosNow(ctx, read) : [];
     this._readIds = read;
     const reorder = nextReorder(this._items, now);
@@ -3182,7 +3205,7 @@ class OrigamiNotificationsCard extends HTMLElement {
        * info's own comes first, and the day or hour moves to the second line. */
       const named = isEmpty(info.name) ? "" : ctx.name(st, info.name);
       slots.forEach((slot, n) => {
-        const shown = { ...st, state: slot.condition || st.state };
+        const shown = { ...st, state: slot.condition || "unknown" };
         const label = this._slotLabel(Date.parse(slot.datetime), info.forecast_type, ctx.now);
         out.push({
           ...base,
@@ -3200,22 +3223,22 @@ class OrigamiNotificationsCard extends HTMLElement {
   }
 
   /* The forecast slots an info shows, none while the forecast loads, or null without a forecast. Like Home
-   * Assistant's forecast card, a type the entity lacks shows the current weather. */
+   * Assistant's forecast card, a type the entity lacks or a forecast that came empty shows the current weather. */
   _forecastSlots(info, st, ctx) {
     const type = info.forecast_type;
     if (!showsForecast(info, st)) return null;
     const cached = FORECAST_CACHE.get(info.entity + "|" + type);
+    if (!cached) return [];
     /* A day lasts until midnight where the user is, whatever hour the integration gives it. */
     const today = dayNumber(ctx.now, ctx.zone);
-    const slots = (cached && Array.isArray(cached.forecast) ? cached.forecast : [])
+    const slots = (Array.isArray(cached.forecast) ? cached.forecast : [])
       .filter((f) => f && Number.isFinite(Date.parse(f.datetime)))
       .filter((f) => (type === "daily" ? dayNumber(Date.parse(f.datetime), ctx.zone) >= today : Date.parse(f.datetime) + FORECAST_SPAN[type] > ctx.now))
       .slice(0, info.forecast_slots || 1);
+    if (!slots.length) return null;
     /* Today and Tomorrow move on at midnight, and an hour or half a day when it ends. */
-    if (slots.length) {
-      ctx.wake(dayStart(today + 1, ctx.zone));
-      if (type !== "daily") ctx.wake(Date.parse(slots[0].datetime) + FORECAST_SPAN[type]);
-    }
+    ctx.wake(dayStart(today + 1, ctx.zone));
+    if (type !== "daily") ctx.wake(Date.parse(slots[0].datetime) + FORECAST_SPAN[type]);
     return slots;
   }
 
@@ -3335,8 +3358,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     const before = c.before ? daySeconds(c.before) : null;
     for (const at of [after, before == null ? null : before + 1]) {
       if (at == null) continue;
-      ctx.wake(dayStart(day, zone) + at * 1000);
-      ctx.wake(dayStart(day + 1, zone) + at * 1000);
+      ctx.wake(wallTime(day, at, zone));
+      ctx.wake(wallTime(day + 1, at, zone));
     }
     ctx.wake(dayStart(day + 1, zone));
     if (c.weekdays && c.weekdays.length && !c.weekdays.includes(WEEKDAYS[new Date(day * DAY_MS).getUTCDay()])) return false;
@@ -3367,20 +3390,21 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (!sub) {
       sub = { result: false, failed: false };
       this._serverSubs.set(key, sub);
-      const conn = ctx.hass.connection;
-      if (conn && this.isConnected) {
-        sub.unsub = conn.subscribeMessage(
-          (msg) => {
-            const result = Boolean(msg && msg.result === true);
-            const failed = Boolean(msg && msg.error);
-            if (result === sub.result && failed === sub.failed) return;
-            Object.assign(sub, { result, failed });
-            this._recompute();
-          },
-          { type: "subscribe_condition", condition: c }
-        );
-        sub.unsub.catch(() => {});
-      }
+    }
+    /* Home Assistant hands a card its hass before it puts the card on the page, so the card asks once it is there. */
+    const conn = ctx.hass.connection;
+    if (!sub.unsub && conn && this.isConnected) {
+      sub.unsub = conn.subscribeMessage(
+        (msg) => {
+          const result = Boolean(msg && msg.result === true);
+          const failed = Boolean(msg && msg.error);
+          if (result === sub.result && failed === sub.failed) return;
+          Object.assign(sub, { result, failed });
+          this._recompute();
+        },
+        { type: "subscribe_condition", condition: c }
+      );
+      sub.unsub.catch(() => {});
     }
     if (sub.failed) this._conditionFailed = true;
     return sub.result;
@@ -3460,7 +3484,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
       if (step && this._slides.length > 1) {
         e.preventDefault();
-        this._step(step * (e.key.length > 7 && this._rtl() ? -1 : 1), "key");
+        this._step(step * ((e.key === "ArrowLeft" || e.key === "ArrowRight") && this._rtl() ? -1 : 1), "key");
         return;
       }
       if (e.key !== "Enter" && e.key !== " ") return;
@@ -3472,7 +3496,11 @@ class OrigamiNotificationsCard extends HTMLElement {
     d.head.addEventListener("pointerup", (e) => this._onRelease(e, false));
     d.head.addEventListener("pointercancel", (e) => e !== this._ownCancel && this._onRelease(e, true));
     d.head.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && this._hold("hover", true));
-    d.head.addEventListener("pointerleave", (e) => e.pointerType === "mouse" && this._hold("hover", false));
+    d.head.addEventListener("pointerleave", (e) => {
+      if (e.pointerType === "mouse") this._hold("hover", false);
+      /* A press that leaves the card ends there, like on Home Assistant's ripple. */
+      if (this._press && !this._press.drag) this._onRelease(e, true);
+    });
     d.head.addEventListener("focusin", () => this._hold("focus", d.head.matches(":focus-visible")));
     d.head.addEventListener("focusout", () => this._hold("focus", false));
     /* The click that ends a swipe reaches neither the card nor its ripple. */
@@ -3818,6 +3846,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     /* The card keeps showing what it showed while it fades away. */
     if (empty && this._config.hide_when_empty && !this._editMode && !this._inPicker) {
       this._setShown(false);
+      this._news = null;
       this._painted = true;
       this._stopClock();
       this._rotate();
@@ -3840,9 +3869,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     d.card.classList.toggle("has-items", items.length > 0);
 
     const { slide, moved } = this._pickSlide();
-    const tappable = items.length > 0 || Boolean(slide && slide.kind === "info" && this._infoActs(slide));
-    d.card.classList.toggle("tappable", tappable);
-    d.head.setAttribute("aria-disabled", String(!tappable));
     /* The head opens the list, or the dialog where the card is narrow, or what an info leads to. */
     if (items.length && !this._narrow) d.head.setAttribute("aria-expanded", String(this._expanded));
     else d.head.removeAttribute("aria-expanded");
@@ -3880,21 +3906,23 @@ class OrigamiNotificationsCard extends HTMLElement {
     const items = this._items;
     const crit = items.filter((it) => it.sev === "crit");
     const slides = crit.length ? crit : items.length ? items : this._infos;
-    const before = this._slideKeys;
     const top = slides[0] || null;
     const topMoved = Boolean(top && top.kind !== "info" && top.key !== this._topKey);
     this._slides = slides;
-    this._slideKeys = new Set(slides.map((s) => s.key));
     this._topKey = top ? top.key : null;
     let slide = slides.find((s) => s.key === this._slideKey) || null;
-    const fresh = before && this._painted ? slides.find((s) => s.kind !== "info" && !before.has(s.key)) : null;
+    const news = this._news;
+    this._news = null;
+    /* News comes forward on a card that turns, and is read out. A card that holds still keeps its first entry. */
+    const fresh = news && this._turns() ? slides.find((s) => s.key === news.key) : null;
     if (fresh) {
       slide = fresh;
       this._stopped = false;
-      setText(this._dom.say, [fresh.title, fresh.message].filter(Boolean).join(". "));
     } else if (!slide || topMoved || !(this._turns() || this._stopped)) {
       slide = top;
     }
+    /* Written anew each time, so the same news is read out again. */
+    if (news) this._dom.say.textContent = [news.title, news.message].filter(Boolean).join(". ");
     const key = slide ? slide.key : null;
     const moved = key !== this._slideKey;
     this._slideKey = key;
@@ -3947,6 +3975,9 @@ class OrigamiNotificationsCard extends HTMLElement {
   _fillHead(slide, now) {
     const d = this._dom;
     const info = Boolean(slide && slide.kind === "info");
+    const tappable = this._items.length > 0 || Boolean(info && this._infoActs(slide));
+    d.card.classList.toggle("tappable", tappable);
+    d.head.setAttribute("aria-disabled", String(!tappable));
     d.card.style.setProperty("--tile-color", slide ? itemColor(slide) : "var(--state-inactive-color)");
     d.card.classList.toggle("crit", Boolean(slide && slide.sev === "crit"));
     setIcon(d.glyph, slide || { icon: "mdi:bell-outline" }, this._hass);
@@ -4431,6 +4462,8 @@ class OrigamiNotificationsDialog extends HTMLElement {
     if (this._card && this._card !== card) this._card._dialogEl = null;
     this._card = card;
     card._dialogEl = this;
+    /* The card's clock runs on the minute while the dialog shows its times. */
+    card._tick();
     if (this._dialog) {
       this.update();
       return;
@@ -4490,7 +4523,10 @@ class OrigamiNotificationsDialog extends HTMLElement {
   _closed(dialog) {
     if (dialog !== this._dialog) return;
     dialog.remove();
-    if (this._card && this._card._dialogEl === this) this._card._dialogEl = null;
+    if (this._card && this._card._dialogEl === this) {
+      this._card._dialogEl = null;
+      this._card._tick();
+    }
     Object.assign(this, { _dialog: null, _list: null, _cache: null, _card: null });
     this.dispatchEvent(new CustomEvent("dialog-closed", { bubbles: true, composed: true, detail: { dialog: this.localName } }));
   }
@@ -5206,9 +5242,10 @@ class OrigamiNotificationsEditor extends HTMLElement {
     if (!infos[index]) return;
     const { forecast: show, ...rest } = value;
     const info = { ...infos[index], ...rest, entity: infos[index].entity };
-    /* A cleared choice is the current weather, like a tile. */
-    if ("forecast" in value) Object.assign(info, this._forecastKeys(info, show || "show_current"));
-    if (!info.forecast_type) delete info.forecast_slots;
+    /* Only a new choice of weather sets its keys. A cleared choice is the current weather, like a tile. */
+    const choice = "forecast" in value ? show || "show_current" : null;
+    if (choice && choice !== forecastShow(infos[index])) Object.assign(info, this._forecastKeys(info, choice));
+    if (!info.forecast_type) for (const key of ["forecast_slots", "show_current", "show_forecast"]) delete info[key];
     infos[index] = info;
     this._write({ infos: infos.map((i) => this._infoEntry(i)) });
   }
