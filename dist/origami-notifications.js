@@ -3,17 +3,18 @@
 const CARD = "origami-notifications";
 const EDITOR = CARD + "-editor";
 const REPO = "https://github.com/hazymorning/origami_notifications";
-const VERSION = "0.6.0";
+const VERSION = "0.6.1";
 
 const DEFAULTS = {
   hide_when_empty: true,
   updates: true,
   repairs: true,
+  vertical: false,
   rotate: 8,
   slide: "up",
 };
 
-const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "rotate", "slide", "audience", "css"];
+const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "vertical", "rotate", "slide", "audience", "css"];
 const INFO_KEY_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
 const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "before", "tap_action"];
 const ENTITY_KEY_ORDER = ["entity", ...OPTION_KEYS, "actions"];
@@ -1963,6 +1964,16 @@ const STYLES = `
   }
   .chev[hidden], :host(.narrow) .head .chev { display: none; }
 
+  /* Like a tile with vertical content, the icon sits above the text, which then has the whole width. */
+  :host(.vertical) .head {
+    flex-direction: column;
+    justify-content: center;
+    padding: 10px var(--ha-space-2, 8px);
+    text-align: center;
+  }
+  :host(.vertical) .texts { align-self: stretch; min-height: 0; }
+  :host(.vertical) .head .chev { display: none; }
+
   /* Header and drawer swap through their grid rows, nothing is measured. */
   .hwrap, .drawer {
     display: grid;
@@ -2336,6 +2347,7 @@ const checkConfig = (config) => {
     fail("rotate must be the seconds between turns, or 0 to turn them off");
   }
   if (config.slide != null && config.slide !== "up" && config.slide !== "side") fail("slide must be up or side");
+  if (config.vertical != null && typeof config.vertical !== "boolean") fail("vertical must be true or false");
   return { sources, audience: checkAudience(config.audience), infos };
 };
 
@@ -2435,6 +2447,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._swapping = null;
     this._held = new Set();
     this._stopped = false;
+    this._turned = false;
     this._rotateTimer = null;
     this._press = null;
     this._noClick = false;
@@ -2468,11 +2481,13 @@ class OrigamiNotificationsCard extends HTMLElement {
     const { sources, audience, infos } = checkConfig(config);
     this._config = { ...DEFAULTS, ...config };
     this._infoConfig = infos;
+    this._turned = false;
     /* Home Assistant reads layout_options only when grid_options is missing. */
     const rows = config.grid_options
       ? config.grid_options.rows
       : config.layout_options && config.layout_options.grid_rows;
     this.classList.toggle("bounded", typeof rows === "number");
+    this.classList.toggle("vertical", this._config.vertical === true);
     this._sources = sources;
     this._audience = audience;
     this._people = [...new Set(Object.values(audience).flatMap((rule) => rule[ruleMode(rule)]))];
@@ -3918,7 +3933,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     if (fresh) {
       slide = fresh;
       this._stopped = false;
-    } else if (!slide || topMoved || !(this._turns() || this._stopped)) {
+    } else if (!slide || topMoved || !this._turned || !(this._turns() || this._stopped)) {
+      /* Until the first turn the card shows the first entry, also one that loads later, like a forecast. */
       slide = top;
     }
     /* Written anew each time, so the same news is read out again. */
@@ -4058,6 +4074,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   _step(dir, how) {
     const slides = this._slides;
     if (slides.length < 2) return;
+    this._turned = true;
     if (how !== "auto") this._stopped = true;
     const i = Math.max(0, slides.findIndex((s) => s.key === this._slideKey));
     const next = slides[(i + dir + slides.length) % slides.length];
@@ -4428,17 +4445,25 @@ class OrigamiNotificationsCard extends HTMLElement {
   }
 
   getCardSize() {
-    return this._expanded ? 1 + this._items.length : 1;
+    const head = this._config && this._config.vertical ? 2 : 1;
+    return this._expanded ? 1 + this._items.length : head;
   }
 
+  /* A vertical tile fits a quarter of a section. */
   getGridOptions() {
-    return { columns: 12, rows: "auto", min_columns: 6 };
+    return { columns: 12, rows: "auto", min_columns: this._config && this._config.vertical ? 3 : 6 };
   }
 }
 
 const DIALOG = CARD + "-dialog";
 
 const DIALOG_STYLES = `
+  /* The dialog sits outside the dashboard, so like Home Assistant's own dialogs it takes the theme's font here. */
+  :host {
+    font-family: var(--ha-font-family-body);
+    -webkit-font-smoothing: var(--ha-font-smoothing);
+    -moz-osx-font-smoothing: var(--ha-moz-osx-font-smoothing);
+  }
   ha-adaptive-dialog { --dialog-content-padding: 0; }
   .list { padding: 0 12px 12px; }
 `;
@@ -4545,6 +4570,9 @@ const HA_TILE_LABELS = {
   double_tap_action: "ui.panel.lovelace.editor.card.generic.double_tap_action",
   visibility: "ui.panel.lovelace.editor.card.heading.entity_config.visibility",
   visibility_intro: "ui.panel.lovelace.editor.card.heading.entity_config.visibility_explanation",
+  content_layout: "ui.panel.lovelace.editor.card.tile.content_layout",
+  horizontal: "ui.panel.lovelace.editor.card.tile.content_layout_options.horizontal",
+  vertical: "ui.panel.lovelace.editor.card.tile.content_layout_options.vertical",
   forecast: "ui.panel.lovelace.editor.card.weather-forecast.weather_to_show",
   show_both: "ui.panel.lovelace.editor.card.weather-forecast.show_both",
   show_current: "ui.panel.lovelace.editor.card.weather-forecast.show_only_current",
@@ -4609,6 +4637,11 @@ const EDITOR_STRINGS = {
     before: "Show ahead of time",
     tap_action: "Tap behavior",
     audience: "Who sees what",
+    content_layout: "Content layout",
+    horizontal: "Horizontal",
+    vertical: "Vertical",
+    styling: "Styling",
+    css: "CSS",
     visible: "Visible to",
     people: "People",
     system: "System notifications",
@@ -4673,6 +4706,11 @@ const EDITOR_STRINGS = {
     before: "Im Voraus zeigen",
     tap_action: "Verhalten beim Tippen",
     audience: "Wer sieht was",
+    content_layout: "Inhaltslayout",
+    horizontal: "Horizontal",
+    vertical: "Vertikal",
+    styling: "Gestaltung",
+    css: "CSS",
     visible: "Sichtbar für",
     people: "Personen",
     system: "Systembenachrichtigungen",
@@ -4713,6 +4751,7 @@ const EDITOR_HELPERS = {
     before: "How long before it starts or is due.",
     infos: "Shown in turn while nothing needs attention.",
     rotate: "At 0 the card holds still.",
+    css: "Goes into the card after its own styles, so you can change any part of it.",
     visibility_intro: "The info shows while all of these conditions hold.",
   },
   de: {
@@ -4727,6 +4766,7 @@ const EDITOR_HELPERS = {
     before: "Wie lange vor dem Beginn oder der Fälligkeit.",
     infos: "Erscheinen im Wechsel, solange nichts anliegt.",
     rotate: "Bei 0 bleibt die Karte stehen.",
+    css: "Kommt nach den Styles der Karte, so lässt sich jeder Teil ändern.",
     visibility_intro: "Die Info erscheint, solange alle diese Bedingungen erfüllt sind.",
   },
 };
@@ -4837,6 +4877,23 @@ class OrigamiNotificationsEditor extends HTMLElement {
       },
       { name: "hide_when_empty", selector: { boolean: {} } },
       {
+        name: "content_layout",
+        selector: {
+          select: {
+            mode: "box",
+            options: ["horizontal", "vertical"].map((value) => ({
+              value,
+              label: this._tileLabel(value),
+              image: {
+                src: "/static/images/form/tile_content_layout_" + value + ".svg",
+                src_dark: "/static/images/form/tile_content_layout_" + value + "_dark.svg",
+                flip_rtl: true,
+              },
+            })),
+          },
+        },
+      },
+      {
         name: "",
         type: "grid",
         schema: [
@@ -4917,12 +4974,21 @@ class OrigamiNotificationsEditor extends HTMLElement {
           ],
         })),
       },
+      {
+        name: "styling",
+        type: "expandable",
+        flatten: true,
+        title: this._label("styling"),
+        icon: "mdi:palette-outline",
+        schema: [{ name: "css", selector: { text: { multiline: true } } }],
+      },
     ];
   }
 
   _data(sources) {
     const audience = this._config.audience || {};
     const data = { ...DEFAULTS, ...this._config };
+    data.content_layout = this._config.vertical ? "vertical" : "horizontal";
     data.entities = this._entries().map((e) => e.entity);
     data.infos = this._infos().map((info) => info.entity);
     data.options = Object.fromEntries(
@@ -4987,6 +5053,9 @@ class OrigamiNotificationsEditor extends HTMLElement {
   _onChange(e) {
     e.stopPropagation();
     const value = { ...(e.detail.value || {}) };
+    /* Home Assistant's tile editor writes its content layout as vertical, and so does this one. */
+    if ("content_layout" in value) value.vertical = value.content_layout === "vertical";
+    delete value.content_layout;
     const before = this._sources().map((s) => s.key);
     this._swapped = null;
     if (Array.isArray(value.entities)) {

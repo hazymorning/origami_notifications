@@ -350,7 +350,7 @@ test("editor schema", () => {
   ed.setConfig({ type: "x", entities: ["calendar.family"] });
   ed.hass = makeHass({ "calendar.family": st("calendar.family", "off", { friendly_name: "Family" }) });
   const form = ed.querySelector("ha-form");
-  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "grid", "options", "audience"]);
+  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "content_layout", "grid", "options", "audience", "styling"]);
   same(
     form.schema.find((s) => s.name === "options").schema[0].schema.map((s) => s.name || s.type),
     ["type", "attribute", "grid", "image", "background", "before", "tap_action"],
@@ -361,6 +361,67 @@ test("editor schema", () => {
     ["system", "updates", "repairs", "calendar.family"],
     "audience sources"
   );
+});
+
+test("vertical puts the icon above the text, like a tile with vertical content", () => {
+  const w = makeWindow();
+  const el = mount(w, { type: "x", hide_when_empty: false, vertical: true }, makeHass({}));
+  const rules = cssRules(el);
+  const rule = rules.find((r) => r.selectorText === ":host(.vertical) .head");
+  same(
+    [el.classList.contains("vertical"), rule && rule.style.getPropertyValue("flex-direction"), rule && rule.style.getPropertyValue("text-align"), el.getGridOptions().min_columns, el.getCardSize()],
+    [true, "column", "center", 3, 2]
+  );
+  same(rules.filter((r) => /vertical\).*\.slide/.test(r.selectorText)).length, 0, "the lines keep their width, so a long one ends in an ellipsis");
+  el.setConfig({ type: "x", hide_when_empty: false });
+  same([el.classList.contains("vertical"), el.getGridOptions().min_columns, el.getCardSize()], [false, 6, 1], "and is off unless set");
+  let error = null;
+  try {
+    w.document.createElement("origami-notifications").setConfig({ type: "x", vertical: "yes" });
+  } catch (e) {
+    error = e.message;
+  }
+  same(error, "origami-notifications: vertical must be true or false");
+});
+
+test("the editor sets the content layout like Home Assistant's tile editor", () => {
+  const w = makeWindow();
+  const ed = w.document.createElement("origami-notifications-editor");
+  const written = [];
+  ed.addEventListener("config-changed", (e) => written.push(e.detail.config));
+  ed.setConfig({ type: "x" });
+  ed.hass = makeHass({});
+  const form = ed.querySelector("ha-form");
+  const field = form.schema.find((s) => s.name === "content_layout");
+  same(
+    [field.selector.select.mode, field.selector.select.options.map((o) => [o.value, o.label, o.image.src]), form.data.content_layout],
+    ["box", [["horizontal", "Horizontal", "/static/images/form/tile_content_layout_horizontal.svg"], ["vertical", "Vertical", "/static/images/form/tile_content_layout_vertical.svg"]], "horizontal"]
+  );
+  const send = (value) => form.dispatchEvent(new w.CustomEvent("value-changed", { detail: { value: { ...JSON.parse(JSON.stringify(form.data)), ...value } }, bubbles: true }));
+  send({ content_layout: "vertical" });
+  same([written.at(-1).vertical, "content_layout" in written.at(-1)], [true, false], "written as vertical, as the tile card has it");
+  send({ content_layout: "horizontal" });
+  same("vertical" in written.at(-1), false, "and dropped when it is the default again");
+});
+
+test("the editor has a field for your css", () => {
+  const w = makeWindow();
+  const ed = w.document.createElement("origami-notifications-editor");
+  const written = [];
+  ed.addEventListener("config-changed", (e) => written.push(e.detail.config));
+  ed.setConfig({ type: "x", entities: ["binary_sensor.a"], css: ":host { --origami-radius: 4px; }" });
+  ed.hass = makeHass({}, { lang: "de" });
+  const form = ed.querySelector("ha-form");
+  const panel = form.schema.find((s) => s.name === "styling");
+  same(
+    [panel.flatten, panel.schema, form.data.css, form.computeLabel({ name: "css" }), form.computeHelper({ name: "css" })],
+    [true, [{ name: "css", selector: { text: { multiline: true } } }], ":host { --origami-radius: 4px; }", "CSS", "Kommt nach den Styles der Karte, so lässt sich jeder Teil ändern."]
+  );
+  const send = (value) => form.dispatchEvent(new w.CustomEvent("value-changed", { detail: { value: { ...JSON.parse(JSON.stringify(form.data)), ...value } }, bubbles: true }));
+  send({ css: ".row { opacity: 0.6; }" });
+  same(written.at(-1).css, ".row { opacity: 0.6; }", "it writes what you type");
+  send({ css: "" });
+  same("css" in written.at(-1), false, "and drops an empty one");
 });
 
 test("hidden the way Home Assistant expects", () => {
@@ -2827,8 +2888,8 @@ test("a NINA warning without attributes asks Home Assistant once", async () => {
   const asked = () => services(hass).filter((c) => c[0] === "nina.get_details");
   const shown = (card = el) => [...rows(card).map((r) => [r.title, r.body, r.tile]), card.shadowRoot.querySelector(".row .when").dateTime];
   same(
-    [rows(el).map((r) => [r.title, r.body, r.tile, r.x]), el.shadowRoot.querySelector(".row").dataset.kind, asked(), flags],
-    [[["Berlin Warning 1", "15 days ago", "rtile", false]], "warning", [["nina.get_details", {}, { entity_id: NINA }]], [[false, true]]],
+    [rows(el).map((r) => [r.title, r.body.replace(/^\d+ days ago$/, "some days ago"), r.tile, r.x]), el.shadowRoot.querySelector(".row").dataset.kind, asked(), flags],
+    [[["Berlin Warning 1", "some days ago", "rtile", false]], "warning", [["nina.get_details", {}, { entity_id: NINA }]], [[false, true]]],
     "found by its platform, it shows its name while Home Assistant looks up the details, without a notice for an error"
   );
   await tick();
@@ -4027,6 +4088,19 @@ test("forecast temperatures follow the number format of the profile, as Home Ass
   );
 });
 
+test("until its first turn the card shows its first info, also one that loads later", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const subs = [];
+  const states = { "weather.home": weatherAt("rainy", { supported_features: 1 }), "sun.sun": quietStates()["sun.sun"] };
+  const el = mount(w, { type: "x", updates: false, infos: [{ entity: "weather.home", forecast_type: "daily", show_current: false }, "sun.sun"] }, makeHass(states, { subs, formatEntityState: (s) => (s.state === "sunny" ? "Sunny" : s.state) }));
+  same(head(el).title, "Sun", "the sun shows while the forecast loads");
+  subs.find((s) => s.msg && s.msg.type === "weather/subscribe_forecast").cb({ type: "daily", forecast: [dayAt(0)] });
+  same(head(el).title, "Today", "then the forecast takes its place at the front");
+  mock.timers.tick(8000);
+  same(head(el).title, "Sun", "and the turns go on from there");
+});
+
 test("a weather info shows the current weather and its forecast, unless it asks for one of them", () => {
   useClock();
   const w = makeWindow({ clock: true, zone: "UTC" });
@@ -4330,6 +4404,19 @@ test("a narrow card opens its list in Home Assistant's dialog", () => {
   resize(wide, 400);
   wide.shadowRoot.querySelector(".head").click();
   same([asked.length, wide.shadowRoot.querySelector("ha-card").classList.contains("open")], [0, true], "a wide card unfolds in place");
+});
+
+test("the dialog takes the font of the theme, like Home Assistant's own dialogs", () => {
+  const w = makeWindow();
+  w.customElements.define("ha-adaptive-dialog", class extends w.HTMLElement {});
+  const states = threeOn();
+  const hass = makeHass(states);
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, hass);
+  const host = dialogHost(w, hass);
+  resize(el, 180);
+  el.shadowRoot.querySelector(".head").click();
+  const rule = cssRules(host.el).find((r) => r.selectorText === ":host" && r.style.getPropertyValue("font-family"));
+  same(rule && rule.style.getPropertyValue("font-family"), "var(--ha-font-family-body)");
 });
 
 test("the dialog keeps its times up to date", () => {

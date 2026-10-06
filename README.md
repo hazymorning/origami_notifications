@@ -8,8 +8,6 @@ Home Assistant's notifications, repairs and updates show up without setup. Add a
 
 While nothing needs attention, the card shows your infos instead, like the weather forecast or the next sunrise. You set them up like tiles.
 
-![What the closed card shows](https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/states-preview.png)
-
 **You can style the card with plain CSS.**
 
 ```yaml
@@ -80,12 +78,13 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | `updates` | `true` | Show available updates |
 | `repairs` | `true` | Show repairs, to admins only |
 | `hide_when_empty` | `true` | Hide the card when there is nothing to show |
+| `vertical` | `false` | The icon above the text, like a tile with vertical content. The text then has the whole width, as in half a header. |
 | `rotate` | `8` | Seconds between turns of the closed card. At `0` it holds still. A swipe or an arrow key turns it by hand and stops the turns. |
 | `slide` | `up` | Whether the text moves `up` or to the `side` at a turn |
 | `audience` | | Who sees what, see below |
 | `css` | | Your own CSS, see Styling |
 
-The visual editor has all of it except `css` and buttons. The card's texts are in English and German. Other languages get Home Assistant's words where it has them, and English otherwise.
+The visual editor has all of it except buttons. The card's texts are in English and German. Other languages get Home Assistant's words where it has them, and English otherwise.
 
 </details>
 
