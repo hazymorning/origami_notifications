@@ -3176,3 +3176,66 @@ test("only plain sensor entries become a group", () => {
     [...el.shadowRoot.querySelectorAll(".row")].find((r) => r.querySelector(".title").textContent === title).querySelector(".rtile img").getAttribute("src");
   same([picture("garage_left"), picture("side_door")], ["http://ha.local/local/garage.jpg", "http://ha.local/local/side.jpg"], "and keeps its picture");
 });
+
+/* How HomeKit asks to pair a bridge, with its code as a picture. */
+const homekitPairing = (secret) => ({
+  notification_id: "homekit",
+  title: "HomeKit Pairing",
+  message: "To set up HASS Bridge in the Home App, scan the QR code or enter the following code:\n### 031-45-154\n![image](/api/homekit/pairingqr?homekit-" + secret + ")",
+  created_at: "2026-09-21T09:00:00+00:00",
+});
+
+test("the first picture of a notification becomes its picture", () => {
+  const w = makeWindow();
+  const picture = (card, where = ".row .rtile") => {
+    const img = card.shadowRoot.querySelector(where + " img");
+    return img && img.getAttribute("src");
+  };
+  const card = (notification) => {
+    const subs = [];
+    const el = mount(w, { type: "x", updates: false }, makeHass({}, { subs }));
+    subs[0].cb({ type: "current", notifications: { [notification.notification_id]: notification } });
+    return [el, subs[0]];
+  };
+  const [el, sub] = card(homekitPairing("5e1f"));
+  const qr = "http://ha.local/api/homekit/pairingqr?homekit-";
+  same(
+    [rows(el).map((r) => [r.title, r.body]), picture(el), picture(el, ".head .tile")],
+    [[["HomeKit Pairing", "To set up HASS Bridge in the Home App, scan the QR code or enter the following code:\n031-45-154"]], qr + "5e1f", qr + "5e1f"],
+    "a picture from Home Assistant itself shows in the head and the row, and stays out of the text"
+  );
+  const row = el.shadowRoot.querySelector(".row");
+  sub.cb({ type: "updated", notifications: { homekit: homekitPairing("77aa") } });
+  same([el.shadowRoot.querySelector(".row") === row, picture(el), picture(el, ".head .tile")], [true, qr + "77aa", qr + "77aa"], "a new picture shows in place");
+
+  const note = (message, title = "Doorbell") => ({ notification_id: "n", title, message });
+  const pictureOf = (message, title) => picture(card(note(message, title))[0]);
+  same(
+    pictureOf('Someone rang. ![visitor](https://cam.test/snap.jpg "Front door") ![logo](/local/logo.png)'),
+    "https://cam.test/snap.jpg",
+    "only the first picture counts, also from another host"
+  );
+  same(
+    ["//evil.test/x.png", "javascript:alert(1)", "data:image/png;base64,iVBORw0KGgo=", "snap.jpg"].map((url) => pictureOf("![x](" + url + ") Someone rang.")),
+    [null, null, null, null],
+    "an address with two slashes, a script, data or a bare file name shows no picture"
+  );
+  same(pictureOf("![x](//evil.test/x.png) ![y](/local/y.png)"), null, "and a later picture does not take its place");
+  same(pictureOf("Someone rang.", "![x](/local/x.png) Doorbell"), null, "a picture in the title does not count, since Home Assistant shows the title as plain text");
+
+  const [linked] = card(note("[![cam](/api/cam.jpg)](/lovelace/cams) Someone rang."));
+  const sent = actionsOf(linked);
+  linked.shadowRoot.querySelector(".row .rtile").click();
+  same(
+    [picture(linked), sent],
+    ["http://ha.local/api/cam.jpg", [{ tap_action: { action: "navigate", navigation_path: "/lovelace/cams" } }]],
+    "a linked picture shows and still leads to its link"
+  );
+
+  const { firstPicture } = w.__origamiTest;
+  same(
+    ['![a]( /local/a.png "A" )', "![a]() ![b](/local/b.png)", "[a](/local/a.png)", "", null].map((md) => firstPicture(md)),
+    ["/local/a.png", null, null, null, null],
+    "the address may follow spaces and ends at a title, an empty first picture still counts, and a link is no picture"
+  );
+});

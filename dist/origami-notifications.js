@@ -589,8 +589,8 @@ const devicePicture = (hass, ids) => {
   return null;
 };
 
-/* Persistent notifications are Markdown. The card shows them as plain text, and a tap follows
- * the first link. */
+/* Persistent notifications are Markdown. The card shows them as plain text with their first picture,
+ * and a tap follows the first link. */
 const plainText = (md) =>
   String(md == null ? "" : md)
     .replace(/<br\s*\/?>/gi, "\n")
@@ -607,6 +607,12 @@ const SAFE_LINK = /^(https?:\/\/|\/(?!\/))/i;
 const firstLink = (md) => {
   const text = String(md || "").replace(/!\[[^\]]*\]\([^)]*\)/g, "");
   const m = /\[[^\]]*\]\(([^)\s]+)[^)]*\)/.exec(text);
+  return m && SAFE_LINK.test(m[1]) ? m[1] : null;
+};
+
+/* As in Home Assistant, the address may follow spaces and ends where a title begins. */
+const firstPicture = (md) => {
+  const m = /!\[[^\]]*\]\(\s*([^)\s]*)[^)]*\)/.exec(String(md || ""));
   return m && SAFE_LINK.test(m[1]) ? m[1] : null;
 };
 
@@ -2475,6 +2481,7 @@ class OrigamiNotificationsCard extends HTMLElement {
           kind: "system",
           title: plainText(n.title) || this._t.notification,
           message: plainText(message),
+          image: ctx.url(firstPicture(message)),
           ts: parseTs(n.created_at, now),
           past: true,
           seq: n.__seq || 0,
@@ -3756,5 +3763,6 @@ if (window.__origamiTest) {
     parseBefore,
     stateActive,
     alikeTitle,
+    firstPicture,
   });
 }
