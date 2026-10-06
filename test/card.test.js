@@ -3903,7 +3903,7 @@ const dayAt = (d, rest) => ({ datetime: new Date(Date.parse("2026-10-02T00:00:00
 test("an info shows the daily forecast in place of the weather, a day at a time", () => {
   useClock();
   const w = makeWindow({ clock: true, zone: "UTC" });
-  const { el, forecasts } = forecastCard(w, { forecast_type: "daily", forecast_slots: 2 });
+  const { el, forecasts } = forecastCard(w, { forecast_type: "daily", forecast_slots: 2, show_current: false });
   same(forecasts().map((s) => s.msg), [{ type: "weather/subscribe_forecast", entity_id: "weather.home", forecast_type: "daily" }], "the card asks for the daily forecast");
   same(el.hidden, true, "and waits for it, without the current weather in between");
   forecasts()[0].cb({ type: "daily", forecast: [dayAt(-1), dayAt(0), dayAt(1, { condition: "rainy", temperature: 12.5, templow: 7 }), dayAt(2)] });
@@ -3920,7 +3920,7 @@ test("an hourly or twice daily forecast names its hour or its half of the day", 
   useClock();
   const w = makeWindow({ clock: true, zone: "UTC", stateIcon: true });
   const hour = (h, rest) => ({ datetime: new Date(NOW + h * 3600000).toISOString(), condition: "cloudy", temperature: 11, ...rest });
-  const { el, forecasts } = forecastCard(w, { forecast_type: "hourly", forecast_slots: 3, name: "Oslo" });
+  const { el, forecasts } = forecastCard(w, { forecast_type: "hourly", forecast_slots: 3, show_current: false, name: "Oslo" });
   forecasts()[0].cb({ type: "hourly", forecast: [hour(-1), hour(0), hour(12, { condition: "partlycloudy", is_daytime: false })] });
   const icon = () => {
     const i = el.shadowRoot.querySelector(".head .glyph ha-state-icon");
@@ -3930,14 +3930,27 @@ test("an hourly or twice daily forecast names its hour or its half of the day", 
   el.shadowRoot.querySelector(".head").dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
   same([...shownInfo(el), icon()], ["Oslo", "Tomorrow at 12:00 AM · 11° · Partly cloudy", ["partlycloudy", "mdi:weather-night-partly-cloudy"]], "an hour after midnight says its day, and a night has a night icon");
 
-  const items = forecastCard(w, { forecast_type: "hourly", name: [{ type: "entity" }] });
+  const items = forecastCard(w, { forecast_type: "hourly", show_current: false, name: [{ type: "entity" }] });
   items.hass.formatEntityName = (st, name) => (Array.isArray(name) ? "Home weather" : st.attributes.friendly_name);
   items.forecasts()[0].cb({ type: "hourly", forecast: [hour(0)] });
   same(shownInfo(items.el), ["Home weather", "12:00 PM · 11° · Cloudy"], "a name from name items as well");
 
-  const twice = forecastCard(w, { forecast_type: "twice_daily" });
+  const twice = forecastCard(w, { forecast_type: "twice_daily", show_current: false });
   twice.forecasts()[0].cb({ type: "twice_daily", forecast: [hour(0, { condition: "sunny", temperature: 17, is_daytime: true })] });
   same(shownInfo(twice.el), ["Today", "Day · 17° · Sunny"], "half a day says whether it is day or night");
+});
+
+test("a weather info shows the current weather and its forecast, unless it asks for one of them", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const both = forecastCard(w, { forecast_type: "daily" });
+  same(shownInfo(both.el), ["Home", "Rainy"], "the current weather shows while the forecast loads");
+  both.forecasts()[0].cb({ type: "daily", forecast: [dayAt(0)] });
+  same(shownInfo(both.el), ["Home", "Rainy"], "and comes first, like on Home Assistant's forecast card");
+  both.el.shadowRoot.querySelector(".head").dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  same(shownInfo(both.el), ["Today", "16° / 9° · Sunny"], "then the forecast");
+  const current = forecastCard(w, { forecast_type: "daily", show_forecast: false });
+  same([shownInfo(current.el), current.forecasts().length], [["Home", "Rainy"], 0], "show_forecast: false leaves the forecast out");
 });
 
 test("a forecast the weather entity lacks shows the current weather, as Home Assistant's forecast card does", () => {
@@ -3972,8 +3985,20 @@ test("a broken forecast option gets a clear error", () => {
     }
   };
   same(
-    [error({ forecast_type: "weekly" }), error({ forecast_type: "daily", forecast_slots: 0 }), error({ forecast_type: "daily", forecast_slots: 2.5 }), error({ forecast_type: "twice_daily", forecast_slots: 3 })],
-    ["origami-notifications: forecast_type must be daily, hourly or twice_daily", "origami-notifications: forecast_slots must be a whole number above 0", "origami-notifications: forecast_slots must be a whole number above 0", null]
+    [
+      error({ forecast_type: "weekly" }),
+      error({ forecast_type: "daily", forecast_slots: 0 }),
+      error({ forecast_type: "daily", forecast_slots: 2.5 }),
+      error({ forecast_type: "twice_daily", forecast_slots: 3, show_current: false }),
+      error({ forecast_type: "daily", show_current: "no" }),
+    ],
+    [
+      "origami-notifications: forecast_type must be daily, hourly or twice_daily",
+      "origami-notifications: forecast_slots must be a whole number above 0",
+      "origami-notifications: forecast_slots must be a whole number above 0",
+      null,
+      "origami-notifications: show_current must be true or false",
+    ]
   );
 });
 
@@ -4229,7 +4254,7 @@ describe("editor for infos", () => {
     same("visibility" in written.at(-1).infos[1], false, "and drops an empty list");
   });
 
-  test("a weather info offers the forecasts its entity has, like Home Assistant's forecast card", () => {
+  test("a weather info shows the current weather, its forecast or both, chosen as on Home Assistant's forecast card", () => {
     const w = makeWindow();
     const ed = w.document.createElement("origami-notifications-editor");
     const written = [];
@@ -4238,22 +4263,32 @@ describe("editor for infos", () => {
     ed.hass = makeHass({ "weather.home": st("weather.home", "rainy", { friendly_name: "Home", supported_features: 3 }) });
     const form = () => infoForms(ed)[0];
     const names = () => form().schema.map((s) => s.name || s.type);
-    const options = form().schema.find((s) => s.name === "forecast_type").selector.select.options;
+    const options = (name) => form().schema.find((s) => s.name === name).selector.select.options.map((o) => [o.value, o.label]);
+    const choose = (value) => send(w, form(), { ...form().data, ...value });
     same(
-      [names(), options.map((o) => [o.value, o.label]), form().data.forecast_type],
-      [["name", "grid", "forecast_type", "state_content", "show_entity_picture", "tap_action", "optional_actions"], [["", "Current weather"], ["daily", "Daily"], ["hourly", "Hourly"]], ""],
-      "the current weather, or a forecast the entity has"
+      [names(), options("forecast"), form().data.forecast],
+      [
+        ["name", "grid", "forecast", "state_content", "show_entity_picture", "tap_action", "optional_actions"],
+        [["show_both", "Current weather and forecast"], ["show_current", "Only the current weather"], ["show_forecast", "Only the forecast"]],
+        "show_current",
+      ],
+      "an info starts with the current weather, like a tile"
     );
-    send(w, form(), { ...form().data, forecast_type: "daily" });
+    choose({ forecast: "show_forecast" });
     same(
-      [written.at(-1).infos, names()],
-      [[{ entity: "weather.home", forecast_type: "daily" }], ["name", "grid", "forecast_type", "forecast_slots", "show_entity_picture", "tap_action", "optional_actions"]],
-      "a forecast asks for the number of slots in place of the state content"
+      [written.at(-1).infos, names(), options("forecast_type")],
+      [[{ entity: "weather.home", show_current: false, forecast_type: "daily" }], ["name", "grid", "forecast", "forecast_type", "forecast_slots", "show_entity_picture", "tap_action", "optional_actions"], [["daily", "Daily"], ["hourly", "Hourly"]]],
+      "only the forecast takes the first type the entity has, and asks for its type and slots in place of the state content"
     );
-    send(w, form(), { ...form().data, forecast_slots: 3 });
-    same([written.at(-1).infos, form().closest("ha-expansion-panel").secondary], [[{ entity: "weather.home", forecast_type: "daily", forecast_slots: 3 }], "Daily"], "the panel names the forecast it shows");
-    send(w, form(), { ...form().data, forecast_type: "" });
-    same(written.at(-1).infos, ["weather.home"], "the current weather drops the forecast options");
+    choose({ forecast_slots: 3 });
+    same([written.at(-1).infos, form().closest("ha-expansion-panel").secondary], [[{ entity: "weather.home", show_current: false, forecast_type: "daily", forecast_slots: 3 }], "Daily"], "the panel names the forecast it shows");
+    choose({ forecast: "show_both" });
+    same([written.at(-1).infos, names().includes("state_content")], [[{ entity: "weather.home", forecast_type: "daily", forecast_slots: 3 }], true], "both keep the forecast and offer the state content again");
+    choose({ forecast: "show_current" });
+    same(written.at(-1).infos, ["weather.home"], "the current weather alone drops the forecast options");
+    choose({ forecast: "show_forecast" });
+    choose({ forecast: undefined });
+    same(written.at(-1).infos, ["weather.home"], "and so does a cleared choice");
   });
 
   test("an info panel shows the state icon of its entity, like Home Assistant's row editors", () => {

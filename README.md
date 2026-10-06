@@ -99,14 +99,16 @@ Infos take the options of a tile card.
 | `entity` | The entity to show |
 | `name`, `icon`, `color`, `show_entity_picture` | As on a tile |
 | `state_content`, `time_format` | What the second line says, like `[temperature, state]` or `next_rising` |
-| `forecast_type` | For a weather entity, `daily`, `hourly` or `twice_daily` shows the forecast in place of the current weather |
+| `forecast_type` | For a weather entity, `daily`, `hourly` or `twice_daily` adds the forecast |
 | `forecast_slots` | How many days or hours of it turn by, 1 unless set |
+| `show_current`, `show_forecast` | As on Home Assistant's forecast card. Both show unless set to `false`. |
 | `tap_action`, `hold_action`, `double_tap_action` | What a tap, a hold and a double tap do. A tap opens the entity. |
 | `visibility` | The conditions of Home Assistant's visibility tab. The info shows while all of them hold. |
 
 ```yaml
 infos:
   - entity: weather.home
+    show_current: false
     forecast_type: daily
     forecast_slots: 2
   - entity: sun.sun

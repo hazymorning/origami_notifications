@@ -14,7 +14,7 @@ const DEFAULTS = {
 };
 
 const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "rotate", "slide", "audience", "css"];
-const INFO_KEY_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
+const INFO_KEY_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
 const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "before", "tap_action"];
 const ENTITY_KEY_ORDER = ["entity", ...OPTION_KEYS, "actions"];
 
@@ -1510,6 +1510,9 @@ const forecastSupported = (st, type) =>
 
 const forecastType = (st) => ["hourly", "twice_daily", "daily"].find((type) => forecastSupported(st, type)) || null;
 
+/* An info shows the forecast it names while its weather entity has it. */
+const showsForecast = (info, st) => info.entity.startsWith("weather.") && info.show_forecast !== false && forecastSupported(st, info.forecast_type);
+
 /* Like Home Assistant's forecast card, a clear or partly cloudy night has a night icon. */
 const NIGHT_ICONS = { sunny: "mdi:weather-night", partlycloudy: "mdi:weather-night-partly-cloudy" };
 
@@ -2306,6 +2309,9 @@ const checkConfig = (config) => {
     }
     if (info.visibility != null && !Array.isArray(info.visibility)) fail("visibility of " + info.entity + " must be a list of conditions");
     if (info.forecast_type != null && !FORECAST_TYPES.includes(info.forecast_type)) fail("forecast_type must be daily, hourly or twice_daily");
+    for (const key of ["show_current", "show_forecast"]) {
+      if (info[key] != null && typeof info[key] !== "boolean") fail(key + " must be true or false");
+    }
     if (info.forecast_slots != null && !(Number.isInteger(info.forecast_slots) && info.forecast_slots > 0)) {
       fail("forecast_slots must be a whole number above 0");
     }
@@ -2813,8 +2819,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       const type = id ? forecastType(h.states[id]) : null;
       if (type) want.set(id + "|" + type, [id, type]);
       for (const info of this._infoConfig || []) {
-        const ft = info.forecast_type;
-        if (info.entity.startsWith("weather.") && forecastSupported(h.states[info.entity], ft)) want.set(info.entity + "|" + ft, [info.entity, ft]);
+        if (showsForecast(info, h.states[info.entity])) want.set(info.entity + "|" + info.forecast_type, [info.entity, info.forecast_type]);
       }
     }
     for (const [key, sub] of this._forecasts) {
@@ -3165,11 +3170,12 @@ class OrigamiNotificationsCard extends HTMLElement {
         icon: info.icon || undefined,
         image: info.show_entity_picture ? ctx.url(findPicture(st.attributes)) : null,
       };
+      /* Like Home Assistant's forecast card, the current weather shows unless only the forecast is asked for. */
       const slots = this._forecastSlots(info, st, ctx);
-      if (!slots) {
+      if (!slots || info.show_current !== false) {
         out.push({ ...base, key, stateObj: st, title: ctx.name(st, info.name), color: colorOf(st), content: info.state_content, timeFormat: info.time_format });
-        continue;
       }
+      if (!slots) continue;
       /* Each forecast slot turns by like an info of its own, with the condition as its state. A name of the
        * info's own comes first, and the day or hour moves to the second line. */
       const named = isEmpty(info.name) ? "" : ctx.name(st, info.name);
@@ -3191,11 +3197,11 @@ class OrigamiNotificationsCard extends HTMLElement {
     return out;
   }
 
-  /* The forecast slots an info shows in place of its state, none while the forecast loads, or null. Like Home
+  /* The forecast slots an info shows, none while the forecast loads, or null without a forecast. Like Home
    * Assistant's forecast card, a type the entity lacks shows the current weather. */
   _forecastSlots(info, st, ctx) {
     const type = info.forecast_type;
-    if (!info.entity.startsWith("weather.") || !forecastSupported(st, type)) return null;
+    if (!showsForecast(info, st)) return null;
     const cached = FORECAST_CACHE.get(info.entity + "|" + type);
     /* A day lasts until midnight where the user is, whatever hour the integration gives it. */
     const today = dayNumber(ctx.now, ctx.zone);
@@ -4501,12 +4507,20 @@ const HA_TILE_LABELS = {
   double_tap_action: "ui.panel.lovelace.editor.card.generic.double_tap_action",
   visibility: "ui.panel.lovelace.editor.card.heading.entity_config.visibility",
   visibility_intro: "ui.panel.lovelace.editor.card.heading.entity_config.visibility_explanation",
+  forecast: "ui.panel.lovelace.editor.card.weather-forecast.weather_to_show",
+  show_both: "ui.panel.lovelace.editor.card.weather-forecast.show_both",
+  show_current: "ui.panel.lovelace.editor.card.weather-forecast.show_only_current",
+  show_forecast: "ui.panel.lovelace.editor.card.weather-forecast.show_only_forecast",
   forecast_type: "ui.panel.lovelace.editor.card.weather-forecast.forecast_type",
   forecast_slots: "ui.panel.lovelace.editor.card.weather-forecast.forecast_slots",
   daily: "ui.panel.lovelace.editor.card.weather-forecast.daily",
   hourly: "ui.panel.lovelace.editor.card.weather-forecast.hourly",
   twice_daily: "ui.panel.lovelace.editor.card.weather-forecast.twice_daily",
 };
+
+/* What weather an info shows, in the terms of Home Assistant's forecast card editor. */
+const forecastShow = (info) =>
+  !info.forecast_type || info.show_forecast === false ? "show_current" : info.show_current === false ? "show_forecast" : "show_both";
 
 /* Languages the card doesn't ship get these labels from Home Assistant. */
 const HA_EDITOR = {
@@ -4538,8 +4552,11 @@ const EDITOR_STRINGS = {
     hold_action: "Hold behavior",
     double_tap_action: "Double tap behavior",
     visibility: "Visibility",
+    forecast: "Weather to show",
+    show_both: "Current weather and forecast",
+    show_current: "Only the current weather",
+    show_forecast: "Only the forecast",
     forecast_type: "Forecast",
-    forecast_none: "Current weather",
     forecast_slots: "Forecasts to show",
     daily: "Daily",
     hourly: "Hourly",
@@ -4599,8 +4616,11 @@ const EDITOR_STRINGS = {
     hold_action: "Verhalten beim Halten",
     double_tap_action: "Verhalten beim Doppeltippen",
     visibility: "Sichtbarkeit",
+    forecast: "Anzuzeigendes Wetter",
+    show_both: "Aktuelles Wetter und Vorhersage",
+    show_current: "Nur das aktuelle Wetter",
+    show_forecast: "Nur die Vorhersage",
     forecast_type: "Vorhersage",
-    forecast_none: "Aktuelles Wetter",
     forecast_slots: "Anzahl der Vorhersagen",
     daily: "Täglich",
     hourly: "Stündlich",
@@ -4999,11 +5019,13 @@ class OrigamiNotificationsEditor extends HTMLElement {
     });
   }
 
-  /* An info without options is written as its entity alone. */
+  /* An info without options is written as its entity alone. The weather to show is on unless it is off. */
   _infoEntry(info) {
     const out = {};
     for (const key of [...INFO_KEY_ORDER, ...Object.keys(info)]) {
-      if (key in out || !(key in info) || isEmpty(info[key])) continue;
+      if (key in out || !(key in info)) continue;
+      const on = key === "show_current" || key === "show_forecast";
+      if (on ? info[key] !== false : isEmpty(info[key])) continue;
       if (key === "color" && info[key] === "state") continue;
       out[key] = info[key];
     }
@@ -5014,6 +5036,16 @@ class OrigamiNotificationsEditor extends HTMLElement {
     const h = this._hass;
     const borrowed = HA_TILE_LABELS[key] && h && h.localize ? h.localize(HA_TILE_LABELS[key]) : "";
     return borrowed || this._label(key);
+  }
+
+  /* The keys behind a choice of what weather to show. A forecast starts with the first type the entity has. */
+  _forecastKeys(info, show) {
+    if (show === "show_current") return { forecast_type: undefined, forecast_slots: undefined, show_current: undefined, show_forecast: undefined };
+    return {
+      forecast_type: info.forecast_type || this._forecastTypes(info)[0],
+      show_current: show === "show_forecast" ? false : undefined,
+      show_forecast: undefined,
+    };
   }
 
   /* The forecast types a weather info can show, like in Home Assistant's forecast card editor. */
@@ -5040,17 +5072,19 @@ class OrigamiNotificationsEditor extends HTMLElement {
       { name: "state_content", selector: { ui_state_content: {} }, context: { filter_entity: "entity" } },
       ...(timed ? [{ name: "time_format", selector: { ui_time_format: {} } }] : []),
     ];
+    const show = forecastShow(info);
     const forecast = [
       {
-        name: "forecast_type",
-        selector: {
-          select: {
-            mode: "dropdown",
-            options: [{ value: "", label: this._label("forecast_none") }, ...forecasts.map((value) => ({ value, label: this._tileLabel(value) }))],
-          },
-        },
+        name: "forecast",
+        selector: { select: { mode: "dropdown", options: ["show_both", "show_current", "show_forecast"].map((value) => ({ value, label: this._tileLabel(value) })) } },
       },
-      ...(info.forecast_type ? [{ name: "forecast_slots", selector: { number: { min: 1, max: 12, mode: "box" } } }] : state),
+      ...(show === "show_current"
+        ? []
+        : [
+            { name: "forecast_type", selector: { select: { mode: "dropdown", options: forecasts.map((value) => ({ value, label: this._tileLabel(value) })) } } },
+            { name: "forecast_slots", selector: { number: { min: 1, max: 12, mode: "box" } } },
+          ]),
+      ...(show === "show_forecast" ? [] : state),
     ];
     return [
       { name: "name", selector: { entity_name: {} }, context: { entity: "entity" } },
@@ -5127,7 +5161,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
     item._index = i;
     const st = this._hass && this._hass.states[info.entity];
     item.header = typeof info.name === "string" && info.name ? info.name : this._name(info.entity);
-    item.secondary = info.forecast_type && this._forecastTypes(info).length ? this._tileLabel(info.forecast_type) : "";
+    item.secondary = this._forecastTypes(info).length && forecastShow(info) !== "show_current" ? this._tileLabel(info.forecast_type) : "";
     /* Like the row editors of Home Assistant, the panel shows the state icon of its entity. */
     let lead = item.querySelector(":scope > [slot=leading-icon]");
     if (st && customElements.get("ha-state-icon") && lead.localName !== "ha-state-icon") {
@@ -5148,8 +5182,8 @@ class OrigamiNotificationsEditor extends HTMLElement {
       item._schemaKey = schemaKey;
       form.schema = schema;
     }
-    /* The current weather is the empty choice of the forecast field. */
-    const data = this._forecastTypes(info).length ? { ...info, forecast_type: info.forecast_type || "" } : info;
+    /* Which weather shows is one choice, as in Home Assistant's forecast card editor. */
+    const data = this._forecastTypes(info).length ? { ...info, forecast: forecastShow(info) } : info;
     const dataKey = JSON.stringify(data);
     if (dataKey !== item._dataKey) {
       item._dataKey = dataKey;
@@ -5168,9 +5202,13 @@ class OrigamiNotificationsEditor extends HTMLElement {
     e.stopPropagation();
     const infos = this._infos();
     if (!infos[index]) return;
-    infos[index] = { ...infos[index], ...value, entity: infos[index].entity };
-    if (!infos[index].forecast_type) delete infos[index].forecast_slots;
-    this._write({ infos: infos.map((info) => this._infoEntry(info)) });
+    const { forecast: show, ...rest } = value;
+    const info = { ...infos[index], ...rest, entity: infos[index].entity };
+    /* A cleared choice is the current weather, like a tile. */
+    if ("forecast" in value) Object.assign(info, this._forecastKeys(info, show || "show_current"));
+    if (!info.forecast_type) delete info.forecast_slots;
+    infos[index] = info;
+    this._write({ infos: infos.map((i) => this._infoEntry(i)) });
   }
 
   /* ha-form gets a new schema or new data only when they change, so fields keep their focus. */
