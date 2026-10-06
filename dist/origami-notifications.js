@@ -14,7 +14,7 @@ const DEFAULTS = {
 };
 
 const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "rotate", "slide", "audience", "css"];
-const INFO_KEY_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "tap_action", "hold_action", "double_tap_action", "visibility"];
+const INFO_KEY_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
 const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "before", "tap_action"];
 const ENTITY_KEY_ORDER = ["entity", ...OPTION_KEYS, "actions"];
 
@@ -89,6 +89,8 @@ const STRINGS = {
     wx_chance: "{p} chance",
     wx_frost_from: "Frost from {t}",
     wx_low: "Low of {v}",
+    wx_day: "Day",
+    wx_night: "Night",
   },
   de: {
     idle_title: "Alles ruhig",
@@ -134,6 +136,8 @@ const STRINGS = {
     wx_chance: "{p} Wahrscheinlichkeit",
     wx_frost_from: "Frost ab {t}",
     wx_low: "Tiefstwert {v}",
+    wx_day: "Tag",
+    wx_night: "Nacht",
   },
 };
 
@@ -156,6 +160,8 @@ const HA_STRINGS = {
   act_dock: ["ui.card.vacuum.actions.return_to_base"],
   act_dock_mower: ["ui.card.lawn_mower.actions.dock"],
   act_off: ["ui.card.common.turn_off"],
+  wx_day: ["ui.card.weather.day"],
+  wx_night: ["ui.card.weather.night"],
 };
 
 const borrowedStrings = (localize) => {
@@ -1302,7 +1308,7 @@ const RENDERERS = {
   generic: renderGeneric,
 };
 
-/* Titles come from the integration translations, which _refreshRepairs loads. */
+/* Titles and integration names come from the translations _refreshRepairs loads. */
 const REPAIR_SEV = { critical: "crit", error: "crit", warning: "warn" };
 
 const renderRepair = (issue, items, ctx) => {
@@ -1310,16 +1316,16 @@ const renderRepair = (issue, items, ctx) => {
   const slug = issue.translation_key || issue.issue_id;
   const key = "component." + issue.domain + ".issues." + slug + ".title";
   const vars = issue.translation_placeholders || {};
-  const title =
-    (ctx.issueLocalize && ctx.issueLocalize(key, vars)) ||
-    (h.localize && h.localize(key, vars)) ||
-    prettySlug(slug);
+  const localize = (k, v) => (ctx.issueLocalize && ctx.issueLocalize(k, v)) || (h.localize && h.localize(k, v)) || "";
+  const title = localize(key, vars) || prettySlug(slug);
   items.push({
     key: "i:" + issue.domain + "/" + issue.issue_id,
     kind: "repair",
     sev: REPAIR_SEV[issue.severity] || "warn",
     title,
-    message: issue.breaks_in_ha_version ? fill(ctx.t.breaks_in, { v: issue.breaks_in_ha_version }) : "",
+    message: issue.breaks_in_ha_version
+      ? fill(ctx.t.breaks_in, { v: issue.breaks_in_ha_version })
+      : localize("component." + (issue.issue_domain || issue.domain) + ".title"),
     ts: parseTs(issue.created, ctx.now),
     past: true,
     dismiss: () =>
@@ -1495,13 +1501,22 @@ const alikeGroup = (dc, members, ctx) => {
 /* Forecasts by "<entity>|<type>", shared by every card and kept over a remount. */
 const FORECAST_CACHE = new Map();
 
-/* Home Assistant's feature bits for forecasts. The card asks for hourly, then twice daily, then daily. */
-const forecastType = (st) => {
-  const features = Number(st && st.attributes && st.attributes.supported_features) || 0;
-  return features & 2 ? "hourly" : features & 4 ? "twice_daily" : features & 1 ? "daily" : null;
-};
+/* Home Assistant's feature bits for forecasts. For rain ahead the card asks for hourly, then twice daily, then daily. */
+const FORECAST_BITS = { daily: 1, hourly: 2, twice_daily: 4 };
+const FORECAST_TYPES = Object.keys(FORECAST_BITS);
+
+const forecastSupported = (st, type) =>
+  FORECAST_TYPES.includes(type) && Boolean((Number(st && st.attributes && st.attributes.supported_features) || 0) & FORECAST_BITS[type]);
+
+const forecastType = (st) => ["hourly", "twice_daily", "daily"].find((type) => forecastSupported(st, type)) || null;
+
+/* Like Home Assistant's forecast card, a clear or partly cloudy night has a night icon. */
+const NIGHT_ICONS = { sunny: "mdi:weather-night", partlycloudy: "mdi:weather-night-partly-cloudy" };
 
 const FORECAST_SPAN = { hourly: 3600000, twice_daily: 43200000, daily: 86400000 };
+
+/* Where the profile picks a number format, Home Assistant formats numbers like these locales. */
+const NUMBER_LOCALES = { comma_decimal: "en-US", decimal_comma: "de", space_comma: "fr" };
 
 /* The entries that have not ended yet. Home Assistant sends null when it has no forecast. */
 const forecastFilterPast = (forecast, type, now) =>
@@ -1511,7 +1526,9 @@ const forecastFilterPast = (forecast, type, now) =>
 const forecastFingerprint = (forecast) =>
   Array.isArray(forecast)
     ? forecast
-        .map((f) => (f ? [f.datetime, f.condition, f.temperature, f.precipitation, f.precipitation_probability].join("|") : ""))
+        .map((f) =>
+          f ? [f.datetime, f.condition, f.temperature, f.templow, f.is_daytime, f.precipitation, f.precipitation_probability].join("|") : ""
+        )
         .join(";")
     : "";
 
@@ -1683,7 +1700,7 @@ const rowSig = (it) =>
     it.icon || "",
     it.sev || "",
     it.title,
-    it.message,
+    it.message || Number.isFinite(it.ts),
     Boolean(it.dismiss),
     Boolean(it.open || it.entity) && !it.inert,
     (it.actions || []).map((a) => a.label + (a.disabled ? "!" : "")).join("|"),
@@ -1920,6 +1937,7 @@ const STYLES = `
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .msg state-display { display: inline; }
+  .msg state-display[hidden] { display: none; }
   .eta { font-variant-numeric: tabular-nums; }
   .msg[hidden], .eta[hidden], .head.single .msg { display: none; }
 
@@ -2105,6 +2123,7 @@ const STYLES = `
     overflow: hidden;
   }
   .row .body:empty { display: none; }
+  .row .body .when { font-size: inherit; line-height: inherit; }
   /* An opened message can be selected and copied. */
   .row:is(.open, :has(:focus-visible)) .body {
     display: block;
@@ -2286,6 +2305,10 @@ const checkConfig = (config) => {
       fail("infos must contain entity ids, got " + JSON.stringify(entry));
     }
     if (info.visibility != null && !Array.isArray(info.visibility)) fail("visibility of " + info.entity + " must be a list of conditions");
+    if (info.forecast_type != null && !FORECAST_TYPES.includes(info.forecast_type)) fail("forecast_type must be daily, hourly or twice_daily");
+    if (info.forecast_slots != null && !(Number.isInteger(info.forecast_slots) && info.forecast_slots > 0)) {
+      fail("forecast_slots must be a whole number above 0");
+    }
     for (const key of ["tap_action", "hold_action", "double_tap_action"]) {
       if (typeof info[key] === "string") info[key] = { action: info[key] };
     }
@@ -2372,7 +2395,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._unsub = null;
     this._unsubRepairs = null;
     this._todos = new Map();
-    this._forecast = null;
+    this._forecasts = new Map();
     this._pictures = new Map();
     this._clock = null;
     this._boundaryTimer = null;
@@ -2688,7 +2711,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (sub.unsub) sub.unsub.then((u) => u()).catch(() => {});
       this._todos.set(id, { items: sub.items });
     }
-    this._unsubscribeForecast();
+    this._unsubscribeForecasts();
     this._dropServerConditions();
     for (const mql of (this._mediaWatch || new Map()).values()) mql.onchange = null;
     this._mediaWatch = null;
@@ -2724,7 +2747,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       });
     }
     this._subscribeTodos();
-    this._subscribeForecast();
+    this._subscribeForecasts();
     /* Like the repairs page in Home Assistant's settings, repairs are for admins only. A new
      * subscription also fetches the list, which may have changed while the card was away. */
     if (!this._unsubRepairs && conn.subscribeEvents && this._config && this._config.repairs && this._isAdmin()) {
@@ -2779,44 +2802,56 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
   }
 
-  /* One forecast subscription per card. Like a to-do list, a forecast Home Assistant refused is asked for again once
-   * the weather changes, since the entity may still be loading. */
-  _subscribeForecast() {
+  /* One forecast subscription for each weather entity and type the card reads, for rain ahead and for infos. Like a
+   * to-do list, a forecast Home Assistant refused is asked for again once the weather changes, since the entity may
+   * still be loading. */
+  _subscribeForecasts() {
     const h = this._hass;
-    const id = this._weatherId();
-    const type = id && h && this.isConnected ? forecastType(h.states[id]) : null;
-    const key = type ? id + "|" + type : null;
-    const old = this._forecast;
-    if (old && old.key === key && (old.failed === undefined || old.failed === h.states[id])) return;
-    this._unsubscribeForecast();
-    if (!key || !h.connection) return;
-    const sub = { key };
-    this._forecast = sub;
-    sub.unsub = h.connection.subscribeMessage((msg) => this._onForecast(sub, msg), {
-      type: "weather/subscribe_forecast",
-      entity_id: id,
-      forecast_type: type,
-    });
-    sub.unsub.catch(() => {
-      sub.failed = (this._hass && this._hass.states[id]) || null;
-    });
+    const want = new Map();
+    if (h && this.isConnected) {
+      const id = this._weatherId();
+      const type = id ? forecastType(h.states[id]) : null;
+      if (type) want.set(id + "|" + type, [id, type]);
+      for (const info of this._infoConfig || []) {
+        const ft = info.forecast_type;
+        if (info.entity.startsWith("weather.") && forecastSupported(h.states[info.entity], ft)) want.set(info.entity + "|" + ft, [info.entity, ft]);
+      }
+    }
+    for (const [key, sub] of this._forecasts) {
+      if (want.has(key) && (sub.failed === undefined || sub.failed === h.states[sub.id])) continue;
+      this._forecasts.delete(key);
+      sub.unsub.then((unsub) => unsub()).catch(() => {});
+    }
+    if (!h || !h.connection) return;
+    for (const [key, [id, type]] of want) {
+      if (this._forecasts.has(key)) continue;
+      const sub = { key, id };
+      this._forecasts.set(key, sub);
+      sub.unsub = h.connection.subscribeMessage((msg) => this._onForecast(sub, msg), {
+        type: "weather/subscribe_forecast",
+        entity_id: id,
+        forecast_type: type,
+      });
+      sub.unsub.catch(() => {
+        sub.failed = (this._hass && this._hass.states[id]) || null;
+      });
+    }
   }
 
-  _unsubscribeForecast() {
-    const sub = this._forecast;
-    this._forecast = null;
-    if (sub) sub.unsub.then((unsub) => unsub()).catch(() => {});
+  _unsubscribeForecasts() {
+    for (const sub of this._forecasts.values()) sub.unsub.then((unsub) => unsub()).catch(() => {});
+    this._forecasts.clear();
   }
 
   /* Every card on the same forecast takes the news at once. A repeat of what the cache holds changes nothing. */
   _onForecast(sub, msg) {
-    if (this._forecast !== sub) return;
+    if (this._forecasts.get(sub.key) !== sub) return;
     const forecast = msg && Array.isArray(msg.forecast) ? msg.forecast : null;
     const print = forecastFingerprint(forecast);
     const cached = FORECAST_CACHE.get(sub.key);
     if (cached && cached.print === print) return;
     FORECAST_CACHE.set(sub.key, { forecast, print });
-    for (const card of CARDS) if (card._forecast && card._forecast.key === sub.key) card._recompute();
+    for (const card of CARDS) if (card._forecasts.has(sub.key)) card._recompute();
   }
 
   _onNotifications(msg) {
@@ -2862,11 +2897,15 @@ class OrigamiNotificationsCard extends HTMLElement {
         this._repairs = ((res && res.issues) || []).filter((i) => !i.ignored);
         this._recompute();
         const domains = [...new Set(this._repairs.map((i) => i.domain))];
+        const named = [...new Set(this._repairs.map((i) => i.issue_domain || i.domain))];
         if (domains.length && typeof h.loadBackendTranslation === "function") {
-          return h.loadBackendTranslation("issues", domains).then((localize) => {
-            this._issueLocalize = localize;
-            this._recompute();
-          });
+          const load = (category, list) =>
+            h.loadBackendTranslation(category, list).then((localize) => {
+              this._issueLocalize = localize;
+              this._recompute();
+            });
+          /* Each load returns Home Assistant's localize with everything loaded so far. */
+          return load("issues", domains).then(() => load("title", named));
         }
       })
       .catch(() => {});
@@ -3118,22 +3157,107 @@ class OrigamiNotificationsCard extends HTMLElement {
       while (keys.has(key)) key += "+";
       keys.add(key);
       const own = info.color && info.color !== "state";
-      out.push({
-        key,
+      const colorOf = (s) => (own ? (stateActive(s) ? themeColor(info.color) : "var(--state-inactive-color)") : stateColor(s));
+      const base = {
         kind: "info",
         info,
         entity: info.entity,
-        stateObj: st,
-        title: ctx.name(st, info.name),
         icon: info.icon || undefined,
-        color: own ? (stateActive(st) ? themeColor(info.color) : "var(--state-inactive-color)") : stateColor(st),
-        content: info.state_content,
-        timeFormat: info.time_format,
         image: info.show_entity_picture ? ctx.url(findPicture(st.attributes)) : null,
+      };
+      const slots = this._forecastSlots(info, st, ctx);
+      if (!slots) {
+        out.push({ ...base, key, stateObj: st, title: ctx.name(st, info.name), color: colorOf(st), content: info.state_content, timeFormat: info.time_format });
+        continue;
+      }
+      /* Each forecast slot turns by like an info of its own, with the condition as its state. */
+      slots.forEach((slot, n) => {
+        const shown = { ...st, state: slot.condition || st.state };
+        const label = this._slotLabel(Date.parse(slot.datetime), info.forecast_type, ctx.now);
+        const named = typeof info.name === "string" && info.name;
+        out.push({
+          ...base,
+          key: key + "#" + n,
+          stateObj: shown,
+          title: named || label,
+          text: [named ? label : "", this._slotText(slot, shown, info.forecast_type)].filter(Boolean).join(" · "),
+          icon: base.icon || (slot.is_daytime === false && NIGHT_ICONS[slot.condition]) || undefined,
+          color: colorOf(shown),
+        });
       });
     }
     this._dropServerConditions(this._serverUsed);
     return out;
+  }
+
+  /* The forecast slots an info shows in place of its state, none while the forecast loads, or null. Like Home
+   * Assistant's forecast card, a type the entity lacks shows the current weather. */
+  _forecastSlots(info, st, ctx) {
+    const type = info.forecast_type;
+    if (!info.entity.startsWith("weather.") || !forecastSupported(st, type)) return null;
+    const cached = FORECAST_CACHE.get(info.entity + "|" + type);
+    /* A day lasts until midnight where the user is, whatever hour the integration gives it. */
+    const today = dayNumber(ctx.now, ctx.zone);
+    const slots = (cached && Array.isArray(cached.forecast) ? cached.forecast : [])
+      .filter((f) => f && Number.isFinite(Date.parse(f.datetime)))
+      .filter((f) => (type === "daily" ? dayNumber(Date.parse(f.datetime), ctx.zone) >= today : Date.parse(f.datetime) + FORECAST_SPAN[type] > ctx.now))
+      .slice(0, info.forecast_slots || 1);
+    /* Today and Tomorrow move on at midnight, and an hour or half a day when it ends. */
+    if (slots.length) {
+      ctx.wake(dayStart(today + 1, ctx.zone));
+      if (type !== "daily") ctx.wake(Date.parse(slots[0].datetime) + FORECAST_SPAN[type]);
+    }
+    return slots;
+  }
+
+  /* Today, Tomorrow or the weekday, and the hour for an hourly forecast. */
+  _slotLabel(ts, type, now) {
+    const zone = this._clockOpts().timeZone;
+    const diff = dayNumber(ts, zone) - dayNumber(now, zone);
+    let day;
+    try {
+      day = Math.abs(diff) <= 1 ? this._rel.format(diff, "day") : dateFormat(this._lang, { weekday: "long", timeZone: zone }).format(ts);
+    } catch (e) {
+      day = dateFormat(undefined, { weekday: "long" }).format(ts);
+    }
+    let text = day;
+    if (type === "hourly") {
+      let time;
+      try {
+        time = new Date(ts).toLocaleTimeString(this._lang, { hour: "numeric", minute: "2-digit", ...this._clockOpts() });
+      } catch (e) {
+        time = new Date(ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      }
+      text = diff === 0 ? time : fill(this._t.day_at, { d: day, t: time });
+    }
+    return text.charAt(0).toLocaleUpperCase(this._lang) + text.slice(1);
+  }
+
+  /* Day or night, the temperatures and the condition, like a slot of Home Assistant's forecast card. */
+  _slotText(slot, shown, type) {
+    const h = this._hass;
+    const temps = [slot.temperature, slot.templow]
+      .filter((v) => v != null && v !== "" && Number.isFinite(Number(v)))
+      .map((v) => this._numText(Number(v)) + "°")
+      .join(" / ");
+    return [
+      type === "twice_daily" ? (slot.is_daytime === false ? this._t.wx_night : this._t.wx_day) : "",
+      temps,
+      slot.condition ? (h && h.formatEntityState ? h.formatEntityState(shown) : slot.condition) : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  /* A number as the profile writes numbers. */
+  _numText(v) {
+    const l = (this._hass && this._hass.locale) || {};
+    const locale = l.number_format === "system" ? undefined : NUMBER_LOCALES[l.number_format] || this._lang;
+    try {
+      return new Intl.NumberFormat(locale, { maximumFractionDigits: 1, useGrouping: l.number_format !== "none" }).format(v);
+    } catch (e) {
+      return String(v);
+    }
   }
 
   /* Visibility as Home Assistant checks it for cards. An entity a condition reads counts as watched, and the
@@ -3824,7 +3948,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     d.eta.hidden = !live;
     setText(d.eta, live ? this._timeText(slide, now) : "");
     let sd = d.msg.querySelector("state-display");
-    if (info && customElements.get("state-display")) {
+    if (info && slide.text == null && customElements.get("state-display")) {
       if (!sd) {
         sd = document.createElement("state-display");
         d.msg.append(sd);
@@ -3836,20 +3960,22 @@ class OrigamiNotificationsCard extends HTMLElement {
     } else {
       if (sd) sd.hidden = true;
       d.t.hidden = false;
-      setText(d.t, info ? this._infoText(slide) : slide ? slide.message || "" : this._t.idle_msg);
+      setText(d.t, info ? (slide.text != null ? slide.text : this._infoText(slide)) : slide ? slide.message || "" : this._t.idle_msg);
     }
     d.head.classList.toggle("single", Boolean(slide) && !info && !slide.message && !live);
     setImage(d.glyph, slide ? slide.image : null);
     this._setBackdrop(slide && slide.backdrop ? slide.image : null);
   }
 
-  /* What an info says where Home Assistant's state text is missing, like in an old frontend. */
+  /* What an info says where Home Assistant's state text is missing. Like it, the state fills in for parts that
+   * have nothing to say. */
   _infoText(slide) {
     const h = this._hass;
     const st = slide.stateObj;
-    return [].concat(slide.content == null ? "state" : slide.content)
+    const state = () => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state));
+    const text = [].concat(slide.content == null ? "state" : slide.content)
       .map((c) => {
-        if (c === "state") return h && h.formatEntityState ? h.formatEntityState(st) : String(st.state);
+        if (c === "state") return state();
         if (c === "name") return slide.title;
         const ts = st[String(c).replace("-", "_")];
         if (/^last[_-](changed|updated)$/.test(c)) return this._relTime(parseTs(ts, Date.now()));
@@ -3858,6 +3984,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       })
       .filter(Boolean)
       .join(" · ");
+    return text || state();
   }
 
   _rtl() {
@@ -4201,6 +4328,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     const body = document.createElement("div");
     body.className = "body";
     body.textContent = it.message;
+    /* Without a message the time takes its place, like on the repairs page of Home Assistant. */
+    if (!it.message && Number.isFinite(it.ts)) body.append(when);
     row.append(tile, title, meta, body);
     this._setTime(row, it, now);
     if (it.actions && it.actions.length) {
@@ -4371,6 +4500,11 @@ const HA_TILE_LABELS = {
   double_tap_action: "ui.panel.lovelace.editor.card.generic.double_tap_action",
   visibility: "ui.panel.lovelace.editor.card.heading.entity_config.visibility",
   visibility_intro: "ui.panel.lovelace.editor.card.heading.entity_config.visibility_explanation",
+  forecast_type: "ui.panel.lovelace.editor.card.weather-forecast.forecast_type",
+  forecast_slots: "ui.panel.lovelace.editor.card.weather-forecast.forecast_slots",
+  daily: "ui.panel.lovelace.editor.card.weather-forecast.daily",
+  hourly: "ui.panel.lovelace.editor.card.weather-forecast.hourly",
+  twice_daily: "ui.panel.lovelace.editor.card.weather-forecast.twice_daily",
 };
 
 /* Languages the card doesn't ship get these labels from Home Assistant. */
@@ -4403,6 +4537,12 @@ const EDITOR_STRINGS = {
     hold_action: "Hold behavior",
     double_tap_action: "Double tap behavior",
     visibility: "Visibility",
+    forecast_type: "Forecast",
+    forecast_none: "Current weather",
+    forecast_slots: "Forecasts to show",
+    daily: "Daily",
+    hourly: "Hourly",
+    twice_daily: "Twice daily",
     options: "Entity options",
     type: "Kind",
     attribute: "Attribute",
@@ -4458,6 +4598,12 @@ const EDITOR_STRINGS = {
     hold_action: "Verhalten beim Halten",
     double_tap_action: "Verhalten beim Doppeltippen",
     visibility: "Sichtbarkeit",
+    forecast_type: "Vorhersage",
+    forecast_none: "Aktuelles Wetter",
+    forecast_slots: "Anzahl der Vorhersagen",
+    daily: "Täglich",
+    hourly: "Stündlich",
+    twice_daily: "Zweimal täglich",
     options: "Optionen je Entität",
     type: "Art",
     attribute: "Attribut",
@@ -4869,6 +5015,13 @@ class OrigamiNotificationsEditor extends HTMLElement {
     return borrowed || this._label(key);
   }
 
+  /* The forecast types a weather info can show, like in Home Assistant's forecast card editor. */
+  _forecastTypes(info) {
+    const st = this._hass && this._hass.states[info.entity];
+    if (!info.entity.startsWith("weather.")) return [];
+    return FORECAST_TYPES.filter((type) => forecastSupported(st, type) || info.forecast_type === type);
+  }
+
   /* The fields of a tile card. The time format shows only where the content holds a time. */
   _infoSchema(info) {
     const st = this._hass && this._hass.states[info.entity];
@@ -4881,6 +5034,23 @@ class OrigamiNotificationsEditor extends HTMLElement {
         (c === "state" && Boolean(st) && (st.attributes.device_class === "timestamp" || TIME_STATE_DOMAINS.has(domain)))
     );
     const actions = { entity_id: "entity" };
+    const forecasts = this._forecastTypes(info);
+    const state = [
+      { name: "state_content", selector: { ui_state_content: {} }, context: { filter_entity: "entity" } },
+      ...(timed ? [{ name: "time_format", selector: { ui_time_format: {} } }] : []),
+    ];
+    const forecast = [
+      {
+        name: "forecast_type",
+        selector: {
+          select: {
+            mode: "dropdown",
+            options: [{ value: "", label: this._label("forecast_none") }, ...forecasts.map((value) => ({ value, label: this._tileLabel(value) }))],
+          },
+        },
+      },
+      ...(info.forecast_type ? [{ name: "forecast_slots", selector: { number: { min: 1, max: 12, mode: "box" } } }] : state),
+    ];
     return [
       { name: "name", selector: { entity_name: {} }, context: { entity: "entity" } },
       {
@@ -4891,8 +5061,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
           { name: "color", selector: { ui_color: { default_color: "state", include_state: true } } },
         ],
       },
-      { name: "state_content", selector: { ui_state_content: {} }, context: { filter_entity: "entity" } },
-      ...(timed ? [{ name: "time_format", selector: { ui_time_format: {} } }] : []),
+      ...(forecasts.length ? forecast : state),
       { name: "show_entity_picture", selector: { boolean: {} } },
       { name: "tap_action", selector: { ui_action: { default_action: "more-info" } }, context: actions },
       {
@@ -4968,10 +5137,12 @@ class OrigamiNotificationsEditor extends HTMLElement {
       item._schemaKey = schemaKey;
       form.schema = schema;
     }
-    const dataKey = JSON.stringify(info);
+    /* The current weather is the empty choice of the forecast field. */
+    const data = this._forecastTypes(info).length ? { ...info, forecast_type: info.forecast_type || "" } : info;
+    const dataKey = JSON.stringify(data);
     if (dataKey !== item._dataKey) {
       item._dataKey = dataKey;
-      form.data = info;
+      form.data = data;
     }
     item._vis.header = this._tileLabel("visibility");
     const h = this._hass;
@@ -4987,6 +5158,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
     const infos = this._infos();
     if (!infos[index]) return;
     infos[index] = { ...infos[index], ...value, entity: infos[index].entity };
+    if (!infos[index].forecast_type) delete infos[index].forecast_slots;
     this._write({ infos: infos.map((info) => this._infoEntry(info)) });
   }
 

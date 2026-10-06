@@ -8,7 +8,7 @@ Closed, the card is one row that turns through whatever needs attention. Tap it 
 
 Home Assistant's notifications, repairs and updates show up without any setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
 
-While nothing needs attention, the card shows your infos instead, like the weather or the next sunrise. You set them up like tiles.
+While nothing needs attention, the card shows your infos instead, like the weather forecast or the next sunrise. You set them up like tiles.
 
 **You can style the card with plain CSS.**
 
@@ -99,11 +99,16 @@ Infos take the options of a tile card.
 | `entity` | The entity to show |
 | `name`, `icon`, `color`, `show_entity_picture` | As on a tile |
 | `state_content`, `time_format` | What the second line says, like `[temperature, state]` or `next_rising` |
+| `forecast_type` | For a weather entity, `daily`, `hourly` or `twice_daily` shows the forecast in place of the current weather |
+| `forecast_slots` | How many days or hours of it turn by, 1 unless set |
 | `tap_action`, `hold_action`, `double_tap_action` | What a tap, a hold and a double tap do. A tap opens the entity. |
 | `visibility` | The conditions of Home Assistant's visibility tab. The info shows while all of them hold. |
 
 ```yaml
 infos:
+  - entity: weather.home
+    forecast_type: daily
+    forecast_slots: 2
   - entity: sun.sun
     name: Sunrise
     state_content: next_rising

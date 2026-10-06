@@ -691,16 +691,17 @@ test("repairs", async () => {
     wsReply: () => ({ issues }),
     loadBackendTranslation: (category, domains) => {
       asked.push([category, domains]);
-      return Promise.resolve((k) => (k.includes("old_firmware") ? "Z-Wave firmware is out of date" : ""));
+      const names = { "component.cloud.title": "Home Assistant Cloud", "component.zwave_js.title": "Z-Wave" };
+      return Promise.resolve((k) => (k.includes("old_firmware") ? "Z-Wave firmware is out of date" : names[k] || ""));
     },
   });
   const el = mount(w, { type: "x" }, hass);
   await tick();
   same(rows(el).map((r) => [r.title, r.body, r.tile]), [
-    ["Legacy", "", "rtile crit"],
+    ["Legacy", "Home Assistant Cloud", "rtile crit"],
     ["Z-Wave firmware is out of date", "Stops working in 2026.12", "rtile warn"],
-  ], "repair rows");
-  same(asked, [["issues", ["zwave_js", "cloud"]]], "issue translations are requested");
+  ], "repair rows, named by their integration where nothing else is said");
+  same(asked, [["issues", ["zwave_js", "cloud"]], ["title", ["zwave_js", "cloud"]]], "issue translations and integration names are requested");
   el.shadowRoot.querySelectorAll(".row .x")[0].click();
   same(hass.calls.filter((c) => c[1] === "repairs/ignore_issue").map((c) => c[2]), [
     { type: "repairs/ignore_issue", domain: "cloud", issue_id: "legacy", ignore: true },
@@ -1084,8 +1085,8 @@ test("an alert has no text, and the header shows its name once", () => {
   const w = makeWindow();
   const hass = makeHass({ "alert.garage": st("alert.garage", "on", { friendly_name: "Garage open" }) });
   const el = mount(w, { type: "x", updates: false, entities: ["alert.garage"] }, hass);
-  same(rows(el)[0].body, "");
   const q = (sel) => el.shadowRoot.querySelector(sel);
+  same([/days ago$/.test(rows(el)[0].body), q(".row .meta .when")], [true, null], "its row shows when it began in place of a message");
   same([q(".head").classList.contains("single"), q(".head .msg").hidden, q(".head .eta").hidden, /days ago$/.test(q(".head .eta").textContent)], [false, true, false, true], "the head shows when it began instead");
 });
 
@@ -2827,7 +2828,7 @@ test("a NINA warning without attributes asks Home Assistant once", async () => {
   const shown = (card = el) => [...rows(card).map((r) => [r.title, r.body, r.tile]), card.shadowRoot.querySelector(".row .when").dateTime];
   same(
     [rows(el).map((r) => [r.title, r.body, r.tile, r.x]), el.shadowRoot.querySelector(".row").dataset.kind, asked(), flags],
-    [[["Berlin Warning 1", "", "rtile", false]], "warning", [["nina.get_details", {}, { entity_id: NINA }]], [[false, true]]],
+    [[["Berlin Warning 1", "15 days ago", "rtile", false]], "warning", [["nina.get_details", {}, { entity_id: NINA }]], [[false, true]]],
     "found by its platform, it shows its name while Home Assistant looks up the details, without a notice for an error"
   );
   await tick();
@@ -3463,7 +3464,7 @@ test("rain ahead shows the hour it starts", () => {
       of({}, { precipitation: 0.2 }),
       of({}, { precipitation_probability: 60 }),
     ],
-    [[["Snow from 1 PM", ""]], [["Thunderstorms from 1 PM", ""]], [["Hail from 1 PM", ""]], [["Snow from 1 PM", ""]], [["Rain from 1 PM", ""]], [["Rain from 1 PM", "60% chance"]]],
+    [[["Snow from 1 PM", "in 1 hr."]], [["Thunderstorms from 1 PM", "in 1 hr."]], [["Hail from 1 PM", "in 1 hr."]], [["Snow from 1 PM", "in 1 hr."]], [["Rain from 1 PM", "in 1 hr."]], [["Rain from 1 PM", "60% chance"]]],
     "snow, thunder and hail by name, snow at 1 °C, and 0.2 mm or a chance of 60 % make an hour wet"
   );
   same(
@@ -3873,6 +3874,104 @@ test("infos fill a quiet card in their order, and leave it to what needs attenti
   );
 });
 
+test("the state text of an info leaves the head with the info", () => {
+  const w = makeWindow();
+  const el = mount(w, { type: "x", hide_when_empty: false }, makeHass({}));
+  const rule = cssRules(el).find((r) => r.selectorText === ".msg state-display[hidden]");
+  same(rule && rule.style.getPropertyValue("display"), "none", "a hidden state-display stays hidden, though the card shows it inline");
+});
+
+test("an info whose parts say nothing shows its state, as Home Assistant does", () => {
+  const w = makeWindow();
+  const el = mount(w, { type: "x", updates: false, infos: [{ entity: "sensor.energy", state_content: "missing" }] }, quietHass(quietStates()));
+  same([head(el).title, el.shadowRoot.querySelector(".head .msg .t").textContent], ["Energy", "4.2 kWh"]);
+});
+
+/* A weather entity with a daily and an hourly forecast, and the card's subscriptions to them. */
+const forecastCard = (w, info, extra = {}) => {
+  const subs = [];
+  const states = { "weather.home": weatherAt("rainy", { supported_features: 7 }) };
+  const names = { sunny: "Sunny", rainy: "Rainy", cloudy: "Cloudy", partlycloudy: "Partly cloudy" };
+  const hass = makeHass(states, { subs, formatEntityState: (s) => names[s.state] || s.state });
+  const el = mount(w, { type: "x", updates: false, rotate: 0, infos: [{ entity: "weather.home", ...info }], ...extra }, hass);
+  const forecasts = () => subs.filter((s) => s.msg && s.msg.type === "weather/subscribe_forecast");
+  return { el, hass, forecasts };
+};
+const shownInfo = (el) => [head(el).title, el.shadowRoot.querySelector(".head .msg .t").textContent];
+const dayAt = (d, rest) => ({ datetime: new Date(Date.parse("2026-10-02T00:00:00Z") + d * 86400000).toISOString(), condition: "sunny", temperature: 16, templow: 9, ...rest });
+
+test("an info shows the daily forecast in place of the weather, a day at a time", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const { el, forecasts } = forecastCard(w, { forecast_type: "daily", forecast_slots: 2 });
+  same(forecasts().map((s) => s.msg), [{ type: "weather/subscribe_forecast", entity_id: "weather.home", forecast_type: "daily" }], "the card asks for the daily forecast");
+  same(el.hidden, true, "and waits for it, without the current weather in between");
+  forecasts()[0].cb({ type: "daily", forecast: [dayAt(-1), dayAt(0), dayAt(1, { condition: "rainy", temperature: 12.5, templow: 7 }), dayAt(2)] });
+  same([el.hidden, shownInfo(el)], [false, ["Today", "16° / 9° · Sunny"]], "today comes first, and a day already gone is left out");
+  el.shadowRoot.querySelector(".head").dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  same(shownInfo(el), ["Tomorrow", "12.5° / 7° · Rainy"], "then tomorrow");
+  el.shadowRoot.querySelector(".head").dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  same(shownInfo(el)[0], "Today", "two slots, as set");
+  mock.timers.tick(Date.parse("2026-10-03T00:00:01Z") - Date.now());
+  same(shownInfo(el), ["Today", "12.5° / 7° · Rainy"], "at midnight tomorrow becomes today");
+});
+
+test("an hourly or twice daily forecast names its hour or its half of the day", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC", stateIcon: true });
+  const hour = (h, rest) => ({ datetime: new Date(NOW + h * 3600000).toISOString(), condition: "cloudy", temperature: 11, ...rest });
+  const { el, forecasts } = forecastCard(w, { forecast_type: "hourly", forecast_slots: 3, name: "Oslo" });
+  forecasts()[0].cb({ type: "hourly", forecast: [hour(-1), hour(0), hour(12, { condition: "partlycloudy", is_daytime: false })] });
+  const icon = () => {
+    const i = el.shadowRoot.querySelector(".head .glyph ha-state-icon");
+    return [i.stateObj.state, i.icon];
+  };
+  same([...shownInfo(el), icon()], ["Oslo", "12:00 PM · 11° · Cloudy", ["cloudy", null]], "a name of its own comes first, the hour moves to the second line, and the icon is the condition's");
+  el.shadowRoot.querySelector(".head").dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  same([...shownInfo(el), icon()], ["Oslo", "Tomorrow at 12:00 AM · 11° · Partly cloudy", ["partlycloudy", "mdi:weather-night-partly-cloudy"]], "an hour after midnight says its day, and a night has a night icon");
+
+  const twice = forecastCard(w, { forecast_type: "twice_daily" });
+  twice.forecasts()[0].cb({ type: "twice_daily", forecast: [hour(0, { condition: "sunny", temperature: 17, is_daytime: true })] });
+  same(shownInfo(twice.el), ["Today", "Day · 17° · Sunny"], "half a day says whether it is day or night");
+});
+
+test("a forecast the weather entity lacks shows the current weather, as Home Assistant's forecast card does", () => {
+  const w = makeWindow();
+  const subs = [];
+  const states = { "weather.home": weatherAt("rainy", { supported_features: 1 }) };
+  const el = mount(w, { type: "x", updates: false, infos: [{ entity: "weather.home", forecast_type: "hourly" }] }, makeHass(states, { subs, formatEntityState: () => "Rainy" }));
+  same([shownInfo(el), subs.filter((s) => s.msg && s.msg.type === "weather/subscribe_forecast").length], [["Home", "Rainy"], 0]);
+});
+
+test("each weather entity and forecast type has one subscription, which ends with the card", async () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const { el, forecasts } = forecastCard(w, { forecast_type: "daily" }, { weather: "weather.home" });
+  same(forecasts().map((s) => s.msg.forecast_type), ["hourly", "daily"], "the weather option reads the hourly forecast, the info the daily one");
+  el.setConfig({ type: "x", updates: false, weather: "weather.home", infos: [{ entity: "weather.home", forecast_type: "daily" }, { entity: "weather.home", forecast_type: "hourly" }] });
+  same(forecasts().length, 2, "an info on the hourly forecast shares the subscription of the weather option");
+  await Promise.resolve();
+  el.remove();
+  await Promise.resolve();
+  same(forecasts().map((s) => s.closed), [true, true], "both end with the card");
+});
+
+test("a broken forecast option gets a clear error", () => {
+  const w = makeWindow();
+  const error = (info) => {
+    try {
+      w.document.createElement("origami-notifications").setConfig({ type: "x", infos: [{ entity: "weather.home", ...info }] });
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  };
+  same(
+    [error({ forecast_type: "weekly" }), error({ forecast_type: "daily", forecast_slots: 0 }), error({ forecast_type: "daily", forecast_slots: 2.5 }), error({ forecast_type: "twice_daily", forecast_slots: 3 })],
+    ["origami-notifications: forecast_type must be daily, hourly or twice_daily", "origami-notifications: forecast_slots must be a whole number above 0", "origami-notifications: forecast_slots must be a whole number above 0", null]
+  );
+});
+
 test("an info does what its actions say, like a tile", () => {
   useClock();
   const w = makeWindow({ clock: true });
@@ -4123,6 +4222,33 @@ describe("editor for infos", () => {
     same(written.at(-1).infos[1].visibility, [{ condition: "user", users: ["u1"] }], "the visibility editor writes the conditions");
     send(w, ed.querySelectorAll("ha-card-conditions-editor")[1], []);
     same("visibility" in written.at(-1).infos[1], false, "and drops an empty list");
+  });
+
+  test("a weather info offers the forecasts its entity has, like Home Assistant's forecast card", () => {
+    const w = makeWindow();
+    const ed = w.document.createElement("origami-notifications-editor");
+    const written = [];
+    ed.addEventListener("config-changed", (e) => written.push(e.detail.config));
+    ed.setConfig({ type: "custom:origami-notifications", infos: ["weather.home"] });
+    ed.hass = makeHass({ "weather.home": st("weather.home", "rainy", { friendly_name: "Home", supported_features: 3 }) });
+    const form = () => infoForms(ed)[0];
+    const names = () => form().schema.map((s) => s.name || s.type);
+    const options = form().schema.find((s) => s.name === "forecast_type").selector.select.options;
+    same(
+      [names(), options.map((o) => [o.value, o.label]), form().data.forecast_type],
+      [["name", "grid", "forecast_type", "state_content", "show_entity_picture", "tap_action", "optional_actions"], [["", "Current weather"], ["daily", "Daily"], ["hourly", "Hourly"]], ""],
+      "the current weather, or a forecast the entity has"
+    );
+    send(w, form(), { ...form().data, forecast_type: "daily" });
+    same(
+      [written.at(-1).infos, names()],
+      [[{ entity: "weather.home", forecast_type: "daily" }], ["name", "grid", "forecast_type", "forecast_slots", "show_entity_picture", "tap_action", "optional_actions"]],
+      "a forecast asks for the number of slots in place of the state content"
+    );
+    send(w, form(), { ...form().data, forecast_slots: 3 });
+    same(written.at(-1).infos, [{ entity: "weather.home", forecast_type: "daily", forecast_slots: 3 }]);
+    send(w, form(), { ...form().data, forecast_type: "" });
+    same(written.at(-1).infos, ["weather.home"], "the current weather drops the forecast options");
   });
 
   test("moving, swapping and removing infos keeps their options", () => {
