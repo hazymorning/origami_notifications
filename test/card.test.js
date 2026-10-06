@@ -350,7 +350,7 @@ test("editor schema", () => {
   ed.setConfig({ type: "x", entities: ["calendar.family"] });
   ed.hass = makeHass({ "calendar.family": st("calendar.family", "off", { friendly_name: "Family" }) });
   const form = ed.querySelector("ha-form");
-  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "grid", "options", "audience", "styling"]);
+  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "content_layout", "grid", "options", "audience", "styling"]);
   same(
     form.schema.find((s) => s.name === "options").schema[0].schema.map((s) => s.name || s.type),
     ["type", "attribute", "grid", "image", "background", "before", "tap_action"],
@@ -361,6 +361,47 @@ test("editor schema", () => {
     ["system", "updates", "repairs", "calendar.family"],
     "audience sources"
   );
+});
+
+test("vertical puts the icon above the text, like a tile with vertical content", () => {
+  const w = makeWindow();
+  const el = mount(w, { type: "x", hide_when_empty: false, vertical: true }, makeHass({}));
+  const rules = cssRules(el);
+  const rule = rules.find((r) => r.selectorText === ":host(.vertical) .head");
+  same(
+    [el.classList.contains("vertical"), rule && rule.style.getPropertyValue("flex-direction"), rule && rule.style.getPropertyValue("text-align"), el.getGridOptions().min_columns, el.getCardSize()],
+    [true, "column", "center", 3, 2]
+  );
+  same(rules.filter((r) => /vertical\).*\.slide/.test(r.selectorText)).length, 0, "the lines keep their width, so a long one ends in an ellipsis");
+  el.setConfig({ type: "x", hide_when_empty: false });
+  same([el.classList.contains("vertical"), el.getGridOptions().min_columns, el.getCardSize()], [false, 6, 1], "and is off unless set");
+  let error = null;
+  try {
+    w.document.createElement("origami-notifications").setConfig({ type: "x", vertical: "yes" });
+  } catch (e) {
+    error = e.message;
+  }
+  same(error, "origami-notifications: vertical must be true or false");
+});
+
+test("the editor sets the content layout like Home Assistant's tile editor", () => {
+  const w = makeWindow();
+  const ed = w.document.createElement("origami-notifications-editor");
+  const written = [];
+  ed.addEventListener("config-changed", (e) => written.push(e.detail.config));
+  ed.setConfig({ type: "x" });
+  ed.hass = makeHass({});
+  const form = ed.querySelector("ha-form");
+  const field = form.schema.find((s) => s.name === "content_layout");
+  same(
+    [field.selector.select.mode, field.selector.select.options.map((o) => [o.value, o.label, o.image.src]), form.data.content_layout],
+    ["box", [["horizontal", "Horizontal", "/static/images/form/tile_content_layout_horizontal.svg"], ["vertical", "Vertical", "/static/images/form/tile_content_layout_vertical.svg"]], "horizontal"]
+  );
+  const send = (value) => form.dispatchEvent(new w.CustomEvent("value-changed", { detail: { value: { ...JSON.parse(JSON.stringify(form.data)), ...value } }, bubbles: true }));
+  send({ content_layout: "vertical" });
+  same([written.at(-1).vertical, "content_layout" in written.at(-1)], [true, false], "written as vertical, as the tile card has it");
+  send({ content_layout: "horizontal" });
+  same("vertical" in written.at(-1), false, "and dropped when it is the default again");
 });
 
 test("the editor has a field for your css", () => {

@@ -78,6 +78,7 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | `updates` | `true` | Show available updates |
 | `repairs` | `true` | Show repairs, to admins only |
 | `hide_when_empty` | `true` | Hide the card when there is nothing to show |
+| `vertical` | `false` | The icon above the text, like a tile with vertical content. The text then has the whole width, as in half a header. |
 | `rotate` | `8` | Seconds between turns of the closed card. At `0` it holds still. A swipe or an arrow key turns it by hand and stops the turns. |
 | `slide` | `up` | Whether the text moves `up` or to the `side` at a turn |
 | `audience` | | Who sees what, see below |
