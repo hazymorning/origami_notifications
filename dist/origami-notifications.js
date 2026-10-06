@@ -4511,7 +4511,10 @@ class OrigamiNotificationsDialog extends HTMLElement {
   }
 
   showDialog({ card }) {
-    if (this._card && this._card !== card) this._card._dialogEl = null;
+    if (this._card && this._card !== card) {
+      this._card._dialogEl = null;
+      this._card._rotate();
+    }
     this._card = card;
     card._dialogEl = this;
     /* The card's clock runs on the minute while the dialog shows its times, and the turns wait. */
