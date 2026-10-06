@@ -4609,6 +4609,8 @@ const EDITOR_STRINGS = {
     before: "Show ahead of time",
     tap_action: "Tap behavior",
     audience: "Who sees what",
+    styling: "Styling",
+    css: "CSS",
     visible: "Visible to",
     people: "People",
     system: "System notifications",
@@ -4673,6 +4675,8 @@ const EDITOR_STRINGS = {
     before: "Im Voraus zeigen",
     tap_action: "Verhalten beim Tippen",
     audience: "Wer sieht was",
+    styling: "Gestaltung",
+    css: "CSS",
     visible: "Sichtbar für",
     people: "Personen",
     system: "Systembenachrichtigungen",
@@ -4713,6 +4717,7 @@ const EDITOR_HELPERS = {
     before: "How long before it starts or is due.",
     infos: "Shown in turn while nothing needs attention.",
     rotate: "At 0 the card holds still.",
+    css: "Goes into the card after its own styles, so you can change any part of it.",
     visibility_intro: "The info shows while all of these conditions hold.",
   },
   de: {
@@ -4727,6 +4732,7 @@ const EDITOR_HELPERS = {
     before: "Wie lange vor dem Beginn oder der Fälligkeit.",
     infos: "Erscheinen im Wechsel, solange nichts anliegt.",
     rotate: "Bei 0 bleibt die Karte stehen.",
+    css: "Kommt nach den Styles der Karte, so lässt sich jeder Teil ändern.",
     visibility_intro: "Die Info erscheint, solange alle diese Bedingungen erfüllt sind.",
   },
 };
@@ -4916,6 +4922,14 @@ class OrigamiNotificationsEditor extends HTMLElement {
               : [{ name: "people", selector: { entity: { multiple: true, filter: { domain: "person" } } } }]),
           ],
         })),
+      },
+      {
+        name: "styling",
+        type: "expandable",
+        flatten: true,
+        title: this._label("styling"),
+        icon: "mdi:palette-outline",
+        schema: [{ name: "css", selector: { text: { multiline: true } } }],
       },
     ];
   }

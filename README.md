@@ -85,7 +85,7 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | `audience` | | Who sees what, see below |
 | `css` | | Your own CSS, see Styling |
 
-The visual editor has all of it except `css` and buttons. The card's texts are in English and German. Other languages get Home Assistant's words where it has them, and English otherwise.
+The visual editor has all of it except buttons. The card's texts are in English and German. Other languages get Home Assistant's words where it has them, and English otherwise.
 
 </details>
 

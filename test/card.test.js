@@ -350,7 +350,7 @@ test("editor schema", () => {
   ed.setConfig({ type: "x", entities: ["calendar.family"] });
   ed.hass = makeHass({ "calendar.family": st("calendar.family", "off", { friendly_name: "Family" }) });
   const form = ed.querySelector("ha-form");
-  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "grid", "options", "audience"]);
+  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "grid", "options", "audience", "styling"]);
   same(
     form.schema.find((s) => s.name === "options").schema[0].schema.map((s) => s.name || s.type),
     ["type", "attribute", "grid", "image", "background", "before", "tap_action"],
@@ -361,6 +361,26 @@ test("editor schema", () => {
     ["system", "updates", "repairs", "calendar.family"],
     "audience sources"
   );
+});
+
+test("the editor has a field for your css", () => {
+  const w = makeWindow();
+  const ed = w.document.createElement("origami-notifications-editor");
+  const written = [];
+  ed.addEventListener("config-changed", (e) => written.push(e.detail.config));
+  ed.setConfig({ type: "x", entities: ["binary_sensor.a"], css: ":host { --origami-radius: 4px; }" });
+  ed.hass = makeHass({}, { lang: "de" });
+  const form = ed.querySelector("ha-form");
+  const panel = form.schema.find((s) => s.name === "styling");
+  same(
+    [panel.flatten, panel.schema, form.data.css, form.computeLabel({ name: "css" }), form.computeHelper({ name: "css" })],
+    [true, [{ name: "css", selector: { text: { multiline: true } } }], ":host { --origami-radius: 4px; }", "CSS", "Kommt nach den Styles der Karte, so lässt sich jeder Teil ändern."]
+  );
+  const send = (value) => form.dispatchEvent(new w.CustomEvent("value-changed", { detail: { value: { ...JSON.parse(JSON.stringify(form.data)), ...value } }, bubbles: true }));
+  send({ css: ".row { opacity: 0.6; }" });
+  same(written.at(-1).css, ".row { opacity: 0.6; }", "it writes what you type");
+  send({ css: "" });
+  same("css" in written.at(-1), false, "and drops an empty one");
 });
 
 test("hidden the way Home Assistant expects", () => {
