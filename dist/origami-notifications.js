@@ -4458,6 +4458,12 @@ class OrigamiNotificationsCard extends HTMLElement {
 const DIALOG = CARD + "-dialog";
 
 const DIALOG_STYLES = `
+  /* The dialog sits outside the dashboard, so like Home Assistant's own dialogs it takes the theme's font here. */
+  :host {
+    font-family: var(--ha-font-family-body);
+    -webkit-font-smoothing: var(--ha-font-smoothing);
+    -moz-osx-font-smoothing: var(--ha-moz-osx-font-smoothing);
+  }
   ha-adaptive-dialog { --dialog-content-padding: 0; }
   .list { padding: 0 12px 12px; }
 `;

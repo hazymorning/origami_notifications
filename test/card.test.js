@@ -4406,6 +4406,19 @@ test("a narrow card opens its list in Home Assistant's dialog", () => {
   same([asked.length, wide.shadowRoot.querySelector("ha-card").classList.contains("open")], [0, true], "a wide card unfolds in place");
 });
 
+test("the dialog takes the font of the theme, like Home Assistant's own dialogs", () => {
+  const w = makeWindow();
+  w.customElements.define("ha-adaptive-dialog", class extends w.HTMLElement {});
+  const states = threeOn();
+  const hass = makeHass(states);
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, hass);
+  const host = dialogHost(w, hass);
+  resize(el, 180);
+  el.shadowRoot.querySelector(".head").click();
+  const rule = cssRules(host.el).find((r) => r.selectorText === ":host" && r.style.getPropertyValue("font-family"));
+  same(rule && rule.style.getPropertyValue("font-family"), "var(--ha-font-family-body)");
+});
+
 test("the dialog keeps its times up to date", () => {
   useClock();
   const w = makeWindow({ clock: true });
