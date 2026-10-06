@@ -4,14 +4,15 @@ A notification card for Home Assistant that folds away when there is nothing to 
 
 ![The card closed on a phone and open next to it](https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/dark-and-light-preview.png)
 
-Closed, the card is one row that shows the newest notification, or the newest critical one. Tap it and it unfolds into the full list.
+Closed, the card is one row that shows what is closest to now, or the newest critical notification. Tap it and it unfolds into the full list.
 
-Home Assistant's notifications, repairs and updates show up without any setup. Add any entity, and the card shows it while it needs attention, like an open door, a triggered alarm or a calendar event that is running.
+Home Assistant's notifications, repairs and updates show up without any setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
 
 **You can style the card with plain CSS.**
 
 ```yaml
 type: custom:origami-notifications
+weather: weather.home
 entities:
   - binary_sensor.front_door
   - alarm_control_panel.home
@@ -47,9 +48,9 @@ Everything in `css` goes into the card after its own styles, so you can change a
 
 `--origami-max-height`, `--origami-bg-opacity` and `--origami-bg-blur` also work in a theme.
 
-Closed, the card is the `.head` with `.tile`, `.badge`, `.title` and `.msg`. Open, it has the `.ebar` with the `.count`, the `.list` of `.row`s and the `.foot` with `.clear`. A row has `.rtile`, `.title`, `.when`, `.x`, `.body` and `.act` buttons. The background picture is in `.backdrop`.
+Closed, the card is the `.head` with `.tile`, `.badge`, `.title`, `.msg` and `.eta`. Open, it has the `.ebar` with the `.count`, the `.list` of `.row`s and the `.foot` with `.clear`. A row has `.rtile`, `.title`, `.when`, `.x`, `.body` and `.act` buttons. The background picture is in `.backdrop`.
 
-Rows carry `.warn` or `.crit`, and a `data-kind` of `system`, `repair`, `update`, `calendar`, `alarm`, `alert`, `dwd`, `attribute`, `picture` or `generic`.
+Rows carry `.warn` or `.crit`, and a `data-kind` of `system`, `repair`, `update`, `calendar`, `alarm`, `alert`, `dwd`, `timer`, `countdown`, `event`, `todo`, `device`, `warning`, `weather`, `group`, `attribute`, `picture` or `generic`.
 
 With a fixed height from the layout tab, or in the footer of a sections view, the open list scrolls inside the card.
 
@@ -62,6 +63,7 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | --- | --- | --- |
 | `entities` | | Entities to watch, see below |
 | `label` | | Also watch every entity with this label. In YAML it's the label ID. |
+| `weather` | | A weather entity. While it is dry, rain, snow, hail and thunder show up to 6 hours ahead. Frost shows up to 18 hours ahead. With a window open anywhere in Home Assistant, rain is a warning, and rain that has started shows too. Rain and frost ahead need an hourly or twice daily forecast. |
 | `updates` | `true` | Show available updates |
 | `repairs` | `true` | Show repairs, to admins only |
 | `hide_when_empty` | `true` | Hide the card when there is nothing to show |
@@ -79,9 +81,15 @@ The visual editor has all of it except `css` and buttons. The card's texts are i
 | --- | --- |
 | Alarm panel | triggered, pending or arming |
 | Alert | on |
-| Calendar | an event is running |
+| Calendar | an event is running, or starts within `before` |
 | Update | an update is available |
 | DWD weather warnings | there are warnings, one row each |
+| NINA or Meteoalarm warning | on, until the warning expires |
+| Timer | running or paused, with buttons to pause, resume and cancel |
+| Sensor with a time, or with a duration and `type: countdown` | the time lies ahead |
+| Event | for a day after it fired, with the picture of its device |
+| To-do list with `type: todo` | an item is due today, overdue or due within `before`, with a button to mark it done |
+| Lock, cover, valve, vacuum, lawn mower, siren | active, with a button to lock, close, dock or turn it off |
 | Anything else | on, active or a number above 0 |
 
 Some sensors describe a thing in an attribute, like tonight's dinner, a library book or a parcel. If the attribute holds a `name` or `title` plus a `description`, `summary` or picture, the card shows that thing for as long as it is there, whatever the state.
@@ -90,12 +98,13 @@ Every entity can take these options.
 
 | Option | |
 | --- | --- |
-| `type` | Skip the detection with `calendar`, `update`, `alarm`, `alert`, `dwd`, `attribute`, `picture` or `generic`. `generic` shows any state but off, idle, none, 0, unknown and unavailable. `picture` shows the state as the title. |
+| `type` | Skip the detection with `calendar`, `update`, `alarm`, `alert`, `dwd`, `timer`, `countdown`, `event`, `todo`, `device`, `warning`, `attribute`, `picture` or `generic`. `generic` shows any state but off, idle, none, 0, unknown and unavailable. `picture` shows the state as the title. |
 | `attribute` | The attribute to show, like `next_due` or `book.title`. A plain value becomes the title. |
 | `name` | Replaces the entity's name, not the event or the thing it shows |
 | `icon` | Replaces the icon |
 | `image` | A picture from an attribute or a URL, instead of the entity's own |
 | `background` | Shows the picture blurred behind the card while this entity is on top |
+| `before` | For a calendar or a to-do list, how far ahead it shows, in minutes or as a duration like `1:30:00` |
 | `tap_action` | What a tap does. By default it opens the entity. |
 | `actions` | Buttons, each with a `label` and a `tap_action` |
 
@@ -111,9 +120,11 @@ entities:
             entity_id: lock.front_door
 ```
 
-A tap on a row opens its entity. A notification follows its first link, and a repair opens the repairs page. If a row's text is cut off, a tap shows all of it, and a tap on its icon does the action.
+A tap on a row opens its entity. A notification follows its first link and shows its first picture, and a repair opens the repairs page. If a row's text is cut off, a tap shows all of it, and a tap on its icon does the action.
 
-Critical rows have a red icon and stay on top. These are a triggered alarm, a weather warning of level 3 or more and a critical repair. Everything else is sorted newest first.
+Critical rows have a red icon and stay on top. These are a triggered alarm, a sounding siren, a severe warning, a critical repair and a sensor for smoke, gas, carbon monoxide, leaks, heat or safety that is on. Everything else is sorted by how close it is to now.
+
+Sensors of one kind that are on, like open windows, share one row with their rooms.
 
 </details>
 
