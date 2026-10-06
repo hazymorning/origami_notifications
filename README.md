@@ -2,13 +2,15 @@
 
 A notification card for Home Assistant that folds away when there is nothing to see.
 
-![The card closed on a phone and open next to it](https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/dark-and-light-preview.png)
+![The card in a dashboard header, and its list in a bottom sheet](https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/dark-and-light-preview.png)
 
 Closed, the card is one row that turns through whatever needs attention. Tap it and it unfolds into the full list. Where the card is narrow, the list opens in Home Assistant's own dialog, a bottom sheet on a phone.
 
-Home Assistant's notifications, repairs and updates show up without any setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
+Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
 
 While nothing needs attention, the card shows your infos instead, like the weather forecast or the next sunrise. You set them up like tiles.
+
+![What the closed card shows](https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/states-preview.png)
 
 **You can style the card with plain CSS.**
 
@@ -80,7 +82,7 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | `updates` | `true` | Show available updates |
 | `repairs` | `true` | Show repairs, to admins only |
 | `hide_when_empty` | `true` | Hide the card when there is nothing to show |
-| `rotate` | `8` | Seconds between turns of the closed card. At `0` it holds still. A swipe or an arrow key turns it by hand and stops the turns. They also wait while a pointer rests on the card. |
+| `rotate` | `8` | Seconds between turns of the closed card. At `0` it holds still. A swipe or an arrow key turns it by hand and stops the turns. |
 | `slide` | `up` | Whether the text moves `up` or to the `side` at a turn |
 | `audience` | | Who sees what, see below |
 | `css` | | Your own CSS, see Styling |
@@ -100,10 +102,10 @@ Infos take the options of a tile card.
 | `name`, `icon`, `color`, `show_entity_picture` | As on a tile |
 | `state_content`, `time_format` | What the second line says, like `[temperature, state]` or `next_rising` |
 | `forecast_type` | For a weather entity, `daily`, `hourly` or `twice_daily` adds the forecast |
-| `forecast_slots` | How many days or hours of it turn by, 1 unless set |
-| `show_current`, `show_forecast` | As on Home Assistant's forecast card. Both show unless set to `false`. |
+| `forecast_slots` | How many days or hours turn by, 1 unless set |
+| `show_current`, `show_forecast` | As on Home Assistant's forecast card, both show unless `false` |
 | `tap_action`, `hold_action`, `double_tap_action` | What a tap, a hold and a double tap do. A tap opens the entity. |
-| `visibility` | The conditions of Home Assistant's visibility tab. The info shows while all of them hold. |
+| `visibility` | The conditions of Home Assistant's visibility tab. All of them must hold. |
 
 ```yaml
 infos:

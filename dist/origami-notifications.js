@@ -2548,13 +2548,15 @@ class OrigamiNotificationsCard extends HTMLElement {
     return this._abs.format(ts);
   }
 
-  /* An hour as the profile writes it, like 7 PM or 19 Uhr. */
+  /* An hour as the profile writes it, like 7 PM or 19 Uhr. Intl writes 01 Uhr where people write 1 Uhr. */
   _hourText(ts) {
+    let text;
     try {
-      return dateFormat(this._lang, { hour: "numeric", ...this._clockOpts() }).format(ts);
+      text = dateFormat(this._lang, { hour: "numeric", ...this._clockOpts() }).format(ts);
     } catch (e) {
-      return dateFormat(undefined, { hour: "numeric" }).format(ts);
+      text = dateFormat(undefined, { hour: "numeric" }).format(ts);
     }
+    return text.replace(/^0(?=\d\D)/, "");
   }
 
   _percentText(p) {

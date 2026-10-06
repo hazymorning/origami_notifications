@@ -3434,6 +3434,14 @@ const weatherCard = (w, states, extra = {}, opts = {}) => {
 };
 const shownRows = (el) => rows(el).map((r) => [r.title, r.body, r.tile, r.icon]);
 
+test("an hour reads 1 Uhr in German, as people write it", () => {
+  useClock(Date.parse("2026-10-02T22:30:00Z"));
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const [el, sub] = weatherCard(w, { "weather.home": weatherAt() }, {}, { lang: "de" });
+  sub.cb({ type: "hourly", forecast: [{ datetime: "2026-10-03T01:00:00Z", condition: "rainy", temperature: 9 }] });
+  same(rows(el).map((r) => r.title), ["Regen ab 1 Uhr"]);
+});
+
 test("rain ahead shows the hour it starts", () => {
   useClock();
   const w = makeWindow({ clock: true, zone: "UTC" });
