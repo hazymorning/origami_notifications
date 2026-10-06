@@ -1669,9 +1669,12 @@ const clockText = (ms) => {
 const nextTick = (items, head, open, now) => {
   const clock = (open ? items : head ? [head] : []).find((it) => it.clock && it.ts > now);
   if (clock) return (clock.ts - now) % 1000 || 1000;
-  if (open || items.some((it) => isAhead(it, now))) return 60000 - (now % 60000);
+  if (open || items.some((it) => isAhead(it, now)) || (head && !head.clock && headTime(head))) return 60000 - (now % 60000);
   return 0;
 };
+
+/* The closed card shows the time of an entry in place of its message while it runs, or when it has no message. */
+const headTime = (it) => Boolean(it.live || (!it.message && Number.isFinite(it.ts)));
 
 /* A row is built again only when something it shows has changed. Times change in place. */
 const rowSig = (it) =>
@@ -1828,7 +1831,6 @@ const STYLES = `
     outline: none;
   }
   .head {
-    min-height: var(--row-height, 56px);
     padding: 0 var(--origami-pad);
     touch-action: pan-y;
   }
@@ -1878,16 +1880,20 @@ const STYLES = `
   }
   .badge[hidden] { display: none; }
 
-  /* Only the text moves when the card turns to the next entry, so it is clipped right here. */
+  /* Only the text moves when the card turns, and it is clipped here. The soft edges lie in the space around the
+   * text, so the text at rest never fades. The row height sits here too, so the open card folds the head away. */
   .texts {
     flex: 1 1 auto;
     min-width: 0;
+    min-height: var(--row-height, 56px);
     align-self: stretch;
     display: flex;
+    margin-inline: calc(var(--origami-gap) * -1);
+    padding-inline: var(--origami-gap);
     overflow: hidden;
   }
-  .texts.up { mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent); }
-  .texts.side { mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); }
+  .texts.up { mask-image: linear-gradient(to bottom, transparent, #000 8px, #000 calc(100% - 8px), transparent); }
+  .texts.side { mask-image: linear-gradient(to right, transparent, #000 var(--origami-gap), #000 calc(100% - var(--origami-gap)), transparent); }
   .slide {
     flex: 1 1 auto;
     min-width: 0;
@@ -2390,6 +2396,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._rotateTimer = null;
     this._press = null;
     this._noClick = false;
+    this._swiped = false;
+    this._ownCancel = null;
     this._tapWait = null;
     this._narrow = false;
     this._bgUrl = null;
@@ -3329,11 +3337,21 @@ class OrigamiNotificationsCard extends HTMLElement {
     d.head.addEventListener("pointerdown", (e) => this._onPress(e));
     d.head.addEventListener("pointermove", (e) => this._onDrag(e));
     d.head.addEventListener("pointerup", (e) => this._onRelease(e, false));
-    d.head.addEventListener("pointercancel", (e) => this._onRelease(e, true));
+    d.head.addEventListener("pointercancel", (e) => e !== this._ownCancel && this._onRelease(e, true));
     d.head.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && this._hold("hover", true));
     d.head.addEventListener("pointerleave", (e) => e.pointerType === "mouse" && this._hold("hover", false));
     d.head.addEventListener("focusin", () => this._hold("focus", d.head.matches(":focus-visible")));
     d.head.addEventListener("focusout", () => this._hold("focus", false));
+    /* The click that ends a swipe reaches neither the card nor its ripple. */
+    d.card.addEventListener(
+      "click",
+      (e) => {
+        if (!this._swiped || !d.head.contains(e.target)) return;
+        this._swiped = false;
+        e.stopPropagation();
+      },
+      true
+    );
     d.ebar.addEventListener("click", () => this._toggle());
     d.ebar.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== " ") return;
@@ -3436,7 +3454,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   _refreshTimes(now = Date.now()) {
     if (!this._dom) return;
     const top = this._headItem();
-    if (top && top.live && !this._swapping) setText(this._dom.eta, this._timeText(top, now));
+    if (top && headTime(top) && !this._swapping) setText(this._dom.eta, this._timeText(top, now));
     for (const rows of [this._rowCache, this._dialogEl && this._dialogEl._cache]) {
       if (!rows) continue;
       for (const it of this._items) {
@@ -3801,8 +3819,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     setIcon(d.glyph, slide || { icon: "mdi:bell-outline" }, this._hass);
     d.tile.className = "tile" + (slide ? sevClass(slide.sev) : " idle");
     setText(d.title, slide ? slide.title : this._t.idle_title);
-    /* A running time takes the place of the message. */
-    const live = Boolean(slide && slide.live);
+    const live = Boolean(slide && !info && headTime(slide));
     d.msg.hidden = live;
     d.eta.hidden = !live;
     setText(d.eta, live ? this._timeText(slide, now) : "");
@@ -3893,7 +3910,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   /* A press can become a hold, a horizontal drag turns the card. */
   _onPress(e) {
     if (e.button > 0 || !e.isPrimary) return;
-    this._noClick = false;
+    this._noClick = this._swiped = false;
     this._hold("press", true);
     const slide = this._headSlide;
     const p = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, dx: 0, drag: false };
@@ -3916,17 +3933,25 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (Math.hypot(dx, dy) > 10) clearTimeout(p.timer);
       if (this._slides.length < 2 || this._expanded || Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
       p.drag = true;
-      this._noClick = true;
+      this._swiped = true;
       try {
         this._dom.head.setPointerCapture(p.id);
       } catch (err) {
         /* the pointer is gone */
       }
+      this._endRipple(e);
     }
     p.dx = dx;
     if (this._swapping) return;
     this._dom.slide.style.transform = "translateX(" + dx * 0.6 + "px)";
     this._dom.slide.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 160));
+  }
+
+  /* A swipe ends the press on Home Assistant's ripple, as scrolling the page does. */
+  _endRipple(e) {
+    if (!this._dom.head.querySelector("ha-ripple")) return;
+    this._ownCancel = new PointerEvent("pointercancel", { pointerId: e.pointerId, pointerType: e.pointerType, isPrimary: true, buttons: e.buttons });
+    this._dom.head.dispatchEvent(this._ownCancel);
   }
 
   _onRelease(e, cancelled) {

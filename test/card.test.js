@@ -1085,7 +1085,8 @@ test("an alert has no text, and the header shows its name once", () => {
   const hass = makeHass({ "alert.garage": st("alert.garage", "on", { friendly_name: "Garage open" }) });
   const el = mount(w, { type: "x", updates: false, entities: ["alert.garage"] }, hass);
   same(rows(el)[0].body, "");
-  same([el.shadowRoot.querySelector(".head").classList.contains("single"), el.shadowRoot.querySelector(".msg .t").textContent], [true, ""]);
+  const q = (sel) => el.shadowRoot.querySelector(sel);
+  same([q(".head").classList.contains("single"), q(".head .msg").hidden, q(".head .eta").hidden, /days ago$/.test(q(".head .eta").textContent)], [false, true, false, true], "the head shows when it began instead");
 });
 
 test("other languages borrow Home Assistant's word for dismiss", () => {
@@ -1186,6 +1187,15 @@ test("keyboard focus on a row shows all of its text, like a tap", () => {
   const el = mount(w, { type: "x", hide_when_empty: false }, makeHass({}));
   const open = cssRules(el).filter((r) => /\.open\b.*\.(title|body)$/.test(r.selectorText));
   same(open.map((r) => r.selectorText.includes(":has(:focus-visible)")), [true, true]);
+});
+
+test("the open card folds the head row away completely", () => {
+  const w = makeWindow();
+  const el = mount(w, { type: "x", hide_when_empty: false }, makeHass({}));
+  const rules = cssRules(el);
+  const heads = rules.filter((r) => /(^|\s)\.head$/.test(r.selectorText));
+  same(heads.map((r) => r.style.getPropertyValue("min-height")).filter(Boolean), [], "a minimum height would keep the folded row open");
+  same(rules.find((r) => r.selectorText === ".texts").style.getPropertyValue("min-height"), "var(--row-height, 56px)", "the text block holds the row height");
 });
 
 test("keyboard focus stays on a row that is built again", () => {
@@ -1631,6 +1641,8 @@ test("a countdown in view ticks by the second, in step with its end", () => {
   same(nextTick([later, timer], later, true, now), 800, "in the open list");
   same(nextTick([ended], ended, false, now), 0, "a countdown that has ended");
   same(nextTick([{ key: "s", ts: NOW + 5000, past: true }], null, false, now), 0, "what happened never lies ahead");
+  const quiet = { key: "q", ts: NOW - 60000, past: true };
+  same([nextTick([quiet], quiet, false, now), nextTick([{ ...quiet, message: "Open" }], { ...quiet, message: "Open" }, false, now)], [59800, 0], "a time in the head in place of a message changes on the minute");
   same(
     [299800, 299000, 59000, 3600000, 3723000, 0, -5, NaN].map((ms) => clockText(ms)),
     ["5:00", "4:59", "0:59", "1:00:00", "1:02:03", "0:00", "0:00", "0:00"],
@@ -3736,6 +3748,33 @@ test("a swipe or an arrow key turns the card by hand and stops the turns", () =>
   same(head(other).title, "Door", "moving up or down leaves the page to scroll");
   o.click();
   same(isOpen(), true, "a tap still opens the list");
+});
+
+test("a swipe ends the press on Home Assistant's ripple, and its click goes nowhere", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const got = [];
+  w.customElements.define(
+    "ha-ripple",
+    class extends w.HTMLElement {
+      connectedCallback() {
+        for (const t of ["pointercancel", "click"]) this.parentNode.addEventListener(t, (e) => got.push(t + ":" + (e.pointerId ?? "")));
+      }
+    }
+  );
+  const states = threeOn();
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(states));
+  const h = el.shadowRoot.querySelector(".head");
+  const pointer = (type, x) => h.dispatchEvent(new w.PointerEvent(type, { pointerId: 7, isPrimary: true, pointerType: "mouse", buttons: 1, clientX: x, clientY: 10 }));
+  pointer("pointerdown", 200);
+  pointer("pointermove", 150);
+  same(got, ["pointercancel:7"], "the press ends once the card takes the pointer");
+  pointer("pointermove", 120);
+  pointer("pointerup", 120);
+  h.click();
+  same([got, head(el).title, el.shadowRoot.querySelector("ha-card").classList.contains("open")], [["pointercancel:7"], "Garage", false], "the swipe turns the card, and its click neither shows on the ripple nor opens the list");
+  h.click();
+  same([got.length, el.shadowRoot.querySelector("ha-card").classList.contains("open")], [2, true], "the next click is a tap again");
 });
 
 test("the turns wait while a pointer rests on the card, while it is open and while it is out of sight", () => {
