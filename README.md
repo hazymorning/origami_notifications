@@ -4,9 +4,11 @@ A notification card for Home Assistant that folds away when there is nothing to 
 
 ![The card closed on a phone and open next to it](https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/dark-and-light-preview.png)
 
-Closed, the card is one row that shows what is closest to now, or the newest critical notification. Tap it and it unfolds into the full list.
+Closed, the card is one row that turns through whatever needs attention. Tap it and it unfolds into the full list. Where the card is narrow, the list opens in Home Assistant's own dialog, a bottom sheet on a phone.
 
 Home Assistant's notifications, repairs and updates show up without any setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
+
+While nothing needs attention, the card shows your infos instead, like the weather or the next sunrise. You set them up like tiles.
 
 **You can style the card with plain CSS.**
 
@@ -17,14 +19,20 @@ entities:
   - binary_sensor.front_door
   - alarm_control_panel.home
   - calendar.family
+infos:
+  - entity: weather.home
+    state_content: [temperature, state]
+  - entity: sun.sun
+    name: Sunrise
+    state_content: next_rising
 css: |
-  :host { --origami-radius: 20px; }
+  :host { --origami-radius: 4px; }
   .row[data-kind="update"] { opacity: 0.6; }
 ```
 
 ## Install
 
-In HACS, add `https://github.com/hazymorning/origami_notifications` as a custom repository of type Dashboard, then download Origami Notifications. The card needs Home Assistant 2025.4 or newer.
+In HACS, add `https://github.com/hazymorning/origami_notifications` as a custom repository of type Dashboard, then download Origami Notifications. The card needs Home Assistant 2026.4 or newer.
 
 Without HACS, copy `dist/origami-notifications.js` to `/config/www/` and add `/local/origami-notifications.js` as a dashboard resource of type JavaScript module.
 
@@ -35,22 +43,26 @@ Everything in `css` goes into the card after its own styles, so you can change a
 
 | Variable | Default | |
 | --- | --- | --- |
-| `--origami-pad` | `12px` | Padding, and the space between rows |
-| `--origami-gap`, `--origami-gap-s` | `12px`, `8px` | Space between icon and text, and small gaps |
-| `--origami-radius`, `--origami-radius-s` | `12px`, `8px` | Corners of the rows and the closed tile, and of the row icons, the badge and the buttons |
-| `--origami-tile`, `--origami-tile-s` | `40px`, `32px` | Size of the icon tile, closed and in the rows |
-| `--origami-icon` | `20px` | Icon size in the closed tile |
-| `--origami-card-bg`, `--origami-row-bg` | theme | Card and row background |
-| `--origami-muted`, `--origami-quiet` | `0.6`, `0.45` | Opacity of secondary text, and of times and the dismiss button |
+| `--origami-pad`, `--origami-gap` | `10px`, `10px` | Padding, and the space between icon and text |
+| `--origami-gap-s` | `8px` | Small gaps |
+| `--origami-tile`, `--origami-icon` | `36px`, `24px` | Size of the icon area and of the icon |
+| `--origami-radius` | `8px` | Corners of the rows |
+| `--origami-card-bg`, `--origami-row-bg` | theme, none | Card and row background |
 | `--origami-hover`, `--origami-focus` | light tint, theme | Hover tint and keyboard focus ring |
+| `--origami-pulse-opacity` | `0.2` | How strongly the card pulses while something is critical |
 | `--origami-max-height` | none | The card's maximum height. The open list scrolls inside. |
 | `--origami-bg-opacity`, `--origami-bg-blur` | `0.22` (`0.32` dark), `24px` | The background picture |
 
-`--origami-max-height`, `--origami-bg-opacity` and `--origami-bg-blur` also work in a theme.
+`--origami-max-height`, `--origami-bg-opacity` and `--origami-bg-blur` also work in a theme. The closed card follows the tile variables of your theme, like `--ha-tile-icon-border-radius`.
 
-Closed, the card is the `.head` with `.tile`, `.badge`, `.title`, `.msg` and `.eta`. Open, it has the `.ebar` with the `.count`, the `.list` of `.row`s and the `.foot` with `.clear`. A row has `.rtile`, `.title`, `.when`, `.x`, `.body` and `.act` buttons. The background picture is in `.backdrop`.
+| Part | Classes |
+| --- | --- |
+| Closed | `.head` with `.tile`, `.badge`, `.title`, `.msg` and `.eta` |
+| Open | `.ebar` with `.count`, the `.list` of `.row`s and the `.foot` with `.clear` |
+| Row | `.rtile`, `.title`, `.when`, `.x`, `.body` and `.act` buttons, the same in the dialog |
+| Background picture | `.backdrop` |
 
-Rows carry `.warn` or `.crit`, and a `data-kind` of `system`, `repair`, `update`, `calendar`, `alarm`, `alert`, `dwd`, `timer`, `countdown`, `event`, `todo`, `device`, `warning`, `weather`, `group`, `attribute`, `picture` or `generic`.
+Rows carry `.warn` or `.crit`, and their kind in `data-kind`, like `update`, `weather` or `group`.
 
 With a fixed height from the layout tab, or in the footer of a sections view, the open list scrolls inside the card.
 
@@ -63,14 +75,43 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | --- | --- | --- |
 | `entities` | | Entities to watch, see below |
 | `label` | | Also watch every entity with this label. In YAML it's the label ID. |
+| `infos` | | Entities to show in turn while nothing needs attention, see Infos |
 | `weather` | | A weather entity. While it is dry, rain, snow, hail and thunder show up to 6 hours ahead. Frost shows up to 18 hours ahead. With a window open anywhere in Home Assistant, rain is a warning, and rain that has started shows too. Rain and frost ahead need an hourly or twice daily forecast. |
 | `updates` | `true` | Show available updates |
 | `repairs` | `true` | Show repairs, to admins only |
 | `hide_when_empty` | `true` | Hide the card when there is nothing to show |
+| `rotate` | `8` | Seconds between turns of the closed card. At `0` it holds still. A swipe or an arrow key turns it by hand and stops the turns. They also wait while a pointer rests on the card. |
+| `slide` | `up` | Whether the text moves `up` or to the `side` at a turn |
 | `audience` | | Who sees what, see below |
 | `css` | | Your own CSS, see Styling |
 
 The visual editor has all of it except `css` and buttons. The card's texts are in English and German. Other languages get Home Assistant's words where it has them, and English otherwise.
+
+</details>
+
+<details>
+<summary>Infos</summary>
+
+Infos take the options of a tile card.
+
+| Option | |
+| --- | --- |
+| `entity` | The entity to show |
+| `name`, `icon`, `color`, `show_entity_picture` | As on a tile |
+| `state_content`, `time_format` | What the second line says, like `[temperature, state]` or `next_rising` |
+| `tap_action`, `hold_action`, `double_tap_action` | What a tap, a hold and a double tap do. A tap opens the entity. |
+| `visibility` | The conditions of Home Assistant's visibility tab. The info shows while all of them hold. |
+
+```yaml
+infos:
+  - entity: sun.sun
+    name: Sunrise
+    state_content: next_rising
+    visibility:
+      - condition: state
+        entity: sun.sun
+        state: below_horizon
+```
 
 </details>
 
@@ -122,7 +163,7 @@ entities:
 
 A tap on a row opens its entity. A notification follows its first link and shows its first picture, and a repair opens the repairs page. If a row's text is cut off, a tap shows all of it, and a tap on its icon does the action.
 
-Critical rows have a red icon and stay on top. These are a triggered alarm, a sounding siren, a severe warning, a critical repair and a sensor for smoke, gas, carbon monoxide, leaks, heat or safety that is on. Everything else is sorted by how close it is to now.
+Critical rows have a red icon and stay on top, and the closed card pulses and shows only them. These are a triggered alarm, a sounding siren, a severe warning, a critical repair and a sensor for smoke, gas, carbon monoxide, leaks, heat or safety that is on. Everything else is sorted by how close it is to now.
 
 Sensors of one kind that are on, like open windows, share one row with their rooms.
 

@@ -58,8 +58,14 @@ function makeWindow(opts = {}) {
     url: "http://ha.local/",
     virtualConsole,
   });
+  /* resize(card, width) tells a card how wide it is. */
   window.ResizeObserver = class {
-    observe() {}
+    constructor(cb) {
+      this.cb = cb;
+    }
+    observe(target) {
+      (target.__ro = target.__ro || new Set()).add(this);
+    }
     unobserve() {}
     disconnect() {}
   };
@@ -147,6 +153,11 @@ const head = (el) => ({
   title: el.shadowRoot.querySelector(".head .title").textContent,
   badge: el.shadowRoot.querySelector(".badge").textContent,
 });
+
+const resize = (el, width) => {
+  const card = el.shadowRoot.querySelector("ha-card");
+  for (const ro of card.__ro || []) ro.cb([{ target: card, contentRect: { width } }]);
+};
 
 /* Values from the jsdom window belong to another realm, so compare them as plain data. */
 const same = (got, want, message) =>
@@ -339,7 +350,7 @@ test("editor schema", () => {
   ed.setConfig({ type: "x", entities: ["calendar.family"] });
   ed.hass = makeHass({ "calendar.family": st("calendar.family", "off", { friendly_name: "Family" }) });
   const form = ed.querySelector("ha-form");
-  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "weather", "grid", "hide_when_empty", "options", "audience"]);
+  same(form.schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "grid", "options", "audience"]);
   same(
     form.schema.find((s) => s.name === "options").schema[0].schema.map((s) => s.name || s.type),
     ["type", "attribute", "grid", "image", "background", "before", "tap_action"],
@@ -1128,12 +1139,46 @@ const cssRules = (el) => {
   return [...style.sheet.cssRules].filter((r) => r.selectorText);
 };
 
-test("the closed tile has a colour only for warnings and critical rows", () => {
+test("icons take the color Home Assistant gives the state, and urgency comes first", () => {
   const w = makeWindow();
-  const el = mount(w, { type: "x", hide_when_empty: false }, makeHass({}));
-  const background = (selector) => cssRules(el).find((r) => r.selectorText === selector).style.getPropertyValue("background");
-  same(background(".tile"), background(".rtile"));
-  assert.notEqual(background(".tile.warn"), background(".tile"));
+  const subs = [];
+  const states = {
+    "lock.back": st("lock.back", "unlocked", { friendly_name: "Back" }),
+    "binary_sensor.smoke": st("binary_sensor.smoke", "on", { friendly_name: "Smoke", device_class: "smoke" }),
+    "binary_sensor.window": st("binary_sensor.window", "on", { friendly_name: "Window", device_class: "window" }),
+  };
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(states, { subs }));
+  subs[0].cb({ type: "current", notifications: { n1: { notification_id: "n1", title: "Backup", message: "done", created_at: "2026-09-21T09:00:00+00:00" } } });
+  el.shadowRoot.querySelector(".head").click();
+  const colors = Object.fromEntries([...el.shadowRoot.querySelectorAll(".row")].map((r) => [r.querySelector(".title").textContent, r.style.getPropertyValue("--tile-color")]));
+  same(colors, {
+    Smoke: "var(--error-color)",
+    Back: "var(--state-lock-unlocked-color, var(--state-lock-active-color, var(--state-active-color)))",
+    Window: "var(--state-binary_sensor-window-on-color, var(--state-binary_sensor-on-color, var(--state-binary_sensor-active-color, var(--state-active-color))))",
+    Backup: "var(--info-color)",
+  });
+  same(el.shadowRoot.querySelector("ha-card").style.getPropertyValue("--tile-color"), "var(--error-color)", "the closed card takes the color of what it shows");
+  same(el.shadowRoot.querySelector("ha-card").classList.contains("crit"), true, "and pulses while it is critical");
+  const { stateColor } = w.__origamiTest;
+  same(
+    [
+      stateColor(st("sensor.phone_battery", "20", { device_class: "battery" })),
+      stateColor(st("person.anna", "home")),
+      stateColor(st("weather.home", "unavailable")),
+      stateColor(st("sensor.energy", "4.2")),
+      stateColor(st("group.lights", "on", { entity_id: ["light.a", "light.b"] })),
+      stateColor(st("timer.pizza", "idle")),
+    ],
+    [
+      "var(--state-sensor-battery-low-color)",
+      "var(--state-icon-color)",
+      "var(--state-unavailable-color)",
+      "var(--state-icon-color)",
+      "var(--state-light-on-color, var(--state-light-active-color, var(--state-active-color)))",
+      "var(--state-timer-idle-color, var(--state-timer-inactive-color, var(--state-inactive-color)))",
+    ],
+    "the same chain of theme variables as on a tile"
+  );
 });
 
 test("keyboard focus on a row shows all of its text, like a tap", () => {
@@ -1515,7 +1560,7 @@ test("an entry ahead takes the top once it is closer to now", () => {
   useClock();
   const w = makeWindow({ clock: true });
   const states = { "binary_sensor.door": changedAt("binary_sensor.door", "Door", -120000), ...dwdAt(["Frost", 10]) };
-  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(states));
+  const el = mount(w, { type: "x", updates: false, rotate: 0, entities: Object.keys(states) }, makeHass(states));
   same(head(el).title, "Door", "two minutes behind is closer than ten ahead");
   mock.timers.tick(4 * 60000 + 49);
   same(head(el).title, "Door", "not before both are as close");
@@ -3329,7 +3374,8 @@ test("entity rows use Home Assistant's state icon", async () => {
     "a notification and a to-do keep the icon of their kind"
   );
   const head = el.shadowRoot.querySelector(".head .tile");
-  same([...head.children].map((c) => c.localName + (c.className ? "." + c.className : "")).slice(-2), [head.querySelector("ha-state-icon, ha-icon").localName, "div.badge"], "the head keeps its badge after the icon");
+  same([...head.children].map((c) => c.localName + "." + c.className), ["div.glyph", "div.badge"], "the head keeps its badge beside the icon");
+  same(head.querySelector(".glyph").children.length, 1, "with one icon");
   const row = rowOf(el, "Front");
   const next = { ...states["lock.front"], last_updated: "2026-09-21T10:05:00+00:00" };
   el.hass = { ...hass, states: { ...hass.states, "lock.front": next } };
@@ -3619,4 +3665,461 @@ test("a forecast hour that has begun counts from now", () => {
   same(el.shadowRoot.querySelector(".row .when").dateTime, new Date(NOW).toISOString());
   sub.cb({ type: "twice_daily", forecast: [half(-6, "cloudy", -2)] });
   same(rows(el).map((r) => r.title), ["Frost from 12 PM"], "and so does a half day of frost");
+});
+
+const threeOn = () => ({
+  "binary_sensor.a": changedAt("binary_sensor.a", "Door", -60000),
+  "binary_sensor.b": changedAt("binary_sensor.b", "Garage", -120000),
+  "binary_sensor.c": changedAt("binary_sensor.c", "Gate", -180000),
+});
+
+test("the closed card turns through what needs attention, and critical entries hold it alone", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const states = threeOn();
+  const hass = makeHass(states);
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, hass);
+  const seen = [head(el).title];
+  for (let i = 0; i < 3; i++) {
+    mock.timers.tick(8000);
+    seen.push(head(el).title);
+  }
+  same([seen, head(el).badge], [["Door", "Garage", "Gate", "Door"], "3"], "every 8 seconds the next, newest first, with the count beside the icon");
+  const smoke = { ...st("binary_sensor.smoke", "on", { friendly_name: "Smoke", device_class: "smoke" }), last_changed: new Date(Date.now()).toISOString() };
+  el.setConfig({ type: "x", updates: false, entities: [...Object.keys(states), "binary_sensor.smoke"] });
+  el.hass = { ...hass, states: { ...states, "binary_sensor.smoke": smoke } };
+  same([head(el).title, el.shadowRoot.querySelector(".say").textContent], ["Smoke", "Smoke. on"], "something critical comes forward at once and is read out");
+  mock.timers.tick(60000);
+  same([head(el).title, head(el).badge], ["Smoke", "4"], "and holds the card alone");
+
+  const still = mount(w, { type: "x", updates: false, rotate: 0, entities: Object.keys(states) }, makeHass(states));
+  mock.timers.tick(60000);
+  same(head(still).title, "Door", "with rotate 0 the card holds still on the first");
+  const single = mount(w, { type: "x", updates: false, entities: ["binary_sensor.a"] }, makeHass(states));
+  same([head(single).title, single.shadowRoot.querySelector(".badge").hidden], ["Door", true], "one entry needs no count");
+});
+
+test("a swipe or an arrow key turns the card by hand and stops the turns", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const states = threeOn();
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(states));
+  const h = el.shadowRoot.querySelector(".head");
+  const key = (k) => h.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true }));
+  key("ArrowRight");
+  same(head(el).title, "Garage");
+  key("ArrowLeft");
+  key("ArrowLeft");
+  same(head(el).title, "Gate", "and back, around the end");
+  mock.timers.tick(60000);
+  same(head(el).title, "Gate", "turning by hand stops the turns");
+
+  const other = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(states));
+  const o = other.shadowRoot.querySelector(".head");
+  const pointer = (type, x, y = 10) =>
+    o.dispatchEvent(new w.PointerEvent(type, { pointerId: 1, isPrimary: true, pointerType: "touch", clientX: x, clientY: y, bubbles: true }));
+  const isOpen = () => other.shadowRoot.querySelector("ha-card").classList.contains("open");
+  pointer("pointerdown", 200);
+  pointer("pointermove", 150);
+  pointer("pointermove", 120);
+  pointer("pointerup", 120);
+  o.click();
+  same([head(other).title, isOpen(), other.shadowRoot.querySelector(".slide").style.transform], ["Garage", false, ""], "a swipe to the left shows the next entry and does not open the list");
+  pointer("pointerdown", 100);
+  pointer("pointermove", 170, 12);
+  pointer("pointerup", 170, 12);
+  o.click();
+  same(head(other).title, "Door", "a swipe to the right shows the one before");
+  pointer("pointerdown", 100);
+  pointer("pointermove", 104, 60);
+  pointer("pointerup", 104, 60);
+  same(head(other).title, "Door", "moving up or down leaves the page to scroll");
+  o.click();
+  same(isOpen(), true, "a tap still opens the list");
+});
+
+test("the turns wait while a pointer rests on the card, while it is open and while it is out of sight", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const states = threeOn();
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(states));
+  const h = el.shadowRoot.querySelector(".head");
+  h.dispatchEvent(new w.PointerEvent("pointerenter", { pointerType: "mouse" }));
+  mock.timers.tick(30000);
+  same(head(el).title, "Door", "a mouse over the card holds it");
+  h.dispatchEvent(new w.PointerEvent("pointerleave", { pointerType: "mouse" }));
+  mock.timers.tick(8000);
+  same(head(el).title, "Garage", "and lets go");
+  h.matches = (s) => s === ":focus-visible";
+  h.dispatchEvent(new w.FocusEvent("focusin", { bubbles: true }));
+  mock.timers.tick(30000);
+  same(head(el).title, "Garage", "keyboard focus holds it");
+  h.dispatchEvent(new w.FocusEvent("focusout", { bubbles: true }));
+  el._io.fire(false);
+  mock.timers.tick(30000);
+  same(head(el).title, "Garage", "out of sight nothing turns");
+  el._io.fire(true);
+  h.click();
+  mock.timers.tick(30000);
+  same(head(el).title, "Garage", "nor while the list is open");
+  el.shadowRoot.querySelector(".ebar").click();
+  mock.timers.tick(8000);
+  same(head(el).title, "Gate");
+});
+
+test("a broken rotate or slide gets a clear error", () => {
+  const w = makeWindow();
+  const error = (config) => {
+    try {
+      w.document.createElement("origami-notifications").setConfig({ type: "x", ...config });
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  };
+  same(
+    [error({ rotate: -1 }), error({ rotate: "fast" }), error({ slide: "down" }), error({ rotate: 0, slide: "side" }), error({ rotate: false })],
+    [
+      "origami-notifications: rotate must be the seconds between turns, or 0 to turn them off",
+      "origami-notifications: rotate must be the seconds between turns, or 0 to turn them off",
+      "origami-notifications: slide must be up or side",
+      null,
+      null,
+    ]
+  );
+});
+
+const quietStates = () => ({
+  "weather.home": st("weather.home", "rainy", { friendly_name: "Home", temperature: 14 }),
+  "sun.sun": st("sun.sun", "below_horizon", { friendly_name: "Sun", next_rising: "2026-10-03T05:31:00+00:00", elevation: -5 }),
+  "sensor.energy": st("sensor.energy", "4.2", { friendly_name: "Energy", unit_of_measurement: "kWh" }),
+  "sensor.gone": st("sensor.gone", "unavailable", { friendly_name: "Gone" }),
+});
+
+const quietHass = (states, opts = {}) => {
+  const hass = makeHass(states, { formatEntityState: (s) => (s.state === "rainy" ? "Rainy" : s.state + (s.attributes.unit_of_measurement ? " " + s.attributes.unit_of_measurement : "")), ...opts });
+  hass.formatEntityAttributeValue = (s, a) => (a === "temperature" ? s.attributes.temperature + " °C" : String(s.attributes[a]));
+  return hass;
+};
+
+test("infos fill a quiet card in their order, and leave it to what needs attention", async () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const subs = [];
+  const states = quietStates();
+  const infos = [{ entity: "weather.home", name: "Weather", state_content: ["temperature", "state"] }, "sensor.gone", { entity: "sun.sun", name: "Sunrise", color: "red" }, "sensor.energy"];
+  const el = mount(w, { type: "x", updates: false, infos }, quietHass(states, { subs }));
+  const shown = () => [head(el).title, el.shadowRoot.querySelector(".head .msg .t").textContent];
+  const color = () => el.shadowRoot.querySelector("ha-card").style.getPropertyValue("--tile-color");
+  same([el.hidden, shown(), color()], [false, ["Weather", "14 °C · Rainy"], "var(--state-weather-rainy-color, var(--state-weather-active-color, var(--state-active-color)))"], "a quiet card shows its first info, like a tile");
+  mock.timers.tick(8000);
+  same([shown(), color()], [["Sunrise", "below_horizon"], "var(--red-color)"], "an unavailable info is left out, and an own color shows while the entity is active");
+  mock.timers.tick(8000);
+  same([shown(), el.shadowRoot.querySelector(".badge").hidden], [["Energy", "4.2 kWh"], true], "no count for infos");
+  subs[0].cb({ type: "current", notifications: { n1: { notification_id: "n1", title: "Backup", message: "done", created_at: "2026-09-21T09:00:00+00:00" } } });
+  mock.timers.tick(30000);
+  same(shown(), ["Backup", "done"], "a notification takes the card, and the infos wait");
+  subs[0].cb({ type: "removed", notifications: { n1: {} } });
+  same(shown(), ["Weather", "14 °C · Rainy"], "and come back once it is gone");
+
+  class StateDisplay extends w.HTMLElement {}
+  w.customElements.define("state-display", StateDisplay);
+  await Promise.resolve();
+  await Promise.resolve();
+  const sd = el.shadowRoot.querySelector(".head .msg state-display");
+  same(
+    [sd.stateObj.entity_id, sd.content, sd.name, sd.timeFormat === undefined, el.shadowRoot.querySelector(".head .msg .t").hidden],
+    ["weather.home", ["temperature", "state"], "Weather", true, true],
+    "once Home Assistant has its state text, the info uses it, as a tile does"
+  );
+});
+
+test("an info does what its actions say, like a tile", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const states = quietStates();
+  const hold = { action: "navigate", navigation_path: "/sun" };
+  const el = mount(w, { type: "x", updates: false, infos: [{ entity: "sun.sun", hold_action: hold, double_tap_action: { action: "toggle" } }] }, quietHass(states));
+  const got = [];
+  el.addEventListener("hass-action", (e) => got.push(e.detail));
+  const h = el.shadowRoot.querySelector(".head");
+  h.click();
+  same(got, [], "a tap waits whether a second one follows");
+  mock.timers.tick(250);
+  same(got, [{ config: { entity: "sun.sun", tap_action: { action: "more-info" }, hold_action: hold, double_tap_action: { action: "toggle" } }, action: "tap" }], "then opens the entity");
+  got.length = 0;
+  h.click();
+  h.click();
+  mock.timers.tick(250);
+  same(got.map((g) => g.action), ["double_tap"], "two taps make a double tap");
+  got.length = 0;
+  h.dispatchEvent(new w.PointerEvent("pointerdown", { pointerId: 1, isPrimary: true, pointerType: "touch", clientX: 10, clientY: 10, bubbles: true }));
+  mock.timers.tick(500);
+  h.dispatchEvent(new w.PointerEvent("pointerup", { pointerId: 1, isPrimary: true, pointerType: "touch", clientX: 10, clientY: 10, bubbles: true }));
+  h.click();
+  mock.timers.tick(250);
+  same(got.map((g) => g.action), ["hold"], "a hold, and no tap after it");
+
+  const quiet = mount(w, { type: "x", updates: false, infos: [{ entity: "sensor.energy", tap_action: "none" }] }, quietHass(states));
+  const q = quiet.shadowRoot;
+  same([q.querySelector(".head").getAttribute("aria-disabled"), q.querySelector("ha-card").classList.contains("tappable")], ["true", false], "an info without actions is not a button");
+});
+
+test("an info shows while its conditions hold, checked as Home Assistant checks them", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const states = {
+    ...quietStates(),
+    "input_boolean.guests": st("input_boolean.guests", "off", { friendly_name: "Guests" }),
+    "person.anna": st("person.anna", "home", { friendly_name: "Anna", user_id: "u1" }),
+    "input_text.wanted": st("input_text.wanted", "below_horizon", { friendly_name: "Wanted" }),
+  };
+  const shows = (visibility) => {
+    const el = mount(w, { type: "x", updates: false, hide_when_empty: false, infos: [{ entity: "sensor.energy", visibility }] }, quietHass(states));
+    return head(el).title === "Energy";
+  };
+  const c = (condition, rest) => ({ condition, ...rest });
+  same(
+    [
+      shows([c("state", { entity: "sun.sun", state: "below_horizon" })]),
+      shows([c("state", { entity: "sun.sun", state_not: ["below_horizon", "above_horizon"] })]),
+      shows([{ entity: "input_boolean.guests", state: "off" }]),
+      shows([c("state", { state: "4.2" })]),
+      shows([c("state", { entity: "sun.sun", attribute: "elevation", state: "-5" })]),
+      shows([c("state", { entity: "sun.sun", state: "input_text.wanted" })]),
+      shows([c("state", { entity: "sensor.none", state_not: "on" })]),
+      shows([c("numeric_state", { above: 4, below: 5 })]),
+      shows([c("numeric_state", { entity: "sun.sun", above: 0 })]),
+      shows([c("user", { users: ["u1"] })]),
+      shows([c("user", { users: ["u2"] })]),
+      shows([c("location", { locations: ["home"] })]),
+      shows([c("or", { conditions: [c("user", { users: ["u2"] }), c("state", { entity: "sun.sun", state: "below_horizon" })] })]),
+      shows([c("not", { conditions: [c("user", { users: ["u1"] })] })]),
+      shows([c("and")]),
+      shows([c("user", { users: ["u2"], enabled: false })]),
+      shows([c("view_columns", { min: 2 })]),
+      shows([c("screen", { media_query: "(max-width: 600px)" })]),
+    ],
+    [true, false, true, true, true, true, true, true, false, true, false, true, true, false, true, true, true, false]
+  );
+});
+
+test("a time condition is read in the profile's zone, and the card wakes when it changes", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const states = quietStates();
+  const card = (visibility) => mount(w, { type: "x", updates: false, hide_when_empty: false, infos: [{ entity: "sensor.energy", visibility }] }, quietHass(states));
+  const lunch = card([{ condition: "time", after: "13:00", before: "14:00" }]);
+  const night = card([{ condition: "time", after: "22:00", before: "06:00" }]);
+  const friday = card([{ condition: "time", weekdays: ["fri"] }]);
+  const saturday = card([{ condition: "time", weekdays: ["sat"] }]);
+  const lenient = card([{ condition: "time", after: "8:00 AM" }]);
+  const titles = () => [lunch, night, friday, saturday, lenient].map((el) => head(el).title);
+  same(titles(), ["All quiet", "All quiet", "Energy", "All quiet", "Energy"], "at noon on a Friday");
+  mock.timers.tick(3600000 + 50);
+  same(head(lunch).title, "Energy", "the card wakes at one");
+  mock.timers.tick(10 * 3600000);
+  same(titles(), ["All quiet", "Energy", "Energy", "All quiet", "Energy"], "at eleven at night");
+});
+
+test("conditions only the server knows go to it, and its answer decides", async () => {
+  const w = makeWindow();
+  const subs = [];
+  const states = quietStates();
+  const sun = { condition: "sun", after: "sunset" };
+  const el = mount(w, { type: "x", updates: false, hide_when_empty: false, infos: [{ entity: "sensor.energy", visibility: [sun] }] }, quietHass(states, { subs }));
+  const sub = subs.find((s) => s.msg && s.msg.type === "subscribe_condition");
+  same([sub.msg.condition, head(el).title], [sun, "All quiet"], "until the server answers, the info waits");
+  sub.cb({ result: true });
+  same(head(el).title, "Energy");
+  sub.cb({ error: { code: "invalid", message: "x" } });
+  same(head(el).title, "All quiet", "an error hides it, as it hides a card");
+  const core = { condition: "state", entity_id: "sun.sun", state: "below_horizon", for: { minutes: 5 } };
+  el.setConfig({ type: "x", updates: false, hide_when_empty: false, infos: [{ entity: "sensor.energy", visibility: [core] }] });
+  await Promise.resolve();
+  await Promise.resolve();
+  same(
+    [sub.closed, subs.filter((s) => s.msg && s.msg.type === "subscribe_condition").map((s) => s.msg.condition)],
+    [true, [sun, core]],
+    "a condition in Home Assistant's own format goes to the server too, and one no longer needed is dropped"
+  );
+});
+
+test("a screen condition follows the screen", () => {
+  const w = makeWindow();
+  const mql = { matches: false, onchange: null };
+  w.matchMedia = () => mql;
+  const el = mount(w, { type: "x", updates: false, hide_when_empty: false, infos: [{ entity: "sensor.energy", visibility: [{ condition: "screen", media_query: "(max-width: 600px)" }] }] }, quietHass(quietStates()));
+  same(head(el).title, "All quiet");
+  mql.matches = true;
+  mql.onchange();
+  same(head(el).title, "Energy");
+});
+
+test("a broken info gets a clear error", () => {
+  const w = makeWindow();
+  const error = (config) => {
+    try {
+      w.document.createElement("origami-notifications").setConfig({ type: "x", ...config });
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  };
+  same(
+    [error({ infos: "sun.sun" }), error({ infos: [{ name: "Sun" }] }), error({ infos: [{ entity: "sun.sun", visibility: { condition: "user" } }] }), error({ infos: ["sun.sun", { entity: "weather.home", tap_action: "none" }] })],
+    [
+      "origami-notifications: infos must be a list",
+      'origami-notifications: infos must contain entity ids, got {"name":"Sun"}',
+      "origami-notifications: visibility of sun.sun must be a list of conditions",
+      null,
+    ]
+  );
+});
+
+/* Plays Home Assistant's dialog manager. It makes the element once, hands it hass and calls showDialog. */
+const dialogHost = (w, hass) => {
+  const shown = [];
+  let el = null;
+  w.addEventListener("show-dialog", (e) => {
+    shown.push(e.detail);
+    el = el || w.document.createElement(e.detail.dialogTag);
+    el.hass = hass;
+    el.showDialog(e.detail.dialogParams);
+    if (!el.isConnected) w.document.body.append(el);
+  });
+  return { shown, get el() {
+    return el;
+  } };
+};
+
+test("a narrow card opens its list in Home Assistant's dialog", () => {
+  const w = makeWindow();
+  w.customElements.define("ha-adaptive-dialog", class extends w.HTMLElement {});
+  w.customElements.define("ha-icon-button", class extends w.HTMLElement {});
+  const states = threeOn();
+  const hass = makeHass(states);
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, hass);
+  const host = dialogHost(w, hass);
+  const h = el.shadowRoot.querySelector(".head");
+  resize(el, 180);
+  same([el.classList.contains("narrow"), h.getAttribute("aria-haspopup"), h.hasAttribute("aria-expanded")], [true, "dialog", false]);
+  h.click();
+  const dialog = host.el;
+  const inner = dialog.shadowRoot.querySelector("ha-adaptive-dialog");
+  const titles = () => [...dialog.shadowRoot.querySelectorAll(".row .title")].map((t) => t.textContent);
+  same(
+    [host.shown.length, el.shadowRoot.querySelector("ha-card").classList.contains("open"), inner.open, inner.getAttribute("header-title"), titles()],
+    [1, false, true, "3 notifications", ["Door", "Garage", "Gate"]],
+    "the card stays closed and the dialog shows every row"
+  );
+  const infos = [];
+  el.addEventListener("hass-more-info", (e) => infos.push(e.detail.entityId));
+  dialog.shadowRoot.querySelectorAll(".row .rtile")[1].click();
+  same(infos, ["binary_sensor.b"], "a row opens its entity, on top of the dialog");
+  dialog.shadowRoot.querySelector(".row .x").click();
+  same(titles(), ["Garage", "Gate"], "a dismissal reaches the dialog at once");
+  const closed = [];
+  dialog.addEventListener("dialog-closed", (e) => closed.push(e.detail.dialog));
+  dialog.shadowRoot.querySelector("ha-icon-button").click();
+  same([closed, dialog.shadowRoot.querySelector("ha-adaptive-dialog")], [["origami-notifications-dialog"], null], "with nothing left it closes");
+
+  resize(el, 600);
+  same(el.classList.contains("narrow"), false);
+  const other = makeWindow();
+  other.customElements.define("ha-adaptive-dialog", class extends other.HTMLElement {});
+  const wide = mount(other, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(threeOn()));
+  const asked = [];
+  other.addEventListener("show-dialog", (e) => asked.push(e));
+  resize(wide, 400);
+  wide.shadowRoot.querySelector(".head").click();
+  same([asked.length, wide.shadowRoot.querySelector("ha-card").classList.contains("open")], [0, true], "a wide card unfolds in place");
+});
+
+test("until Home Assistant has its dialog, a narrow card unfolds in place", () => {
+  const w = makeWindow();
+  const states = threeOn();
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, makeHass(states));
+  const shown = [];
+  w.addEventListener("show-dialog", (e) => shown.push(e));
+  resize(el, 180);
+  el.shadowRoot.querySelector(".head").click();
+  same([shown.length, el.shadowRoot.querySelector("ha-card").classList.contains("open")], [0, true]);
+});
+
+describe("editor for infos", () => {
+  const states = () => ({
+    "sun.sun": st("sun.sun", "above_horizon", { friendly_name: "Sun" }),
+    "weather.home": st("weather.home", "rainy", { friendly_name: "Home" }),
+    "sensor.energy": st("sensor.energy", "4.2", { friendly_name: "Energy" }),
+  });
+  const open = (w, config) => {
+    const ed = w.document.createElement("origami-notifications-editor");
+    const written = [];
+    ed.addEventListener("config-changed", (e) => written.push(e.detail.config));
+    ed.setConfig({ type: "custom:origami-notifications", ...config });
+    ed.hass = makeHass(states());
+    return { ed, written, form: ed.querySelector("ha-form") };
+  };
+  const send = (w, target, value) => target.dispatchEvent(new w.CustomEvent("value-changed", { detail: { value }, bubbles: true, composed: true }));
+  const infoForms = (ed) => [...ed.querySelectorAll("ha-expansion-panel ha-form")];
+
+  test("each info is edited with the fields of a tile and Home Assistant's visibility editor", () => {
+    const w = makeWindow();
+    const weather = { entity: "weather.home", name: "Weather", state_content: ["temperature", "state"] };
+    const { ed, written, form } = open(w, { infos: ["sun.sun", weather] });
+    same(form.data.infos, ["sun.sun", "weather.home"], "the picker lists the infos");
+    same(
+      infoForms(ed).map((f) => f.schema.map((s) => s.name || s.type)),
+      [
+        ["name", "grid", "state_content", "show_entity_picture", "tap_action", "optional_actions"],
+        ["name", "grid", "state_content", "show_entity_picture", "tap_action", "optional_actions"],
+      ]
+    );
+    same([ed.querySelectorAll("ha-card-conditions-editor").length, infoForms(ed)[1].data], [2, weather]);
+    send(w, infoForms(ed)[0], { entity: "sun.sun", state_content: "next_rising", color: "state", name: "" });
+    same(written.at(-1).infos, [{ entity: "sun.sun", state_content: "next_rising" }, weather], "only what is set is written");
+    same(infoForms(ed)[0].schema.map((s) => s.name || s.type).includes("time_format"), true, "a time offers its format");
+    send(w, ed.querySelectorAll("ha-card-conditions-editor")[1], [{ condition: "user", users: ["u1"] }]);
+    same(written.at(-1).infos[1].visibility, [{ condition: "user", users: ["u1"] }], "the visibility editor writes the conditions");
+    send(w, ed.querySelectorAll("ha-card-conditions-editor")[1], []);
+    same("visibility" in written.at(-1).infos[1], false, "and drops an empty list");
+  });
+
+  test("moving, swapping and removing infos keeps their options", () => {
+    const w = makeWindow();
+    const weather = { entity: "weather.home", name: "Weather" };
+    const { written, form } = open(w, { infos: ["sun.sun", weather] });
+    const pick = (infos) => send(w, form, { ...JSON.parse(JSON.stringify(form.data)), infos });
+    pick(["weather.home", "sun.sun"]);
+    same(written.at(-1).infos, [weather, "sun.sun"], "moved");
+    pick(["sensor.energy", "sun.sun"]);
+    same(written.at(-1).infos, [{ entity: "sensor.energy", name: "Weather" }, "sun.sun"], "the picker swapped one in place");
+    pick([]);
+    same("infos" in written.at(-1), false, "none left");
+  });
+
+  test("the turns are written only when they differ from the defaults", () => {
+    const w = makeWindow();
+    const { written, form } = open(w, {});
+    same([form.data.rotate, form.data.slide], [8, "up"]);
+    send(w, form, { ...JSON.parse(JSON.stringify(form.data)), rotate: 0, slide: "side" });
+    same([written.at(-1).rotate, written.at(-1).slide], [0, "side"]);
+    send(w, form, { ...JSON.parse(JSON.stringify(form.data)), rotate: 8, slide: "up" });
+    same(["rotate" in written.at(-1), "slide" in written.at(-1)], [false, false]);
+  });
+});
+
+test("new states from Home Assistant do not push the next turn back", () => {
+  useClock();
+  const w = makeWindow({ clock: true });
+  const states = threeOn();
+  const hass = makeHass(states);
+  const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, hass);
+  for (let i = 0; i < 7; i++) {
+    mock.timers.tick(1000);
+    el.hass = { ...hass, states: { ...states, "binary_sensor.a": { ...states["binary_sensor.a"], last_updated: new Date(Date.now()).toISOString() } } };
+  }
+  mock.timers.tick(1000);
+  same(head(el).title, "Garage");
 });
