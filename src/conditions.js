@@ -1,7 +1,7 @@
 import { isEntityId, isObject } from "./config.js";
 import { DAY, dayNumber, dayStart, fromServerTime, isoDate, zonedParts } from "./format.js";
 
-// The kinds Home Assistant's frontend checks itself. It sends every other kind to the server.
+// Home Assistant's frontend checks these kinds itself and sends every other kind to the server.
 const CLIENT = new Set(["state", "numeric_state", "screen", "user", "location", "time", "view_columns"]);
 
 const LOGIC = { and: (r) => r.every(Boolean), or: (r) => r.some(Boolean), not: (r) => !r.every(Boolean) };
@@ -41,7 +41,6 @@ function timeMet(c, env) {
   return before == null || now <= before;
 }
 
-// env holds hass, now, zone and the hooks watch, wake, media and server.
 export function conditionsMet(conditions, entity, env) {
   const { hass } = env;
   let failed = false;

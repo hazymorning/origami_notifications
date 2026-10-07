@@ -23,7 +23,6 @@ const ruleMode = (rule) => (!rule ? "everyone" : rule.only ? "only" : "except");
 // Home Assistant's duration field reads parts. A bare number there would count as seconds.
 const durationParts = (ms) => ({ days: Math.floor(ms / DAY), hours: Math.floor((ms % DAY) / HOUR), minutes: Math.floor((ms % HOUR) / MINUTE), seconds: (ms % MINUTE) / 1000 });
 
-// What weather an info shows, in the terms of Home Assistant's forecast card editor.
 const forecastShow = (info) => (!info.forecast_type || info.show_forecast === false ? "show_current" : info.show_current === false ? "show_forecast" : "show_both");
 
 export class OrigamiNotificationsEditor extends LitElement {
@@ -59,7 +58,7 @@ export class OrigamiNotificationsEditor extends LitElement {
     return editorTexts(languageOf(this.hass), this.hass?.localize);
   }
 
-  // A new schema or new data rebuilds a form and takes the focus from its fields, so they change only when needed.
+  // A new schema or data object makes ha-form rebuild its fields, which loses the focus.
   _memo(key, value) {
     const json = JSON.stringify(value);
     const last = this._memos.get(key);
@@ -81,7 +80,6 @@ export class OrigamiNotificationsEditor extends LitElement {
     return (config.infos || []).map((info) => (typeof info === "string" ? { entity: info } : { ...info }));
   }
 
-  // System notifications, updates, repairs, the weather and every entity, each of which can have a rule.
   _sources(config = this._config) {
     const t = this._t;
     const sources = [{ key: "system", name: t.label("system"), icon: KIND_ICONS.system }];
@@ -207,7 +205,6 @@ export class OrigamiNotificationsEditor extends LitElement {
     };
   }
 
-  // Picked entities keep what only YAML can set. The entity picker swaps an entity in place, and its options move along.
   _mergeEntities(ids, options = {}) {
     const entries = this._entries();
     const before = new Map(entries.map((e) => [e.entity, e]));
@@ -246,14 +243,13 @@ export class OrigamiNotificationsEditor extends LitElement {
     for (const [from, to] of [this._swapped || [], [this._config.weather, value.weather]]) {
       if (from && to && audience[from] && !audience[to]) audience[to] = audience[from];
     }
-    // A rule goes with its source. Rules for updates stay, since the card finds updates on its own.
+    // Rules for updates stay, since the card finds updates on its own.
     const after = new Set(this._sources({ ...this._config, ...value }).map((s) => s.key));
     for (const key of before) if (!after.has(key) && key !== "updates" && !key.startsWith("update.")) delete audience[key];
     value.audience = audience;
     this._write(value);
   }
 
-  // Only what differs from the defaults is written, in a fixed order.
   _write(value) {
     const merged = { ...this._config, ...value };
     const config = { type: this._config.type };
@@ -266,7 +262,6 @@ export class OrigamiNotificationsEditor extends LitElement {
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
   }
 
-  // Picked infos keep their options, also when the picker swaps or moves them.
   _mergeInfos(ids) {
     const before = this._infos();
     const used = new Set();
@@ -277,7 +272,6 @@ export class OrigamiNotificationsEditor extends LitElement {
     });
   }
 
-  // An info without options is written as its entity alone. The weather to show is on unless it is off.
   _infoEntry(info) {
     const out = {};
     for (const [key, v] of Object.entries(ordered(info, INFO_ORDER))) {
@@ -293,7 +287,6 @@ export class OrigamiNotificationsEditor extends LitElement {
     return FORECAST_TYPES.filter((type) => forecastSupported(st, type) || info.forecast_type === type);
   }
 
-  // The fields of a tile. The time format shows only where the content holds a time.
   _infoSchema(info) {
     const t = this._t;
     const st = this.hass.states[info.entity];
@@ -330,7 +323,6 @@ export class OrigamiNotificationsEditor extends LitElement {
     const infos = this._infos();
     const { forecast: show, ...rest } = value;
     const info = { ...infos[index], ...rest, entity: infos[index].entity };
-    // A new choice of weather sets its keys. A cleared choice is the current weather, like on a tile.
     const choice = "forecast" in value ? show || "show_current" : null;
     if (choice && choice !== forecastShow(infos[index])) {
       Object.assign(info, { show_current: choice === "show_forecast" ? false : undefined, show_forecast: undefined });

@@ -14,7 +14,6 @@ export const isEntityId = (v) => typeof v === "string" && /^\w+\.\w+$/.test(v);
 
 const BEFORE_UNITS = { days: DAY, hours: HOUR, minutes: MINUTE, seconds: 1000 };
 
-// A bare number counts as minutes.
 export function parseBefore(value) {
   let ms = NaN;
   if (typeof value === "number") ms = value * MINUTE;

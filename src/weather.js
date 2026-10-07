@@ -7,7 +7,7 @@ export const SPAN = { hourly: HOUR, twice_daily: 12 * HOUR, daily: 24 * HOUR };
 
 export const forecastSupported = (st, type) => Boolean(FEATURE_BITS[type] && Number(st?.attributes.supported_features) & FEATURE_BITS[type]);
 
-// Rain ahead needs hours, so it asks for hourly, then twice daily, then daily.
+// Rain ahead needs hours.
 export const forecastType = (st) => ["hourly", "twice_daily", "daily"].find((type) => forecastSupported(st, type)) || null;
 
 const WET = new Set(["rainy", "pouring", "lightning", "lightning-rainy", "snowy", "snowy-rainy", "hail"]);
@@ -27,8 +27,6 @@ const COLOR_STATES = { rain: "rainy", snow: "snowy", thunder: "lightning", hail:
 
 const color = (kind) => domainColor("weather", null, COLOR_STATES[kind], true);
 
-// Rain, snow, thunder or hail in the next 6 hours, and frost in the next 18. With a window open, wet weather is a
-// warning, also while it already rains.
 export function weatherEntries(st, forecast, type, ctx) {
   const id = st.entity_id;
   const a = st.attributes;
@@ -77,7 +75,6 @@ export function weatherEntries(st, forecast, type, ctx) {
   return entries;
 }
 
-// Windows anywhere in Home Assistant, but no groups of them.
 export const windowIds = (states) =>
   Object.keys(states).filter((id) => {
     const a = states[id]?.attributes;

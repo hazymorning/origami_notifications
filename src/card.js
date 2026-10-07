@@ -6,7 +6,7 @@ import { canDismiss, Dismissals } from "./dismissals.js";
 import { Clock, fill, MINUTE } from "./format.js";
 import { HeadGestures } from "./gestures.js";
 import { infoText } from "./infos.js";
-import { buildModel, finishEntries, isAhead, nextWake } from "./model.js";
+import { buildModel, finishEntries, formatters, isAhead, nextWake } from "./model.js";
 import { duration, EASE, ListMotion } from "./motion.js";
 import { entryColor, iconTemplate, imageUrl, opener, rowsTemplate } from "./rows.js";
 import { cardTexts, languageOf } from "./strings.js";
@@ -19,7 +19,6 @@ export const DIALOG = CARD + "-dialog";
 const NARROW_PX = 300;
 const NEWS_MS = 2 * MINUTE;
 
-// The parts of hass that change what the card shows, besides the states it reads.
 const HASS_PARTS = ["connection", "user", "locale", "config", "localize", "entities", "devices", "areas", "services", "themes", "formatEntityState", "formatEntityName", "formatEntityAttributeValue"];
 
 export const fire = (node, type, detail) => node.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true, detail }));
@@ -122,11 +121,10 @@ export class OrigamiNotificationsCard extends LitElement {
     this._resize?.disconnect();
     this._view?.disconnect();
     [this._wakeTimer, this._clock, this._rotateTimer, this._repairsTimer].forEach(clearTimeout);
-    // The dashboard editor moves cards around, so only a card that stays away closes.
+    // The dashboard editor detaches and attaches cards while it moves them.
     this._collapseTimer = setTimeout(() => this._setOpen(false), 150);
   }
 
-  // Everything that follows from the config, the registries and the language.
   _derive() {
     const hass = this._hass;
     const config = this._config;
@@ -142,7 +140,6 @@ export class OrigamiNotificationsCard extends LitElement {
     for (const [id, entry] of Object.entries(reg)) {
       if (entry?.device_id && /^(image|camera)\./.test(id)) byDevice.set(entry.device_id, [...(byDevice.get(entry.device_id) || []), id].sort().reverse());
     }
-    if (this._derived && lang !== this._derived.lang && this._config.repairs && hass.user?.is_admin) this._fetchRepairs();
     this._derived = {
       key,
       lang,
@@ -178,7 +175,6 @@ export class OrigamiNotificationsCard extends LitElement {
       updates: d.updates,
       windows: d.windows,
       devicePictures: d.pictures,
-      issueLocalize: this._issueLocalize,
       details: (st) => warningDetails(hass, st, () => this._refresh()),
       todos: (id) => {
         need.todos.add(id);
@@ -200,7 +196,6 @@ export class OrigamiNotificationsCard extends LitElement {
       },
     });
     this._sync(need);
-    // A thing without a time counts as new once it was gone while its entity was there.
     for (const e of model.entries) if (e.kind === "attribute" || e.kind === "picture") this._things.set(e.key, e.entity);
     const known = new Set([...model.known, ...[...this._things].filter(([, id]) => model.available.has(id)).map(([k]) => k)]);
     const entries = finishEntries(this._dismissals.apply(model.entries, known, now, model.ctx.wake), model.ctx);
@@ -222,7 +217,6 @@ export class OrigamiNotificationsCard extends LitElement {
     this._dialog?.requestUpdate();
   }
 
-  // Subscriptions follow what the entries asked for.
   _sync(need) {
     const hass = this._hass;
     const conn = hass.connection;
@@ -268,16 +262,17 @@ export class OrigamiNotificationsCard extends LitElement {
     this._refresh();
   }
 
+  // Loading translations updates hass.localize, which brings the titles.
   async _fetchRepairs() {
     const hass = this._hass;
-    const { issues = [] } = await hass.callWS({ type: "repairs/list_issues" });
-    this._data.repairs = issues.filter((issue) => !issue.ignored);
-    this._refresh();
-    const domains = [...new Set(this._data.repairs.map((i) => i.domain))];
-    if (!domains.length || !hass.loadBackendTranslation) return;
-    await hass.loadBackendTranslation("issues", domains);
-    this._issueLocalize = await hass.loadBackendTranslation("title", [...new Set(this._data.repairs.map((i) => i.issue_domain || i.domain))]);
-    this._refresh();
+    try {
+      const { issues = [] } = await hass.callWS({ type: "repairs/list_issues" });
+      this._data.repairs = issues.filter((issue) => !issue.ignored);
+      this._refresh();
+      if (!this._data.repairs.length) return;
+      await hass.loadBackendTranslation?.("issues", [...new Set(this._data.repairs.map((i) => i.domain))]);
+      await hass.loadBackendTranslation?.("title", [...new Set(this._data.repairs.map((i) => i.issue_domain || i.domain))]);
+    } catch {}
   }
 
   _matches(query) {
@@ -289,7 +284,6 @@ export class OrigamiNotificationsCard extends LitElement {
     return this._media.get(query).matches;
   }
 
-  // The entries, then one row per info with the state of its entity.
   listed() {
     const infos = new Map();
     for (const slide of this._slides) if (!infos.has(slide.row)) infos.set(slide.row, slide);
@@ -297,13 +291,7 @@ export class OrigamiNotificationsCard extends LitElement {
   }
 
   _formatters() {
-    const hass = this._hass;
-    return {
-      state: (st) => (hass.formatEntityState ? hass.formatEntityState(st) : String(st.state)),
-      attr: (st, key, value) => hass.formatEntityAttributeValue?.(st, key, value) || String(value),
-      clock: this._derive().clock,
-      now: this._now,
-    };
+    return { ...formatters(this._hass), clock: this._derive().clock, now: this._now };
   }
 
   _infoRow(slide) {
@@ -325,7 +313,6 @@ export class OrigamiNotificationsCard extends LitElement {
     };
   }
 
-  // Like a tile, an info opens its entity unless its tap action says otherwise.
   _infoAction(slide, gesture) {
     const info = slide.info;
     const config = { entity: slide.entity, tap_action: info.tap_action || { action: "more-info" }, hold_action: info.hold_action, double_tap_action: info.double_tap_action };
@@ -342,8 +329,6 @@ export class OrigamiNotificationsCard extends LitElement {
     this._dismissals.dismiss(entries, (d) => (d.service ? hass.callService(...d.service) : hass.callWS(d.ws)));
   }
 
-  // What the closed card turns through. Critical entries take it alone, infos fill a quiet card. News comes forward
-  // on a card that turns.
   _pick(news) {
     const crit = this._entries.filter((e) => e.sev === "crit");
     const slides = crit.length ? crit : [...this._entries, ...this._slides];
@@ -374,7 +359,6 @@ export class OrigamiNotificationsCard extends LitElement {
     else this._shown = target;
   }
 
-  // A turn moves the text out of sight, paints what is current and brings it in. The icon fades and grows back.
   async _turn(dir, side) {
     const slide = this.renderRoot.querySelector(".slide");
     const glyph = this.renderRoot.querySelector(".head .glyph");
@@ -423,7 +407,6 @@ export class OrigamiNotificationsCard extends LitElement {
     this._rotate(true);
   }
 
-  // One timer turns the card while it shows more than one slide and nothing holds it.
   _rotate(restart = false) {
     const go =
       this._turns() > 0 && this._turnable.length > 1 && !this._open && !this._dialog && !this._held.size &&
@@ -444,7 +427,6 @@ export class OrigamiNotificationsCard extends LitElement {
     this._rotate(true);
   }
 
-  // The clock ticks only while a time on show can change. A countdown changes by the second.
   _tick() {
     clearTimeout(this._clock);
     if (!this.isConnected || !this._visible || document.hidden) return;
@@ -468,7 +450,6 @@ export class OrigamiNotificationsCard extends LitElement {
     return Boolean(entry.live || (!entry.message && Number.isFinite(entry.ts)));
   }
 
-  // Off screen nothing ticks or turns. Back in view, the times catch up at once.
   _onView(visible) {
     this._visible = visible;
     this._now = Date.now();
@@ -488,7 +469,6 @@ export class OrigamiNotificationsCard extends LitElement {
     return getComputedStyle(this).direction === "rtl";
   }
 
-  // No animation before the first paint, in the editor, or without a layout.
   _animate() {
     return Boolean(this._painted && !this.preview && this.isConnected && this.getClientRects().length);
   }
@@ -515,7 +495,6 @@ export class OrigamiNotificationsCard extends LitElement {
     this._rotate();
   }
 
-  // Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
   _toggle() {
     if (!this.listed().length) return;
     if (!this._open && this.classList.contains("narrow") && !this.preview && customElements.get("ha-adaptive-dialog")) {
@@ -527,7 +506,6 @@ export class OrigamiNotificationsCard extends LitElement {
     if (refocus) this.updateComplete.then(() => this.renderRoot.querySelector(this._open ? ".bar" : ".head").focus({ preventScroll: true }));
   }
 
-  // With only one thing to show, a tap opens that thing.
   _tap() {
     const listed = this.listed();
     const only = listed.length === 1 && opener(listed[0]);
@@ -575,6 +553,7 @@ export class OrigamiNotificationsCard extends LitElement {
   }
 
   willUpdate() {
+    this._updateBackdrop(this._shown?.backdrop ? imageUrl(this._hass, this._shown.image) : null);
     this._listMotion = this._open && this._animate();
     if (this._listMotion) this._motion.measure(this.renderRoot.querySelector(".list"));
   }
@@ -583,7 +562,8 @@ export class OrigamiNotificationsCard extends LitElement {
     if (!this._config || !this._hass) return;
     this._motion.play(this.renderRoot.querySelector(".list"), this._listMotion);
     this._setHidden(this._empty());
-    this.classList.toggle("dark", Boolean(this._hass?.themes?.darkMode));
+    this.classList.toggle("dark", Boolean(this._hass.themes?.darkMode));
+    this.classList.toggle("with-backdrop", this._backdrops.some((l) => l.on));
     if (this._userCss?.textContent !== this._config.css) {
       this._userCss ||= this.renderRoot.appendChild(document.createElement("style"));
       this._userCss.textContent = this._config.css || "";
@@ -592,7 +572,6 @@ export class OrigamiNotificationsCard extends LitElement {
     if (this._intro) this._playIntro();
   }
 
-  // Several slides come in as on every turn, once the card is on screen.
   _playIntro() {
     this._intro = false;
     const side = this._config.slide === "side";
@@ -629,7 +608,6 @@ export class OrigamiNotificationsCard extends LitElement {
     this._hostAnim = this.animate(frames, { duration: fast + normal });
   }
 
-  // A hidden card comes back closed.
   _gone() {
     this._hostAnim?.cancel();
     this._hostAnim = null;
@@ -724,7 +702,9 @@ export class OrigamiNotificationsCard extends LitElement {
         style="--tile-color: ${slide ? entryColor(slide) : "var(--state-inactive-color)"}"
         @keydown=${(e) => e.key === "Escape" && this._open && (e.stopPropagation(), this._toggle())}
       >
-        ${this._backdrop(slide?.backdrop ? imageUrl(this._hass, slide.image) : null)}
+        <div class="backdrop" aria-hidden="true">
+          ${this._backdrops.map((l) => (l.url ? html`<img class=${l.on ? "on" : ""} src=${l.url} alt="" draggable="false" referrerpolicy="no-referrer" @load=${() => this._reveal(l)} />` : nothing))}
+        </div>
         <div class="pulse"></div>
         <div class="head-wrap">
           <div
@@ -771,27 +751,24 @@ export class OrigamiNotificationsCard extends LitElement {
     `;
   }
 
-  // Two layers, so one picture fades into the next once it has loaded.
-  _backdrop(url) {
+  // Two layers, so a new picture fades in over the old one once it has loaded.
+  _updateBackdrop(url) {
+    if (url === this._backdropUrl) return;
+    this._backdropUrl = url;
     const layers = this._backdrops;
-    if (url !== this._backdropUrl) {
-      this._backdropUrl = url;
-      const shown = layers.find((l) => l.on);
-      if (!url) layers.forEach((l) => (l.on = false));
-      else if (shown?.url !== url) {
-        const next = shown === layers[0] ? layers[1] : layers[0];
-        next.url = url;
-        if (next.loaded === url) layers.forEach((l) => (l.on = l === next));
-      }
+    const shown = layers.find((l) => l.on);
+    if (!url) layers.forEach((l) => (l.on = false));
+    else if (shown?.url !== url) {
+      const next = shown === layers[0] ? layers[1] : layers[0];
+      next.url = url;
+      if (next.loaded === url) this._reveal(next);
     }
-    const reveal = (layer) => {
-      layer.loaded = layer.url;
-      if (layer.url === this._backdropUrl) layers.forEach((l) => (l.on = l === layer));
-      this.requestUpdate();
-    };
-    this.classList.toggle("with-backdrop", layers.some((l) => l.on));
-    return html`<div class="backdrop" aria-hidden="true">
-      ${layers.map((l) => (l.url ? html`<img class=${l.on ? "on" : ""} src=${l.url} alt="" draggable="false" referrerpolicy="no-referrer" @load=${() => reveal(l)} />` : nothing))}
-    </div>`;
+  }
+
+  _reveal(layer) {
+    layer.loaded = layer.url;
+    if (layer.url !== this._backdropUrl) return;
+    this._backdrops.forEach((l) => (l.on = l === layer));
+    this.requestUpdate();
   }
 }

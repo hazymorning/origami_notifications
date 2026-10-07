@@ -15,10 +15,14 @@ export const isAhead = (entry, now) => !entry.past && entry.ts > now;
 export const entityName = (hass) => (st, override) =>
   (typeof override === "string" && override) || hass.formatEntityName?.(st, override || undefined) || st.attributes.friendly_name || st.entity_id;
 
-// The names a group entity's members show. A sensor group keeps a value of its own, like a mean.
+export const formatters = (hass) => ({
+  state: (st) => (hass.formatEntityState ? hass.formatEntityState(st) : String(st.state)),
+  attr: (st, key, value) => (!key.includes(".") && hass.formatEntityAttributeValue?.(st, key, value)) || String(value),
+});
+
+// A sensor group has a value of its own, like a mean, instead of members to name.
 const members = (st) => (Array.isArray(st.attributes.entity_id) && !st.entity_id.startsWith("sensor.") ? st.attributes.entity_id.filter((id) => typeof id === "string") : []);
 
-// Everything the card shows, from Home Assistant's state and what its subscriptions brought.
 export function buildModel(input) {
   const { hass, config, now, data } = input;
   const watched = new Set();
@@ -34,8 +38,7 @@ export function buildModel(input) {
     midnight: dayStart(dayNumber(now, input.clock.zone) + 1, input.clock.zone),
     dayOf: (ts, zone = input.clock.zone) => dayNumber(ts, zone),
     name: entityName(hass),
-    state: (st) => (hass.formatEntityState ? hass.formatEntityState(st) : String(st.state)),
-    attr: (st, key, value) => (!key.includes(".") && hass.formatEntityAttributeValue?.(st, key, value)) || String(value),
+    ...formatters(hass),
     alikeTitle: (dc, n) => alikeTitle(input.clock.lang, dc, n, hass.localize),
     members: (st) => {
       const ids = members(st);
@@ -89,7 +92,6 @@ export function buildModel(input) {
 
 const distance = (entry, now) => (!Number.isFinite(entry.ts) ? Infinity : entry.past ? now - entry.ts : Math.abs(entry.ts - now));
 
-// Critical first, then what lies closest to now, then the latest arrival.
 export function sortEntries(entries, now) {
   return entries.sort(
     (a, b) =>
@@ -100,7 +102,6 @@ export function sortEntries(entries, now) {
   );
 }
 
-// The order changes on its own once an entry ahead comes as close to now as the one before it.
 export function nextReorder(entries, now) {
   let next = Infinity;
   for (let i = 1; i < entries.length; i++) {

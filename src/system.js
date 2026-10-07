@@ -23,7 +23,7 @@ export function notificationEntries(notifications, ctx) {
 const REPAIR_SEV = { critical: "crit", error: "crit", warning: "warn" };
 
 export function repairEntries(issues, ctx) {
-  const localize = (key, vars) => ctx.issueLocalize?.(key, vars) || ctx.hass.localize?.(key, vars) || "";
+  const localize = (key, vars) => ctx.hass.localize?.(key, vars) || "";
   return issues.map((issue) => {
     const slug = issue.translation_key || issue.issue_id;
     return {

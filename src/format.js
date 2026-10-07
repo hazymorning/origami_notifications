@@ -93,7 +93,6 @@ function systemHour12() {
   return dateFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12;
 }
 
-// Dates and times as the user's profile writes them.
 export class Clock {
   constructor(hass, lang, texts) {
     const locale = hass?.locale || {};
@@ -152,7 +151,6 @@ export class Clock {
     return dateFormat(this.lang, { hour: "numeric", ...this.time }).format(ts).replace(/^0(?=\d\D)/, "");
   }
 
-  // Yesterday, today or tomorrow, else the date. Today is the day in the zone of the profile.
   day(ts, timeZone, now) {
     const diff = dayNumber(ts, timeZone) - dayNumber(now, this.zone);
     if (Math.abs(diff) <= 1) return { near: true, text: this.rel.format(diff, "day") };

@@ -79,7 +79,6 @@ const OWN = {
   },
 };
 
-// Languages without texts of their own get these shapes, filled with Home Assistant's words.
 const NEUTRAL = { just_now: null, soon: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}", paused_left: "{s}, {t}" };
 
 const FROM_HA = {

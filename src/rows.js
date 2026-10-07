@@ -8,14 +8,12 @@ import { KIND_ICONS } from "./kinds.js";
 
 const KIND_COLORS = { system: "var(--info-color)", repair: "var(--warning-color)" };
 
-// Urgency colors an entry first, then its own color, then its entity's state, like a tile.
 export function entryColor(entry) {
   if (entry.sev === "crit") return "var(--error-color)";
   if (entry.sev === "warn") return "var(--warning-color)";
   return entry.color || (entry.stateObj ? stateColor(entry.stateObj) : KIND_COLORS[entry.kind] || "var(--state-icon-color)");
 }
 
-// What a tap on an entry does. Without an action of its own, it opens its entity.
 export function opener(entry) {
   if (entry.inert) return null;
   return entry.tap || (entry.entity ? { entity: entry.entity, tap_action: { action: "more-info" } } : null);
@@ -75,7 +73,6 @@ const keys = (run) => (e) => {
   run();
 };
 
-// view holds hass, texts, clock, now, the set of opened rows and the hooks run, toggle and dismiss.
 function rowTemplate(entry, view) {
   const link = opener(entry);
   const open = () => link && view.run(link);

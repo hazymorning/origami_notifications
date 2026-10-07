@@ -1,6 +1,5 @@
 export const nameList = (names) => (names.length > 4 ? `${names.slice(0, 4).join(", ")} +${names.length - 4}` : names.join(", "));
 
-// A group can't show the buttons, picture or tap of one entry, so such an entry stays alone.
 const groupable = (entry) => entry.kind === "generic" && entry.deviceClass && !entry.image && !entry.tap && !entry.actions.length;
 
 export function areaOf(hass, id) {
@@ -9,7 +8,6 @@ export function areaOf(hass, id) {
   return hass.areas?.[entry?.area_id || device?.area_id]?.name || "";
 }
 
-// Two or more plain binary sensors of one device class become one entry, named by their rooms.
 export function groupAlike(entries, ctx) {
   const classes = new Map();
   for (const entry of entries.filter(groupable)) {

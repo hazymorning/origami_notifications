@@ -13,8 +13,6 @@ export const EASE = {
   in: "cubic-bezier(0, 0, 0.2, 1)",
 };
 
-// Rows of a list arrive, leave and move. A leaving row fades and then closes its space, an arriving row opens its
-// space and then fades in. A row that left stays in the list until it is out of sight.
 export class ListMotion {
   constructor(onGone) {
     this.onGone = onGone;

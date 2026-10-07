@@ -70,6 +70,17 @@ test("rows show their entity's icon and color, and urgency colors them first", a
   assert.deepEqual([q(el, "ha-card").classList.contains("crit"), head(el).title], [true, "House"], "the closed card pulses with what is critical");
 });
 
+test("a picture shows in the icon and, with background, blurred behind the card", async () => {
+  const w = makeWindow();
+  const states = statesOf(st("sensor.dinner", "Lasagne", { friendly_name: "Dinner", recipe: { name: "Lasagne", description: "Bake", image: "/local/lasagne.jpg" } }));
+  const el = await mount(w, card([{ entity: "sensor.dinner", background: true }]), makeHass(states));
+  const layer = q(el, ".backdrop img");
+  assert.deepEqual([q(el, ".row .icon img").getAttribute("src"), layer.getAttribute("src"), layer.classList.contains("on")], ["http://ha.local/local/lasagne.jpg", "http://ha.local/local/lasagne.jpg", false]);
+  layer.dispatchEvent(new w.Event("load"));
+  await settle(el);
+  assert.deepEqual([layer.classList.contains("on"), el.classList.contains("with-backdrop")], [true, true], "it fades in once it has loaded");
+});
+
 test("a tap opens the list, or the one thing on show, and an icon opens its entry", async () => {
   const w = makeWindow();
   const el = await mount(w, card(Object.keys(doors())), makeHass(doors()));

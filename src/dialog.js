@@ -4,8 +4,7 @@ import { ListMotion } from "./motion.js";
 import { rowsTemplate } from "./rows.js";
 import { iconStyles, rowStyles, variables } from "./styles.js";
 
-// Home Assistant creates this element once, next to its own dialogs, and calls showDialog for every open. It shows
-// the rows of the card that opened it. A new ha-adaptive-dialog each time picks dialog or bottom sheet anew.
+// Home Assistant's dialog manager creates this element once and calls showDialog for every open.
 export class OrigamiNotificationsDialog extends LitElement {
   static styles = [
     variables,
@@ -38,7 +37,7 @@ export class OrigamiNotificationsDialog extends LitElement {
     this.requestUpdate();
   }
 
-  // Home Assistant calls this on back and before it navigates. A dialog that has not opened yet just goes.
+  // Home Assistant calls this on back and before it navigates.
   closeDialog() {
     const dialog = this.renderRoot?.querySelector("ha-adaptive-dialog");
     if (dialog && this._shown) dialog.open = false;

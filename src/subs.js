@@ -1,6 +1,6 @@
 const end = (sub) => sub.unsub.then((unsub) => unsub()).catch(() => {});
 
-// Keeps one subscription per key. A subscription Home Assistant refused starts again once its token changes.
+// A subscription Home Assistant refused starts again once its token changes.
 export class Subscriptions {
   constructor() {
     this.subs = new Map();

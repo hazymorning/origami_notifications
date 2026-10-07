@@ -10,8 +10,6 @@ const isEmpty = (v) => v == null || v === "";
 
 export const showsForecast = (info, st) => info.entity.startsWith("weather.") && info.show_forecast !== false && forecastSupported(st, info.forecast_type);
 
-// A card that stays while nothing needs attention adds the weather now and in the hours ahead, and the next event of
-// each calendar it watches.
 export function quietInfos(config, sources, hass, allowed) {
   if (config.hide_when_empty !== false) return config.infos;
   const taken = new Set(config.infos.map((info) => info.entity));
@@ -29,7 +27,6 @@ export function quietInfos(config, sources, hass, allowed) {
   return [...config.infos, ...extra];
 }
 
-// What an info says where Home Assistant's state-display is missing. The state fills in for parts without a value.
 export function infoText(stateObj, content, name, ctx) {
   const parts = [].concat(content ?? "state").map((c) => {
     if (c === "state") return ctx.state(stateObj);
@@ -52,7 +49,6 @@ function slotText(slot, shown, type, ctx) {
   return [half, temps, slot.condition ? ctx.state(shown) : ""].filter(Boolean).join(" · ");
 }
 
-// The forecast slots an info shows, none while the forecast loads, or null without a forecast.
 function forecastSlots(info, st, ctx) {
   if (!showsForecast(info, st)) return null;
   const type = info.forecast_type;
@@ -69,7 +65,6 @@ function forecastSlots(info, st, ctx) {
   return slots;
 }
 
-// The slides of the infos that show now, in their order. A weather info adds one slide per forecast slot.
 export function infoSlides(infos, ctx) {
   const slides = [];
   const keys = new Set();

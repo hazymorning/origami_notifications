@@ -109,7 +109,7 @@ function alert(st, src, ctx) {
   return [{ kind: "alert", sev: "warn", title: ctx.name(st, src.name), message: "", ts: parseTime(st.last_changed, ctx.now), past: true, ack: "on" }];
 }
 
-// A running timer ends at finishes_at. Its remaining keeps the value from its start.
+// A running timer's remaining keeps the value from its start.
 function timer(st, src, ctx) {
   const { attributes: a, entity_id: id } = st;
   const t = ctx.t;
@@ -134,7 +134,7 @@ const TIME_UNITS = { d: DAY, h: 3600000, min: 60000, s: 1000, ms: 1 };
 
 const durationUnit = (a) => (a.device_class === "timestamp" ? undefined : TIME_UNITS[a.unit_of_measurement]);
 
-// A duration counts down from the last change. Its value goes stale, so the entry names the end.
+// A duration's value goes stale between updates, so the entry names its end.
 function countdown(st, src, ctx) {
   const unit = durationUnit(st.attributes);
   const end = unit ? parseTime(st.last_changed) + Number(st.state) * unit : isoTime(st.state, ctx.clock.server);
@@ -155,7 +155,6 @@ function devicePicture(hass, ids) {
   return null;
 }
 
-// The state is the time of the last event, so the entry ends a day after it.
 function event(st, src, ctx) {
   const ts = isoTime(st.state, ctx.clock.server);
   if (!Number.isFinite(ts)) return [];
@@ -288,8 +287,7 @@ function numbered(st, warnings, ctx) {
   });
 }
 
-// A warning sends its details in its attributes, often in the Common Alerting Protocol. Some integrations keep them
-// back and answer a get_details action instead.
+// Some integrations keep a warning's details back and answer a get_details action instead.
 function warning(st, src, ctx) {
   const warnings = numberedWarnings(st.attributes);
   if (warnings.length) return numbered(st, warnings, ctx);
@@ -396,7 +394,6 @@ export const KIND_ICONS = {
   generic: "mdi:information-outline",
 };
 
-// Entries for one configured entity, with its options applied.
 export function entityEntries(src, st, ctx) {
   if (!st) return [];
   const kind = kindOf(src, st, ctx.hass);

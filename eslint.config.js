@@ -6,6 +6,6 @@ export default [
   js.configs.recommended,
   {
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
-    rules: { "no-unused-vars": ["error", { caughtErrors: "none" }] },
+    rules: { "no-unused-vars": ["error", { caughtErrors: "none" }], "no-empty": ["error", { allowEmptyCatch: true }] },
   },
 ];

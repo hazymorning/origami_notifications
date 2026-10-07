@@ -5,7 +5,6 @@ const DOUBLE_TAP_MS = 250;
 const SWIPE_PX = 48;
 const DRAG_START_PX = 10;
 
-// A tap, a hold, a double tap and a horizontal swipe on the closed card. The handlers decide what each does.
 export class HeadGestures {
   constructor(head, handlers) {
     this.head = head;

@@ -7,7 +7,6 @@ const PENDING_MS = 10000;
 let acks = null;
 const shown = new Map();
 
-// Where storage is blocked, the copy in memory keeps dismissals for this page.
 function load() {
   if (!acks) {
     try {
@@ -20,7 +19,6 @@ function load() {
   return acks;
 }
 
-// At most LIMIT. Those no card shows go first, then the oldest.
 function save() {
   const visible = new Set([...shown.values()].flatMap((keys) => [...keys]));
   const keys = Object.keys(acks);
@@ -28,9 +26,7 @@ function save() {
   for (const k of order.slice(0, Math.max(keys.length - LIMIT, 0))) delete acks[k];
   try {
     localStorage.setItem(KEY, JSON.stringify(acks));
-  } catch {
-    // Storage is blocked.
-  }
+  } catch {}
 }
 
 const listeners = new Set();
@@ -42,7 +38,6 @@ window.addEventListener("storage", (e) => {
   notify();
 });
 
-// What Home Assistant can dismiss goes to it. Everything else is hidden in this browser until it changes.
 export class Dismissals {
   constructor(onChange) {
     this.onChange = onChange;
@@ -58,7 +53,6 @@ export class Dismissals {
     shown.delete(this);
   }
 
-  // The entries that show. A local dismissal ends once its entry changes, or is gone while its source is known.
   apply(entries, known, now, wake) {
     const stored = load();
     const present = new Set(entries.map((e) => e.key));

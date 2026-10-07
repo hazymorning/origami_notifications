@@ -3,8 +3,7 @@ import { hasDetails, platformOf } from "./kinds.js";
 
 const answers = new Map();
 
-// The details of a warning from its integration's get_details action, shared by every card. Null without them, and
-// undefined while they are not known yet, which includes the time before Home Assistant lists its actions.
+// Undefined until Home Assistant has listed its actions and the integration has answered.
 export function warningDetails(hass, st, onAnswer) {
   const id = st.entity_id;
   const key = `${id}|${st.attributes.id || st.last_changed}`;
