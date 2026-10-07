@@ -21,7 +21,7 @@ const NARROW_PX = 300;
 const NEWS_MS = 2 * MINUTE;
 const HOLD_MS = 1500;
 const SCROLL_PX_PER_S = 30;
-// The width of the fade on lines marked data-long in styles.js.
+// As wide as the scroll fade in Home Assistant's lists, --ha-space-4.
 const FADE_PX = 16;
 
 const HASS_PARTS = ["connection", "user", "locale", "config", "localize", "entities", "devices", "areas", "services", "themes", "formatEntityState", "formatEntityName", "formatEntityAttributeValue"];
@@ -129,7 +129,9 @@ export class OrigamiNotificationsCard extends LitElement {
     document.removeEventListener("visibilitychange", this._onVisibility);
     this._resize?.disconnect();
     this._view?.disconnect();
-    [this._wakeTimer, this._clock, this._turnTimer, this._repairsTimer].forEach(clearTimeout);
+    [this._wakeTimer, this._clock, this._turnTimer, this._repairsTimer, this._holdTimer].forEach(clearTimeout);
+    cancelAnimationFrame(this._frameId);
+    this._sizes?.disconnect();
     // The dashboard editor detaches and attaches cards while it moves them.
     this._collapseTimer = setTimeout(() => this._setOpen(false), 150);
   }
@@ -369,21 +371,17 @@ export class OrigamiNotificationsCard extends LitElement {
   async _turn(from, slide, dir, side) {
     const now = getComputedStyle(slide);
     const start = { transform: now.transform, opacity: now.opacity, filter: now.filter };
-    const lines = [...slide.querySelectorAll(":scope > div")].map((line) => ({
-      long: line.hasAttribute("data-long"),
-      mask: getComputedStyle(line).maskPosition,
-      shift: getComputedStyle(line.firstElementChild).transform,
-    }));
+    const lines = [...slide.querySelectorAll(":scope > div")].map((line) => [line.hasAttribute("data-long"), line.getAttribute("style"), line.firstElementChild.getAttribute("style")]);
     slide.style.transform = slide.style.opacity = "";
     this._turnAnims?.forEach((a) => a.cancel());
     const sign = dir * (side && this._rtl() ? -1 : 1);
     const leaving = (this._leaving = { entry: from, side });
     await this.updateComplete;
     this.renderRoot.querySelectorAll(".slide.leaving > div").forEach((line, i) => {
-      const was = lines[i] || {};
-      line.toggleAttribute("data-long", Boolean(was.long));
-      line.style.maskPosition = was.mask || "";
-      line.firstElementChild.style.transform = was.shift || "";
+      const [long, lineStyle, textStyle] = lines[i] || [];
+      line.toggleAttribute("data-long", Boolean(long));
+      line.setAttribute("style", lineStyle || "");
+      line.firstElementChild.setAttribute("style", textStyle || "");
     });
     const away = { duration: duration(this, "slow") * 0.8, easing: EASE.out, fill: "forwards" };
     const [axis, px] = side ? ["X", 24] : ["Y", 12];
@@ -435,33 +433,55 @@ export class OrigamiNotificationsCard extends LitElement {
     if (this._shown === shown) this._cycle();
   }
 
-  // Long text holds, moves to its end at reading speed and holds again, and the next turn waits for it.
+  // Fonts and Home Assistant's state-display fill a line after the card renders, so each line and its text are
+  // watched for their size, as Home Assistant's scroll fade does.
   _scroll() {
     this._scrolled = this._cycleKey;
     const key = this._shown?.key;
-    const last = this._scrollLast;
-    const back = Boolean(last && last.key === key && !last.back && last.anim?.playState === "finished");
-    this._scrollAnims?.forEach((a) => a.cancel());
-    this._scrollAnims = [];
+    const last = this._marquee;
+    const back = Boolean(last && last.key === key && !last.back && last.end && performance.now() >= last.end);
+    this._sizes ||= new ResizeObserver(() => this._measure());
+    this._sizes.disconnect();
+    const lines = [...this.renderRoot.querySelectorAll(".head .slide:not(.leaving) > div")];
+    for (const line of lines) [line, line.firstElementChild].forEach((el) => this._sizes.observe(el));
+    this._marquee = { key, back, rtl: this._rtl(), start: performance.now(), end: 0, lines: lines.map((line) => ({ line, over: 0 })) };
+    this._measure();
+  }
+
+  _measure() {
+    const run = this._marquee;
     const still = this.preview || this._matches("(prefers-reduced-motion: reduce)");
-    const rtl = this._rtl();
-    let longest = 0;
-    for (const line of this.renderRoot.querySelectorAll(".head .slide:not(.leaving) > div")) {
-      const over = still ? 0 : line.scrollWidth - line.clientWidth;
-      line.toggleAttribute("data-long", over > 1);
-      if (over <= 1) continue;
-      longest = Math.max(longest, over);
-      const timing = { delay: HOLD_MS, duration: (over / SCROLL_PX_PER_S) * 1000, easing: "ease-in-out", fill: "both", direction: back ? "reverse" : "normal" };
-      const masks = rtl ? ["0 0", `${-FADE_PX}px 0`] : [`${-FADE_PX}px 0`, "0 0"];
-      this._scrollAnims.push(
-        line.firstElementChild.animate([{ transform: "none" }, { transform: `translateX(${rtl ? over : -over}px)` }], timing),
-        line.animate(masks.map((maskPosition) => ({ maskPosition })), timing),
-      );
+    for (const l of run.lines) {
+      const over = still ? 0 : l.line.firstElementChild.offsetWidth - l.line.clientWidth;
+      l.over = over > 1 ? over : 0;
+      l.line.toggleAttribute("data-long", l.over > 0);
     }
-    this._scrollLast = { key, back, anim: this._scrollAnims[0] };
-    const ms = Math.max(this._config.rotate * 1000, longest && 2 * HOLD_MS + (longest / SCROLL_PX_PER_S) * 1000);
+    const longest = Math.max(0, ...run.lines.map((l) => l.over));
+    const moving = (longest / SCROLL_PX_PER_S) * 1000;
+    run.end = longest ? run.start + HOLD_MS + moving : 0;
+    const ms = Math.max(this._config.rotate * 1000, longest && 2 * HOLD_MS + moving);
     this.renderRoot.querySelector(".head .cycle")?.style.setProperty("--origami-cycle", `${ms}ms`);
-    if (ms > this._config.rotate * 1000) this._turnAfter(ms);
+    this._turnAfter(ms);
+    this._frame();
+  }
+
+  // The place follows from the time since the start, so text that grows on the way still ends at its end.
+  _frame() {
+    cancelAnimationFrame(this._frameId);
+    clearTimeout(this._holdTimer);
+    const run = this._marquee;
+    const now = performance.now();
+    const moved = (Math.max(0, now - run.start - HOLD_MS) * SCROLL_PX_PER_S) / 1000;
+    for (const { line, over } of run.lines) {
+      const go = Math.min(moved, over);
+      const x = run.back ? go - over : -go;
+      line.firstElementChild.style.transform = x ? `translateX(${run.rtl ? -x : x}px)` : "";
+      line.style.setProperty("--fade-start", `${+Math.min(FADE_PX, -x).toFixed(1) || 0}px`);
+      line.style.setProperty("--fade-end", `${+Math.min(FADE_PX, over + x).toFixed(1)}px`);
+    }
+    if (!run.end || now >= run.end) return;
+    if (now < run.start + HOLD_MS) this._holdTimer = setTimeout(() => this._frame(), run.start + HOLD_MS - now);
+    else this._frameId = requestAnimationFrame(() => this._frame());
   }
 
   _tick() {

@@ -520,12 +520,23 @@ export const cardStyles = css`
   .head state-display {
     display: inline;
   }
+  .head :is(.title, .secondary) > span {
+    display: inline-block;
+  }
   .head [data-long] {
     text-overflow: clip;
-    mask: linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 16px), transparent) -16px 0 / calc(100% + 16px) 100% no-repeat;
+    mask-image: linear-gradient(to right, transparent, #000 var(--fade-start, 0px), #000 calc(100% - var(--fade-end, 0px)), transparent);
   }
-  .head :is([data-long], .leaving div) > span {
-    display: inline-block;
+  .head [data-long]:dir(rtl) {
+    mask-image: linear-gradient(to left, transparent, #000 var(--fade-start, 0px), #000 calc(100% - var(--fade-end, 0px)), transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .head :is(.title, .secondary) > span {
+      display: inline;
+    }
+  }
+  :host([preview]) .head :is(.title, .secondary) > span {
+    display: inline;
   }
 
   .cycle {
