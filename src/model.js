@@ -60,7 +60,7 @@ export function buildModel(input) {
     watched.add(id);
     if (!allowed(id) || (id.startsWith("update.") && !allowed("updates"))) continue;
     const st = hass.states[id];
-    entries.push(...entityEntries(src, st, ctx));
+    if (!src.visibility || ctx.conditionsMet(src.visibility, id)) entries.push(...entityEntries(src, st, ctx));
     if (st && st.state !== "unavailable" && st.state !== "unknown") available.add(id);
   }
 

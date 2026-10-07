@@ -346,7 +346,8 @@ const EDITOR_HELPERS = {
     infos: "Shown in turn after what needs attention.",
     rotate: "At 0 the card holds still.",
     css: "Goes into the card after its own styles, so you can change any part of it.",
-    visibility_intro: "The info shows while all of these conditions hold.",
+    visibility_intro: "It shows while all of these conditions hold.",
+    row_tap_action: "What a tap on its row in the list does. A tap on the closed card opens the list, or does this when it is the only entry.",
   },
   de: {
     label: "Jede Entität mit diesem Label kommt dazu und wird automatisch erkannt.",
@@ -361,7 +362,8 @@ const EDITOR_HELPERS = {
     infos: "Erscheinen im Wechsel nach dem, was anliegt.",
     rotate: "Bei 0 bleibt die Karte stehen.",
     css: "Kommt nach den Styles der Karte, so lässt sich jeder Teil ändern.",
-    visibility_intro: "Die Info erscheint, solange alle diese Bedingungen erfüllt sind.",
+    visibility_intro: "Es erscheint, solange alle diese Bedingungen erfüllt sind.",
+    row_tap_action: "Was ein Tippen auf seine Zeile in der Liste tut. Ein Tippen auf die geschlossene Karte öffnet die Liste, oder tut dies, wenn es der einzige Eintrag ist.",
   },
 };
 

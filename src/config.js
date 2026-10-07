@@ -41,6 +41,8 @@ function parseEntity(entry) {
   check(optional(src.attribute, (a) => typeof a === "string"), "attribute must be the name of an attribute");
   check(optional(src.image, (i) => typeof i === "string"), "image must be an attribute path or URL");
   check(optional(src.background, (b) => typeof b === "boolean"), "background must be true or false");
+  check(optional(src.color, (c) => typeof c === "string"), "color must be a theme color like green, or a CSS color");
+  check(optional(src.visibility, Array.isArray), `visibility of ${src.entity} must be a list of conditions`);
   check(optional(src.before, (b) => parseBefore(b) >= 0), "before must be minutes or a duration like 1:30:00");
   check(isAction(src.tap_action), "tap_action must be an action");
   check(optional(src.actions, (a) => Array.isArray(a) && a.every((ac) => isObject(ac) && typeof ac.label === "string" && isObject(ac.tap_action))), "actions must be a list of buttons with a label and a tap_action");
