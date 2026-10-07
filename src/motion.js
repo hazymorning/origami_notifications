@@ -7,6 +7,10 @@ export function duration(el, name) {
   return Number.isFinite(n) ? (value.endsWith("ms") ? n : n * 1000) : FALLBACK[name];
 }
 
+// CSS linear() draws a spring from sampled points. This one settles without a visible bounce.
+const spring = (t) => 1 - Math.exp(-8 * t) * (Math.cos(6 * t) + (8 / 6) * Math.sin(6 * t));
+export const SPRING = `linear(${Array.from({ length: 33 }, (_, i) => (i === 32 ? 1 : +spring(i / 32).toFixed(3))).join(", ")})`;
+
 export const EASE = {
   standard: "cubic-bezier(0.4, 0, 0.2, 1)",
   out: "cubic-bezier(0.4, 0, 1, 1)",

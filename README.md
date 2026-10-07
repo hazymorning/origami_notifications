@@ -2,7 +2,7 @@
 
 A notification card for Home Assistant that folds away when there is nothing to see.
 
-Closed, the card is one row that turns through whatever needs attention, then through your infos. A tap unfolds the list of all of it. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
+Closed, the card is one row that turns through whatever needs attention, then through your infos. Long text scrolls. A tap unfolds the list of all of it. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
 
 Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
 
@@ -35,7 +35,7 @@ Without HACS, copy `dist/origami-notifications.js` to `/config/www/` and add `/l
 <details>
 <summary>Styling</summary>
 
-Everything in `css` goes into the card after its own styles, so you can change any part of it.
+Everything in `css` comes after the card's own styles, so you can change any part.
 
 | Variable | Default | |
 | --- | --- | --- |
@@ -52,7 +52,7 @@ Everything in `css` goes into the card after its own styles, so you can change a
 
 | Part | Classes |
 | --- | --- |
-| Closed | `.head` with `.icon`, `.badge`, `.title` and `.secondary` |
+| Closed | `.head` with `.icon`, `.cycle` for the ring, `.badge`, `.title` and `.secondary` |
 | Open | `.bar` with `.count`, the `.list` of `.row`s and the `.foot` with `.clear` |
 | Row | `.icon`, `.title`, `.time`, `.dismiss`, `.message` and the `.actions` with `.action` buttons, the same in the dialog |
 | Background picture | `.backdrop` |
@@ -76,7 +76,7 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | `repairs` | `true` | Show repairs, to admins only |
 | `hide_when_empty` | `true` | Hide the card when there is nothing to show. With `false`, quiet times show the weather, the next events and your infos. |
 | `vertical` | `false` | The icon above the text, like a tile with vertical content. The text then has the whole width, as in half a header. |
-| `rotate` | `8` | Seconds between turns of the closed card. At `0` it holds still. A swipe or an arrow key turns it by hand. |
+| `rotate` | `8` | Seconds between turns of the closed card. A ring around the icon fills until the next turn. At `0` it holds still. A swipe or an arrow key turns it by hand. The turns wait while the list is open, a finger is on the card or the card is out of sight. |
 | `slide` | `up` | Whether the text moves `up` or to the `side` at a turn |
 | `audience` | | Who sees what, see below |
 | `css` | | Your own CSS, see Styling |

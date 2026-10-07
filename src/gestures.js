@@ -24,7 +24,6 @@ export class HeadGestures {
   down(e) {
     if (e.button > 0 || !e.isPrimary) return;
     this.suppress = false;
-    this.on.pressed(true);
     const press = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, dx: 0, drag: false };
     const hold = this.on.holdAction();
     if (hold) {
@@ -60,7 +59,6 @@ export class HeadGestures {
     if (!p || e.pointerId !== p.id) return;
     this.press = null;
     clearTimeout(p.timer);
-    this.on.pressed(false);
     if (!p.drag) return;
     const fast = Math.abs(p.dx) / Math.max(e.timeStamp - p.t, 1) > 0.5;
     const swiped = !cancelled && (Math.abs(p.dx) > SWIPE_PX || fast);
@@ -105,7 +103,6 @@ export class HeadGestures {
   // A card that leaves gets no pointerup.
   reset() {
     if (this.press) clearTimeout(this.press.timer);
-    if (this.press) this.on.pressed(false);
     this.press = null;
     clearTimeout(this.tapWait);
     this.tapWait = null;
