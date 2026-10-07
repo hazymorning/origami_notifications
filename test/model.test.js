@@ -137,10 +137,11 @@ test("a calendar shows a running event and, with before, the next one ahead", ()
   const m = model(config, states);
   assert.deepEqual(show(m), [
     ["Paper bin", "today at 18:00"],
-    ["Trip", "on 10/04"],
+    ["Trip", ""],
     ["Holiday", "today"],
     ["Standup", "today at 09:30"],
   ]);
+  assert.equal(m.ctx.clock.entryTime(m.entries[1], NOW), "on 10/04", "a day ahead is named once, by its time");
   assert.equal(m.wakes[0], Date.parse("2026-10-02T14:00:00Z"), "it wakes when the dentist is an hour ahead");
 });
 
@@ -149,7 +150,8 @@ test("an event leads with its name in the color of a running calendar, and color
   const running = "var(--state-calendar-on-color, var(--state-calendar-active-color, var(--state-active-color)))";
   const m = model({ hide_when_empty: false, entities: [{ entity: "calendar.family", before: 60 }, { entity: "binary_sensor.door", color: "green" }] }, states);
   assert.deepEqual(show(m, "title", "color"), [["Dentist", running], ["Door", "var(--green-color)"]]);
-  assert.deepEqual(m.slides.map((s) => [s.title, s.content, s.color]), [["Dentist", ["start_time"], running]], "the next event leads, and its time follows");
+  const later = model({ hide_when_empty: false, entities: ["calendar.family"] }, states);
+  assert.deepEqual(later.slides.map((s) => [s.title, s.content, s.color]), [["Dentist", ["start_time"], running]], "the next event leads, and its time follows");
   const named = model({ hide_when_empty: false, entities: [{ entity: "calendar.family", name: "Family", color: "green" }] }, states).slides;
   assert.deepEqual(named.map((s) => [s.title, s.content, s.color]), [["Family", ["message", "start_time"], "var(--green-color)"]], "a name set by hand leads instead");
 });
@@ -184,9 +186,10 @@ test("bin day shows from noon the day before until the pickup, from a calendar o
     st("calendar.bins", "off", { friendly_name: "Bin calendar", message: "Paper", start_time: "2026-10-04 00:00:00", all_day: true })
   );
   const shown = (hours) => model({ entities: Object.keys(states) }, states, { now: NOW + hours * 3600000, hass });
-  assert.deepEqual(show(shown(-1)), [], "not before noon the day before");
-  assert.deepEqual(show(shown(0), "title", "message", "kind"), [["Bio", "tomorrow", "waste"]]);
-  assert.deepEqual(show(shown(24)), [["Paper", "tomorrow"], ["Bio", "today"]], "on the day itself, and the calendar's next pickup joins at noon");
+  const days = (m) => m.entries.map((e) => [e.title, e.message || m.ctx.clock.entryTime(e, m.ctx.now), e.kind]);
+  assert.deepEqual(days(shown(-1)), [], "not before noon the day before");
+  assert.deepEqual(days(shown(0)), [["Bio", "tomorrow", "waste"]], "the day is named once, by its time");
+  assert.deepEqual(days(shown(24)), [["Paper", "tomorrow", "waste"], ["Bio", "today", "waste"]], "on the day itself, and the calendar's next pickup joins at noon");
   assert.equal(shown(-1).wakes[0], NOW, "the card wakes at noon");
 });
 
@@ -329,13 +332,13 @@ const weather = (state = "cloudy", attributes = {}) => st("weather.home", state,
 
 test("rain, snow, thunder and frost ahead name the hour they start", () => {
   const ahead = (forecast, state) => model({ weather: "weather.home" }, statesOf(weather(...state)), { forecast: { "weather.home": forecast } }).entries.map((e) => [e.title, e.message]);
-  assert.deepEqual(ahead(hourly({}, {}, { condition: "rainy", precipitation_probability: 70 }), []), [["Rain from 14", "70% chance"]]);
+  assert.deepEqual(ahead(hourly({}, {}, { condition: "rainy", precipitation_probability: 70 }), []), [["Rain from 14:00", "70% chance"]]);
   assert.deepEqual(
     [hourly({}, { condition: "snowy" }), hourly({}, { condition: "lightning-rainy" }), hourly({}, { condition: "rainy", temperature: 1 }), hourly({ precipitation: 0.1, precipitation_probability: 59 }), hourly({}, {}, {}, {}, {}, {}, { condition: "pouring" })].map((f) => ahead(f, [])[0]?.[0] ?? null),
-    ["Snow from 13", "Thunderstorms from 13", "Snow from 13", null, null],
+    ["Snow from 13:00", "Thunderstorms from 13:00", "Snow from 13:00", null, null],
     "by kind, and nothing below the marks or beyond six hours"
   );
-  assert.deepEqual(ahead(hourly({ temperature: 3 }, { temperature: -1 }, { temperature: -3 }), ["clear-night", { temperature: 3 }]), [["Frost from 13", "Low of -3"]]);
+  assert.deepEqual(ahead(hourly({ temperature: 3 }, { temperature: -1 }, { temperature: -3 }), ["clear-night", { temperature: 3 }]), [["Frost from 13:00", "Low of -3"]]);
 });
 
 test("wet weather with a window open is a warning that counts the windows", () => {
@@ -431,6 +434,8 @@ test("a card that stays while nothing needs attention shows the weather now, wha
   const daySlides = model({ hide_when_empty: false, weather: "weather.home" }, daily, { forecast: { "weather.home": [day(0), day(1, { condition: "rainy" })] } }).slides;
   assert.deepEqual(daySlides.map((s) => [s.title, s.text ?? ""]), [["Home", ""], ["Today", "sunny · 9 to 16°"]], "a daily forecast names the day");
   assert.equal(model({ weather: "weather.home", entities: ["calendar.family"] }, states).slides.length, 0, "a card that hides when empty adds none");
+  const soon = model({ hide_when_empty: false, entities: [{ entity: "calendar.family", before: "24:00:00" }] }, states);
+  assert.deepEqual([soon.entries.map((e) => e.title), soon.slides.length], [["Dentist"], 0], "an event that shows ahead shows once");
 });
 
 test("times read like Home Assistant's, rounded before they pick a unit", () => {
@@ -442,6 +447,8 @@ test("times read like Home Assistant's, rounded before they pick a unit", () => 
   );
   const twelve = new Clock({ locale: { language: "de", time_format: "12", time_zone: "server" }, config: { time_zone: "UTC" } }, "de", cardTexts("de"));
   assert.match(twelve.hour(Date.parse("2026-10-02T19:00:00Z")), /^7\D/, "12 hours where the profile asks for them");
+  const british = new Clock({ locale: { language: "en-GB", time_format: "24", time_zone: "server" }, config: { time_zone: "UTC" } }, "en-GB", cardTexts("en"));
+  assert.deepEqual([british.hour(Date.parse("2026-10-02T21:00:00Z")), new Clock({ locale: { language: "de", time_format: "24", time_zone: "server" }, config: { time_zone: "UTC" } }, "de", cardTexts("de")).hour(Date.parse("2026-10-02T21:00:00Z"))], ["21:00", "21 Uhr"], "an hour reads as people write it");
 });
 
 test("texts use Home Assistant's words where it has them, and other languages borrow them", () => {

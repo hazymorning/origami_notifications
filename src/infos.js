@@ -8,7 +8,7 @@ const NIGHT_ICONS = { sunny: "mdi:weather-night", partlycloudy: "mdi:weather-nig
 
 export const showsForecast = (info, st) => info.entity.startsWith("weather.") && info.show_forecast !== false && forecastSupported(st, info.forecast_type);
 
-export function quietInfos(config, sources, hass, allowed) {
+export function quietInfos(config, sources, hass, allowed, shown) {
   if (config.hide_when_empty !== false) return config.infos;
   const taken = new Set(config.infos.map((info) => info.entity));
   const extra = [];
@@ -19,7 +19,7 @@ export function quietInfos(config, sources, hass, allowed) {
   }
   for (const src of sources) {
     const st = hass.states[src.entity];
-    if (!src.entity.startsWith("calendar.") || taken.has(src.entity) || !allowed(src.entity)) continue;
+    if (!src.entity.startsWith("calendar.") || taken.has(src.entity) || shown.has(src.entity) || !allowed(src.entity)) continue;
     if (st?.state === "off" && !isEmpty(st.attributes.message)) extra.push({ entity: src.entity, name: src.name, icon: src.icon, color: src.color });
   }
   return [...config.infos, ...extra];
