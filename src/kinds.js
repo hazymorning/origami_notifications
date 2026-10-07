@@ -363,8 +363,10 @@ function warning(st, src, ctx) {
 
 const DEVICE_CLASS_SEV = { smoke: "crit", gas: "crit", carbon_monoxide: "crit", moisture: "crit", safety: "crit", heat: "crit", problem: "warn", tamper: "warn", battery: "warn", sound: "warn" };
 
+// With conditions of its own, a plain entity shows whenever they hold, like a temperature above a mark.
 function generic(st, src, ctx) {
-  if (src.type ? isInactive(st.state) : !isOn(st.state)) return [];
+  const shows = src.visibility ? !["unavailable", "unknown"].includes(st.state) : src.type ? !isInactive(st.state) : isOn(st.state);
+  if (!shows) return [];
   const a = st.attributes;
   const binary = domainOf(st.entity_id) === "binary_sensor";
   return [

@@ -21,15 +21,17 @@ async function editor(w, config, hass = makeHass({})) {
     await settle(ed);
     return written.at(-1);
   };
-  return { ed, written, form: () => forms()[0], infoForms: () => forms().slice(1), send };
+  const within = (panel) => () => [...ed.shadowRoot.querySelectorAll(`.${panel} ha-form`)];
+  return { ed, written, form: () => forms()[0], entityForms: within("entities"), infoForms: within("infos"), send };
 }
 
 test("the editor offers every option, with entity options and a rule for each source", async () => {
   const w = makeWindow();
-  const { form } = await editor(w, { entities: ["calendar.family"] }, makeHass(statesOf(st("calendar.family", "off", { friendly_name: "Family" }))));
+  const { form, entityForms } = await editor(w, { entities: ["calendar.family"] }, makeHass(statesOf(st("calendar.family", "off", { friendly_name: "Family" }))));
   const schema = form().schema;
-  same(schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "content_layout", "grid", "options", "audience", "styling"]);
-  same(schema.find((s) => s.name === "options").schema[0].schema.map((s) => s.name || s.type), ["type", "attribute", "grid", "image", "background", "before", "tap_action"]);
+  same(schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "content_layout", "grid", "audience", "styling"]);
+  same(entityForms()[0].schema.map((s) => s.name || s.type), ["type", "attribute", "grid", "color", "image", "background", "before", "tap_action"]);
+  assert.match(entityForms()[0].computeHelper(entityForms()[0].schema.at(-1)), /closed card opens the list/, "the tap behavior says it is about the row");
   same(schema.find((s) => s.name === "audience").schema.map((s) => s.name), ["system", "updates", "repairs", "calendar.family"]);
   same(schema.find((s) => s.name === "content_layout").selector.select.options.map((o) => o.image.src.split("/").pop()), ["tile_content_layout_horizontal.svg", "tile_content_layout_vertical.svg"]);
 });
@@ -37,12 +39,11 @@ test("the editor offers every option, with entity options and a rule for each so
 test("the editor writes only what differs from the defaults, and keeps what only YAML can set", async () => {
   const w = makeWindow();
   const hass = makeHass(statesOf(st("sensor.dinner", "Lasagne", { friendly_name: "Dinner", recipe: { name: "Lasagne" } })));
-  const { form, send } = await editor(w, { entities: [{ entity: "sensor.dinner", actions: [{ label: "Cook", tap_action: { action: "toggle" } }] }] }, hass);
-  const written = await send(form(), (v) => {
-    Object.assign(v.options["sensor.dinner"], { background: true, name: "" });
-    return { ...v, content_layout: "vertical", rotate: 0, css: "" };
-  });
-  same(written, { type: TYPE, entities: [{ entity: "sensor.dinner", background: true, actions: [{ label: "Cook", tap_action: { action: "toggle" } }] }], vertical: true, rotate: 0 });
+  const { ed, form, entityForms, send } = await editor(w, { entities: [{ entity: "sensor.dinner", actions: [{ label: "Cook", tap_action: { action: "toggle" } }] }] }, hass);
+  await send(entityForms()[0], (v) => ({ ...v, background: true, name: "", color: "state" }));
+  await send(ed.shadowRoot.querySelector(".entities ha-card-conditions-editor"), [{ condition: "numeric_state", above: 28 }]);
+  const written = await send(form(), (v) => ({ ...v, content_layout: "vertical", rotate: 0, css: "" }));
+  same(written, { type: TYPE, entities: [{ entity: "sensor.dinner", background: true, visibility: [{ condition: "numeric_state", above: 28 }], actions: [{ label: "Cook", tap_action: { action: "toggle" } }] }], vertical: true, rotate: 0 });
   same(Object.keys(await send(form(), (v) => ({ ...v, content_layout: "horizontal", rotate: 8, entities: [] }))), ["type"], "defaults are left out");
 });
 
@@ -73,7 +74,7 @@ test("each info is edited with the fields of a tile and Home Assistant's visibil
   const { ed, form, infoForms, send } = await editor(w, { infos: ["sun.sun", weather] }, hass);
   same(infoForms().map((f) => f.schema.map((s) => s.name || s.type)), Array(2).fill(["name", "grid", "state_content", "show_entity_picture", "tap_action", "optional_actions"]));
   same((await send(infoForms()[0], { entity: "sun.sun", state_content: "next_rising", color: "state", name: "" })).infos, [{ entity: "sun.sun", state_content: "next_rising" }, weather], "only what is set is written");
-  const conditions = ed.shadowRoot.querySelectorAll("ha-card-conditions-editor")[1];
+  const conditions = ed.shadowRoot.querySelectorAll(".infos ha-card-conditions-editor")[1];
   same((await send(conditions, [{ condition: "user", users: ["u1"] }])).infos[1].visibility, [{ condition: "user", users: ["u1"] }]);
   await send(form(), (v) => ({ ...v, infos: ["sun.sun", "sensor.energy"] }));
   same((await send(form(), (v) => ({ ...v, infos: ["sensor.energy", "sun.sun"] }))).infos, [{ ...weather, entity: "sensor.energy", visibility: [{ condition: "user", users: ["u1"] }] }, { entity: "sun.sun", state_content: "next_rising" }], "a swapped or moved info keeps its options");

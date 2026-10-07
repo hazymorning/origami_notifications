@@ -9,7 +9,7 @@ import { isObject } from "./values.js";
 import { forecastSupported } from "./weather.js";
 
 const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "vertical", "rotate", "slide", "audience", "css"];
-const ENTITY_KEYS = ["type", "attribute", "name", "icon", "image", "background", "before", "tap_action"];
+const ENTITY_KEYS = ["type", "attribute", "name", "icon", "color", "image", "background", "before", "tap_action", "visibility"];
 const ENTITY_ORDER = ["entity", ...ENTITY_KEYS, "actions"];
 const INFO_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
 const READS_ATTRIBUTE = ["attribute", "picture"];
@@ -29,6 +29,7 @@ export class OrigamiNotificationsEditor extends LitElement {
   static properties = { hass: { attribute: false }, _config: { state: true } };
 
   static styles = css`
+    .entities,
     .infos {
       margin-top: 24px;
     }
@@ -111,7 +112,6 @@ export class OrigamiNotificationsEditor extends LitElement {
   _schema(sources) {
     const t = this._t;
     const audience = this._config.audience || {};
-    const entries = this._entries();
     const choices = (values, label = (v) => t.label(v)) => values.map((value) => ({ value, label: label(value) }));
     return [
       { name: "entities", selector: { entity: { multiple: true } } },
@@ -141,34 +141,6 @@ export class OrigamiNotificationsEditor extends LitElement {
           { name: "slide", selector: { select: { mode: "dropdown", options: choices(["up", "side"], (v) => t.label("slide_" + v)) } } },
         ],
       },
-      ...(entries.length
-        ? [
-            {
-              name: "options",
-              type: "expandable",
-              title: t.label("options"),
-              icon: "mdi:tune-variant",
-              schema: entries.map((e) => {
-                const kind = this._kind(e);
-                return {
-                  name: e.entity,
-                  type: "expandable",
-                  title: e.name || this._name(e.entity),
-                  icon: e.icon || KIND_ICONS[kind],
-                  schema: [
-                    { name: "type", selector: { select: { mode: "dropdown", options: choices(["auto", ...KIND_NAMES], (v) => t.label("type_" + v)) } } },
-                    ...(!e.type || READS_ATTRIBUTE.includes(e.type) ? [{ name: "attribute", helper: e.type === "picture" ? "attribute_picture" : "attribute", selector: { attribute: { entity_id: e.entity } } }] : []),
-                    { name: "", type: "grid", schema: [{ name: "name", selector: { text: {} } }, { name: "icon", selector: { icon: { placeholder: KIND_ICONS[kind] } } }] },
-                    { name: "image", selector: { text: {} } },
-                    { name: "background", selector: { boolean: {} } },
-                    ...(AHEAD_KINDS.includes(kind) ? [{ name: "before", selector: { duration: { enable_day: true } } }] : []),
-                    { name: "tap_action", selector: { ui_action: { default_action: "more-info" } } },
-                  ],
-                };
-              }),
-            },
-          ]
-        : []),
       {
         name: "audience",
         type: "expandable",
@@ -198,9 +170,6 @@ export class OrigamiNotificationsEditor extends LitElement {
       content_layout: config.vertical ? "vertical" : "horizontal",
       entities: this._entries().map((e) => e.entity),
       infos: this._infos().map((info) => info.entity),
-      options: Object.fromEntries(
-        this._entries().map((e) => [e.entity, { ...e, type: e.type || "auto", background: Boolean(e.background), before: e.before == null ? undefined : durationParts(parseBefore(e.before)) }])
-      ),
       audience: Object.fromEntries(sources.map((s) => [s.key, { visible: ruleMode(audience[s.key]), people: audience[s.key]?.only || audience[s.key]?.except || [] }])),
     };
   }
@@ -219,7 +188,7 @@ export class OrigamiNotificationsEditor extends LitElement {
         if (!(key in option)) continue;
         const v = option[key];
         if (key === "before" && parseBefore(v) === parseBefore(base.before)) continue;
-        if (isEmpty(v) || (key === "type" && v === "auto") || (key === "before" && !parseBefore(v))) delete merged[key];
+        if (isEmpty(v) || (key === "type" && v === "auto") || (key === "color" && v === "state") || (key === "before" && !parseBefore(v))) delete merged[key];
         else merged[key] = v;
       }
       if (merged.type && !READS_ATTRIBUTE.includes(merged.type)) delete merged.attribute;
@@ -229,11 +198,11 @@ export class OrigamiNotificationsEditor extends LitElement {
 
   _onChange(e) {
     e.stopPropagation();
-    const { content_layout: layout, options, ...value } = e.detail.value;
+    const { content_layout: layout, ...value } = e.detail.value;
     if (layout) value.vertical = layout === "vertical";
     const before = this._sources().map((s) => s.key);
     this._swapped = null;
-    if (Array.isArray(value.entities)) value.entities = this._mergeEntities(value.entities, options);
+    if (Array.isArray(value.entities)) value.entities = this._mergeEntities(value.entities);
     if (Array.isArray(value.infos)) value.infos = this._mergeInfos(value.infos);
     const audience = { ...this._config.audience };
     for (const [key, v] of Object.entries(value.audience || {})) {
@@ -333,6 +302,58 @@ export class OrigamiNotificationsEditor extends LitElement {
     this._write({ infos: infos.map((i) => this._infoEntry(i)) });
   }
 
+  _entitySchema(e) {
+    const t = this._t;
+    const kind = this._kind(e);
+    const choices = (values) => values.map((value) => ({ value, label: t.label("type_" + value) }));
+    return [
+      { name: "type", selector: { select: { mode: "dropdown", options: choices(["auto", ...KIND_NAMES]) } } },
+      ...(!e.type || READS_ATTRIBUTE.includes(e.type) ? [{ name: "attribute", helper: e.type === "picture" ? "attribute_picture" : "attribute", selector: { attribute: { entity_id: e.entity } } }] : []),
+      { name: "", type: "grid", schema: [{ name: "name", selector: { text: {} } }, { name: "icon", selector: { icon: { placeholder: KIND_ICONS[kind] } } }] },
+      { name: "color", selector: { ui_color: { default_color: "state", include_state: true } } },
+      { name: "image", selector: { text: {} } },
+      { name: "background", selector: { boolean: {} } },
+      ...(AHEAD_KINDS.includes(kind) ? [{ name: "before", selector: { duration: { enable_day: true } } }] : []),
+      { name: "tap_action", helper: "row_tap_action", selector: { ui_action: { default_action: "more-info" } } },
+    ];
+  }
+
+  _onEntity(e, index, value) {
+    e.stopPropagation();
+    const ids = this._entries().map((entry) => entry.entity);
+    this._write({ entities: this._mergeEntities(ids, { [ids[index]]: value }) });
+  }
+
+  _entityPanel(e, index) {
+    const t = this._t;
+    const data = { ...e, type: e.type || "auto", color: e.color || "state", background: Boolean(e.background), before: e.before == null ? undefined : durationParts(parseBefore(e.before)) };
+    const conditions = Array.isArray(e.visibility) ? e.visibility : [];
+    return html`<ha-expansion-panel outlined .header=${e.name || this._name(e.entity)} .secondary=${t.label("type_" + this._kind(e))}>
+      <ha-icon slot="leading-icon" .icon=${e.icon || KIND_ICONS[this._kind(e)]}></ha-icon>
+      <div class="content">
+        <ha-form
+          .hass=${this.hass}
+          .data=${this._memo("entity-data-" + index, data)}
+          .schema=${this._memo("entity-schema-" + index, this._entitySchema(e))}
+          .computeLabel=${(s) => t.label(s.name)}
+          .computeHelper=${(s) => t.helper(s.helper || s.name)}
+          @value-changed=${(ev) => this._onEntity(ev, index, ev.detail.value)}
+        ></ha-form>
+        <ha-expansion-panel outlined .header=${t.label("visibility")}>
+          <ha-icon slot="leading-icon" icon="mdi:eye"></ha-icon>
+          <div class="content">
+            <p class="intro">${t.helper("visibility_intro")}</p>
+            <ha-card-conditions-editor
+              .hass=${this.hass}
+              .conditions=${this._memo("entity-conditions-" + index, conditions)}
+              @value-changed=${(ev) => this._onEntity(ev, index, { visibility: ev.detail.value })}
+            ></ha-card-conditions-editor>
+          </div>
+        </ha-expansion-panel>
+      </div>
+    </ha-expansion-panel>`;
+  }
+
   _infoPanel(info, index) {
     const t = this._t;
     const st = this.hass.states[info.entity];
@@ -370,6 +391,7 @@ export class OrigamiNotificationsEditor extends LitElement {
     if (!this._config || !this.hass) return nothing;
     const t = this._t;
     const sources = this._sources();
+    const entries = this._entries();
     const infos = this._infos();
     return html`
       <ha-form
@@ -380,6 +402,12 @@ export class OrigamiNotificationsEditor extends LitElement {
         .computeHelper=${(s) => t.helper(s.helper || s.name)}
         @value-changed=${this._onChange}
       ></ha-form>
+      ${entries.length
+        ? html`<ha-expansion-panel class="entities" outlined .header=${t.label("options")}>
+            <ha-icon slot="leading-icon" icon="mdi:tune-variant"></ha-icon>
+            <div class="content">${entries.map((e, i) => this._entityPanel(e, i))}</div>
+          </ha-expansion-panel>`
+        : nothing}
       ${infos.length
         ? html`<ha-expansion-panel class="infos" outlined .header=${t.label("info_options")}>
             <ha-icon slot="leading-icon" icon="mdi:information-outline"></ha-icon>

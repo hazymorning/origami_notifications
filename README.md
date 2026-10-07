@@ -93,7 +93,7 @@ Infos take the options of a tile card.
 | Option | |
 | --- | --- |
 | `entity` | The entity to show |
-| `name`, `icon`, `color`, `show_entity_picture` | As on a tile |
+| `name`, `icon`, `color`, `show_entity_picture` | As on a tile. Without a name, a calendar leads with its next event and the weather with its state. |
 | `state_content`, `time_format` | What the second line says, like `[temperature, state]` or `next_rising` |
 | `forecast_type` | For a weather entity, `daily`, `hourly` or `twice_daily` adds the forecast |
 | `forecast_slots` | How many days or hours turn by, 1 unless set |
@@ -147,14 +147,20 @@ Every entity can take these options.
 | `attribute` | The attribute to show, like `next_due` or `book.title`. A plain value becomes the title. |
 | `name` | Replaces the entity's name, not the event or the thing it shows |
 | `icon` | Replaces the icon |
+| `color` | A theme color like `green`, as on a tile, or any CSS color. An event on show has the color of a running calendar. |
 | `image` | A picture from an attribute or a URL, instead of the entity's own |
 | `background` | Shows the picture blurred behind the card while this entity is on top |
 | `before` | For anything with a time ahead, how far ahead it shows, in minutes or as a duration like `1:30:00` |
-| `tap_action` | What a tap does. By default it opens the entity. |
+| `tap_action` | What a tap on its row does, and on the closed card while it is the only entry. By default it opens the entity. |
+| `visibility` | The conditions of Home Assistant's visibility tab. It shows only while all of them hold. A plain entity then shows whatever its state, like a temperature above 28°. |
 | `actions` | Buttons, each with a `label` and a `tap_action` |
 
 ```yaml
 entities:
+  - entity: sensor.attic_temperature
+    visibility:
+      - condition: numeric_state
+        above: 28
   - entity: binary_sensor.doorbell
     actions:
       - label: Open the door

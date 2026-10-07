@@ -303,6 +303,13 @@ test("other entities show while on, active or above 0, and urgent device classes
   assert.ok(m.watched.has("light.b"), "a group's members are watched");
 });
 
+test("an entity with conditions shows while they hold, so a sensor can show above or below a mark", () => {
+  const config = { entities: [{ entity: "sensor.attic", visibility: [{ condition: "numeric_state", above: 28 }] }, { entity: "sensor.cellar", visibility: [{ condition: "numeric_state", below: 0 }] }] };
+  const temps = (attic, cellar) => model(config, statesOf(st("sensor.attic", attic, { friendly_name: "Attic" }), st("sensor.cellar", cellar, { friendly_name: "Cellar" }))).entries.map((e) => [e.title, e.message]);
+  assert.deepEqual(temps("29.5", "-2"), [["Attic", "29.5"], ["Cellar", "-2"]], "a value below 0 shows too, since its conditions decide");
+  assert.deepEqual(temps("27", "3"), []);
+});
+
 test("open windows become one entry named by their rooms", () => {
   const win = (id, name, minutes) => on(id, name, { device_class: "window" }, at(minutes));
   const states = statesOf(win("binary_sensor.kitchen", "Kitchen window", -30), win("binary_sensor.bath", "Bath window", -20), win("binary_sensor.office", "Office window", -10));
