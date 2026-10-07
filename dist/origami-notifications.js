@@ -3206,7 +3206,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._scheduleBoundary(wakes, now);
   }
 
-  /* The infos a quiet card shows, in their order, while their entity is there and their conditions hold. */
   /* A card that stays while nothing needs attention always has something to say. After the infos come the weather
    * now and in the hours ahead, and the next event of each calendar it watches. */
   _quietInfos(allowed = () => true) {
@@ -3231,6 +3230,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     return [...own, ...extra];
   }
 
+  /* The infos a quiet card shows, in their order, while their entity is there and their conditions hold. */
   _infosNow(ctx, read, allowed) {
     const h = ctx.hass;
     const out = [];
