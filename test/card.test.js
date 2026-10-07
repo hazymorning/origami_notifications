@@ -609,7 +609,7 @@ test("a lock, a cover, a valve, a vacuum, a mower and a siren show while active"
   );
 });
 
-test("DWD and Meteoalarm warnings follow their level, and Meteoalarm's expire", () => {
+test("warnings in the attributes follow their level or severity, one row each, and expire", () => {
   useClock();
   const w = makeWindow({ clock: true });
   const warning = (i, headline, level, start) => ({ ["warning_" + i + "_headline"]: headline, ["warning_" + i + "_level"]: level, ["warning_" + i + "_start"]: start });
@@ -618,6 +618,11 @@ test("DWD and Meteoalarm warnings follow their level, and Meteoalarm's expire", 
     "update.router": st("update.router", "on", { title: "RouterOS", latest_version: "7.15" }),
   }));
   same([rows(dwd).map((r) => [r.title, r.tile]), head(dwd)], [[["Sturm", "rtile crit"], ["Glatteis", "rtile warn"], ["RouterOS", "rtile"]], { title: "Sturm", badge: "3" }], "DWD level 3 is critical and goes first, then the newest");
+  const other = mount(w, { type: "x", updates: false, entities: [{ entity: "sensor.old", type: "dwd" }, "sensor.pollen"] }, makeHass({
+    "sensor.old": st("sensor.old", "1", warning(1, "Frost", 2, "2026-09-21T08:00:00+00:00")),
+    "sensor.pollen": st("sensor.pollen", "high", { friendly_name: "Pollen", alert_1_title: "Birch", alert_1_description: "Lots of it", alert_1_severity: "Severe" }),
+  }));
+  same(rows(other).map((r) => [r.title, r.body, r.tile]), [["Birch", "Lots of it", "rtile crit"], ["Frost", "Level 2", "rtile warn"]], "any numbered warnings are found, and type dwd from older configs still works");
   const card = (state) => mount(w, cfg(["binary_sensor.meteoalarm"]), makeHass({ "binary_sensor.meteoalarm": state }));
   same(["Extreme", "Severe", "Moderate", "Minor"].map((severity) => rows(card(meteoalarm({ severity })))[0].tile), ["rtile crit", "rtile crit", "rtile warn", "rtile"], "Meteoalarm follows its severity");
   const el = mount(w, { type: "x", updates: false, entities: ["binary_sensor.meteoalarm"] }, makeHass({ "binary_sensor.meteoalarm": meteoalarm() }));
@@ -1010,7 +1015,7 @@ test("news comes forward and is read out, and what was there before is not news"
   same([say(), head(el).title], ["Smoke. on", "Door"], "the entries it held back are not news when it ends");
 });
 
-test("a swipe or an arrow key turns the card by hand and stops the turns", () => {
+test("a swipe or an arrow key turns the card by hand, and the turns go on from there", () => {
   useClock();
   const w = makeWindow({ clock: true });
   const states = threeOn();
@@ -1028,13 +1033,22 @@ test("a swipe or an arrow key turns the card by hand and stops the turns", () =>
   same(head(el).title, "Door", "a swipe to the right shows the one before");
   h.dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
   same(head(el).title, "Gate", "an arrow key turns it too, around the end");
-  mock.timers.tick(60000);
-  same(head(el).title, "Gate", "turning by hand stops the turns");
+  el.setConfig({ type: "x", updates: false, rotate: 8, entities: Object.keys(states) });
+  el.hass = makeHass(states);
+  same(head(el).title, "Gate", "a new config, as the editor sends at every change, keeps the entry on show");
+  mock.timers.tick(7000);
+  same(head(el).title, "Gate", "the next turn waits its full time");
+  mock.timers.tick(1000);
+  same(head(el).title, "Door", "and then the card turns on");
+  const still = mount(w, { type: "x", updates: false, rotate: 0, entities: Object.keys(states) }, makeHass(states));
+  q(still, ".head").dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  still.hass = makeHass(states);
+  same(head(still).title, "Garage", "a card that holds still stays where it was turned");
   h.click();
   same(isOpen(), true, "a tap still opens the list");
 });
 
-test("the turns wait while a pointer rests on the card, while it is open and while it is out of sight", () => {
+test("the turns wait while the card is pressed, focused by keyboard, open or out of sight", () => {
   useClock();
   const w = makeWindow({ clock: true });
   const states = threeOn();
@@ -1042,11 +1056,8 @@ test("the turns wait while a pointer rests on the card, while it is open and whi
   const el = mount(w, { type: "x", updates: false, entities: Object.keys(states) }, hass);
   const h = q(el, ".head");
   h.dispatchEvent(new w.PointerEvent("pointerenter", { pointerType: "mouse" }));
-  mock.timers.tick(30000);
-  same(head(el).title, "Door", "a mouse over the card holds it");
-  h.dispatchEvent(new w.PointerEvent("pointerleave", { pointerType: "mouse" }));
   mock.timers.tick(8000);
-  same(head(el).title, "Garage", "and lets go");
+  same(head(el).title, "Garage", "a mouse resting on the card does not hold it");
   h.matches = (s) => s === ":focus-visible";
   h.dispatchEvent(new w.FocusEvent("focusin", { bubbles: true }));
   mock.timers.tick(30000);
@@ -1172,6 +1183,26 @@ test("a weather info shows its forecast a day at a time, after the current weath
   same(head(first).title, "Sun", "and the turns go on from there");
   mock.timers.tick(Date.parse("2026-10-03T00:00:01Z") - Date.now());
   same(shownInfo(el), ["Today", "12.5° / 7° · Rainy"], "at midnight tomorrow becomes today");
+});
+
+test("a card that stays while nothing needs attention shows the weather, the hours ahead and the next events", () => {
+  useClock();
+  const w = makeWindow({ clock: true, zone: "UTC" });
+  const subs = [];
+  const states = {
+    "weather.quiet": weatherAt("cloudy", { supported_features: 3 }, "weather.quiet"),
+    "calendar.family": st("calendar.family", "off", { friendly_name: "Family", message: "Dentist", start_time: "2026-10-03 09:00:00" }),
+    "calendar.empty": st("calendar.empty", "off", { friendly_name: "Empty" }),
+  };
+  const hass = makeHass(states, { subs });
+  const config = { type: "x", updates: false, weather: "weather.quiet", entities: ["calendar.family", "calendar.empty"] };
+  const hidden = mount(w, config, hass);
+  const el = mount(w, { ...config, hide_when_empty: false }, hass);
+  subs.find((s) => s.msg && s.msg.type === "weather/subscribe_forecast").cb({ type: "hourly", forecast: hourly({}, { condition: "sunny" }, {}, {}) });
+  same(hidden.hidden, true, "a card that hides when nothing needs attention still hides");
+  same(el._slides.map((s) => s.title), ["Home", "1:00 PM", "2:00 PM", "3:00 PM", "Family"], "the weather now, the next three hours and the next event");
+  el.hass = { ...hass, states: { ...states, "calendar.family": st("calendar.family", "on", { friendly_name: "Family", message: "Dentist", start_time: "2026-10-02 11:00:00", end_time: "2026-10-02 13:00:00" }) } };
+  same(el._slides.map((s) => s.title), ["Dentist"], "and makes way for what needs attention");
 });
 
 test("an hourly or twice daily forecast names its hour or its half of the day, in the number format of the profile", () => {

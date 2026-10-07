@@ -6,7 +6,7 @@ Closed, the card is one row that turns through whatever needs attention. Tap it 
 
 Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
 
-While nothing needs attention, the card shows your infos instead, like the weather forecast or the next sunrise. You set them up like tiles.
+While nothing needs attention, the card shows your infos instead, like the next sunrise. You set them up like tiles. With `hide_when_empty: false` it also turns through the weather now and in the next hours, and the next event of each calendar it watches.
 
 **You can style the card with plain CSS.**
 
@@ -77,9 +77,9 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | `weather` | | A weather entity. While it is dry, rain, snow, hail and thunder show up to 6 hours ahead. Frost shows up to 18 hours ahead. With a window open anywhere in Home Assistant, rain is a warning, and rain that has started shows too. Rain and frost ahead need an hourly or twice daily forecast. |
 | `updates` | `true` | Show available updates |
 | `repairs` | `true` | Show repairs, to admins only |
-| `hide_when_empty` | `true` | Hide the card when there is nothing to show |
+| `hide_when_empty` | `true` | Hide the card when there is nothing to show. With `false`, quiet times show the weather, the next events and your infos. |
 | `vertical` | `false` | The icon above the text, like a tile with vertical content. The text then has the whole width, as in half a header. |
-| `rotate` | `8` | Seconds between turns of the closed card. At `0` it holds still. A swipe or an arrow key turns it by hand and stops the turns. |
+| `rotate` | `8` | Seconds between turns of the closed card. At `0` it holds still. A swipe or an arrow key turns it by hand. |
 | `slide` | `up` | Whether the text moves `up` or to the `side` at a turn |
 | `audience` | | Who sees what, see below |
 | `css` | | Your own CSS, see Styling |
@@ -130,8 +130,7 @@ infos:
 | Alert | on |
 | Calendar | an event is running, or starts within `before` |
 | Update | an update is available |
-| DWD weather warnings | there are warnings, one row each |
-| NINA or Meteoalarm warning | on, until the warning expires |
+| Sensor with warnings in its attributes, like DWD, NINA or Meteoalarm | there are warnings, one row each, until they expire |
 | Timer | running or paused, with buttons to pause, resume and cancel |
 | Sensor with a time, or with a duration and `type: countdown` | the time lies ahead |
 | Event | for a day after it fired, with the picture of its device |
@@ -145,7 +144,7 @@ Every entity can take these options.
 
 | Option | |
 | --- | --- |
-| `type` | Skip the detection with `calendar`, `update`, `alarm`, `alert`, `dwd`, `timer`, `countdown`, `event`, `todo`, `device`, `warning`, `attribute`, `picture` or `generic`. `generic` shows any state but off, idle, none, 0, unknown and unavailable. `picture` shows the state as the title. |
+| `type` | Skip the detection with `calendar`, `update`, `alarm`, `alert`, `timer`, `countdown`, `event`, `todo`, `device`, `warning`, `attribute`, `picture` or `generic`. `generic` shows any state but off, idle, none, 0, unknown and unavailable. `picture` shows the state as the title. |
 | `attribute` | The attribute to show, like `next_due` or `book.title`. A plain value becomes the title. |
 | `name` | Replaces the entity's name, not the event or the thing it shows |
 | `icon` | Replaces the icon |

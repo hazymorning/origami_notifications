@@ -25,7 +25,6 @@ const ICONS = {
   repair: "mdi:wrench",
   alarm: "mdi:shield-alert",
   alert: "mdi:alert",
-  dwd: "mdi:flash",
   calendar: "mdi:calendar-month",
   timer: "mdi:timer-outline",
   countdown: "mdi:timer-sand",
@@ -861,58 +860,23 @@ const isUnambiguouslyActive = (state) => {
   return !isNaN(n) && n > 0;
 };
 
-/* dwd_weather_warnings levels go from 0 to 4. Level 3 and up is severe weather. Home Assistant
- * renumbers the warnings when one ends, so the key is the warning, not its number. */
-const renderDwd = (id, st, items, ctx) => {
-  if (!(Number(st.state) > 0)) return;
-  const a = st.attributes;
-  const count = Number(a.warning_count) || 0;
-  const keys = new Set();
-  for (let i = 1; i <= count; i++) {
-    const w = (field) => a["warning_" + i + "_" + field];
-    const title = w("headline") || w("name");
-    if (!title) continue;
-    const level = Number(w("level")) || 0;
-    const text = w("description") || "";
-    const start = parseTs(w("start"), NaN);
-    let key = "w:" + id + ":" + (w("name") || title) + ":" + (w("start") || "");
-    while (keys.has(key)) key += "+";
-    keys.add(key);
-    items.push({
-      key,
-      oldKey: "w:" + id + ":" + i,
-      kind: "dwd",
-      sev: level >= 3 ? "crit" : "warn",
-      entity: id,
-      title,
-      message: text || fill(ctx.t.level, { l: level }),
-      ts: isNaN(start) ? parseTs(st.last_changed, ctx.now) : start,
-      past: isNaN(start),
-      ack: [title, level, text].join("\u0000"),
-    });
-  }
-};
-
 /* An attribute object that describes one thing, like a dish or a parcel. */
 const THING_TEXT = ["description", "summary"];
 
 const isThing = (v) => v != null && typeof v === "object" && !Array.isArray(v) && textOf(v, ["name", "title"]) !== "";
 
-/* recipe was the only such attribute up to 0.2. Others need a text or picture besides the name. */
-const findThing = (attrs) => {
-  if (isThing(attrs.recipe)) return "recipe";
-  return Object.keys(attrs).find(
+/* A thing needs a text or picture besides its name. */
+const findThing = (attrs) =>
+  Object.keys(attrs).find(
     (k) => isThing(attrs[k]) && [...THING_TEXT, ...PICTURE_ATTRS].some((f) => !isEmpty(attrs[k][f]))
   );
-};
 
 /* `type: attribute` shows the thing, or a plain value as the title. `type: picture` shows the
  * state as the title, for sensors like the dish of the day. */
 const renderThing = (id, st, items, ctx) => {
   const a = st.attributes;
   const ts = parseTs(st.last_changed, ctx.now);
-  /* `type: picture` reads only the attribute it is given, or a recipe as in 0.2. */
-  const path = ctx.attribute || (ctx.kind === "picture" ? isThing(a.recipe) && "recipe" : findThing(a));
+  const path = ctx.attribute || findThing(a);
   const value = path ? attrPath(a, path) : undefined;
   const item = { key: "r:" + id, kind: ctx.kind, entity: id, ts, past: true };
   if (isThing(value)) {
@@ -1154,31 +1118,36 @@ const isCap = (a) => Boolean(textOf(a, ["severity"]) && textOf(a, ["headline", "
 
 const platformOf = (reg, id) => (reg && reg[id] && reg[id].platform) || "";
 
-/* From Home Assistant 2026.11, NINA keeps a warning out of its attributes and answers its get_details action
- * instead. A slot can switch warnings while it stays on, so answers are kept per slot and warning. */
-const NINA_DETAILS = new Map();
+/* Some integrations keep a warning out of its attributes and answer a get_details action instead, like NINA from
+ * Home Assistant 2026.11. An entity can switch warnings while it stays on, so answers are kept per warning. */
+const DETAILS = new Map();
+
+const detailsAction = (hass, id) => {
+  const platform = platformOf(hass.entities, id);
+  return Boolean(platform && hass.services && hass.services[platform] && hass.services[platform].get_details);
+};
 
 /* The details of a warning, null without them, or undefined while they are not known yet. That includes the time
- * before Home Assistant lists the action, which may come after the states. */
-const ninaDetails = (hass, st, card) => {
+ * before Home Assistant lists its actions, which may come after the states. */
+const askDetails = (hass, st, card) => {
   const id = st.entity_id;
   const warning = st.attributes.id || st.last_updated || st.last_changed;
-  const known = NINA_DETAILS.get(id) || new Map();
+  const known = DETAILS.get(id) || new Map();
   let entry = known.get(warning);
   if (!entry) {
-    const nina = hass.services && hass.services.nina;
-    if (!nina || !nina.get_details) return undefined;
+    if (!detailsAction(hass, id)) return hass.services && Object.keys(hass.services).length ? null : undefined;
     /* A slot keeps the answer before this one, which a card away from the page may still show. */
     for (const [old, e] of [...known].slice(0, -1)) if (e.data !== undefined) known.delete(old);
     entry = { data: undefined, cards: new Set() };
     known.set(warning, entry);
-    NINA_DETAILS.set(id, known);
+    DETAILS.set(id, known);
     const answer = (data) => {
       entry.data = isObject(data) ? data : null;
       for (const c of entry.cards) c._recompute();
       entry.cards.clear();
     };
-    new Promise((resolve) => resolve(hass.callService("nina", "get_details", {}, { entity_id: id }, false, true))).then(
+    const platform = platformOf(hass.entities, id);
+    new Promise((resolve) => resolve(hass.callService(platform, "get_details", {}, { entity_id: id }, false, true))).then(
       (res) => answer(res && res.response && res.response[id]),
       () => answer(null)
     );
@@ -1187,13 +1156,62 @@ const ninaDetails = (hass, st, card) => {
   return entry.data;
 };
 
-/* NINA and Meteoalarm send warnings in the Common Alerting Protocol, and severity sets the urgency. Meteoalarm
- * writes neither start nor sent, and its onset is optional, so effective counts as a start too. */
+/* Warnings numbered in the attributes, like warning_1_headline and warning_2_headline. */
+const WARNING_KEY = /^([a-z][a-z0-9]*)_(\d+)_(headline|name|title|event)$/;
+
+const numberedWarnings = (a) => {
+  const found = new Map();
+  for (const key of Object.keys(a)) {
+    const m = WARNING_KEY.exec(key);
+    if (m && !isEmpty(a[key])) found.set(m[1] + "_" + m[2], { prefix: m[1], n: Number(m[2]) });
+  }
+  return [...found.values()].sort((x, y) => x.n - y.n);
+};
+
+/* One row per numbered warning. A level of 3 and up, or a severe severity, is critical. An integration may
+ * renumber its warnings when one ends, so the key is the warning, not its number. */
+const renderNumbered = (id, st, warnings, items, ctx) => {
+  const a = st.attributes;
+  const zone = serverZone(ctx.hass);
+  const keys = new Set();
+  for (const { prefix, n } of warnings) {
+    const w = (field) => a[prefix + "_" + n + "_" + field];
+    const title = textOf({ headline: w("headline"), name: w("name"), title: w("title"), event: w("event") }, ["headline", "name", "title", "event"]);
+    const name = w("name") || title;
+    const level = Number(w("level")) || 0;
+    const text = textOf({ description: w("description") }, ["description"]);
+    const start = ["start", "onset"].map((k) => isoTime(w(k), zone)).find(Number.isFinite);
+    const end = ["end", "expires"].map((k) => isoTime(w(k), zone)).find(Number.isFinite);
+    let key = "w:" + id + ":" + name + ":" + (w("start") || w("onset") || "");
+    while (keys.has(key)) key += "+";
+    keys.add(key);
+    const item = {
+      key,
+      oldKey: "w:" + id + ":" + n,
+      kind: "warning",
+      sev: level >= 3 || CAP_SEV[String(w("severity")).toLowerCase()] === "crit" ? "crit" : "warn",
+      entity: id,
+      title,
+      message: plainText(text) || (level ? fill(ctx.t.level, { l: level }) : ctx.name(st)),
+      ts: start !== undefined ? start : parseTs(st.last_changed, ctx.now),
+      past: start === undefined,
+      ack: [title, level, text].join("\u0000"),
+    };
+    if (end !== undefined) item.expires = end;
+    items.push(item);
+  }
+};
+
+/* A warning sends its details in its attributes, often in the Common Alerting Protocol, where severity sets the
+ * urgency and effective counts as a start too. Where an integration keeps them back, its get_details action
+ * answers. Several warnings in one entity are numbered. */
 const renderWarning = (id, st, items, ctx) => {
+  const numbered = numberedWarnings(st.attributes);
+  if (numbered.length) return renderNumbered(id, st, numbered, items, ctx);
   if (st.state !== "on") return;
   const a = st.attributes;
   const cap = isCap(a);
-  const details = cap || platformOf(ctx.hass.entities, id) !== "nina" ? null : ctx.ninaDetails(st);
+  const details = cap ? null : ctx.details(st);
   const w = cap ? a : details || {};
   const zone = serverZone(ctx.hass);
   const start = ["start", "onset", "effective"].map((k) => isoTime(w[k], zone)).find(Number.isFinite);
@@ -1275,21 +1293,21 @@ const renderGeneric = (id, st, items, ctx) => {
   });
 };
 
-/* A recipe attribute claims the entity even while it is empty, as up to 0.2. */
-const detectType = (id, st, reg) => {
+/* What an entity shows as, found from its domain and attributes. */
+const detectType = (id, st, hass) => {
   const a = st.attributes;
-  if (a.warning_count !== undefined) return "dwd";
+  if (numberedWarnings(a).length) return "warning";
   if (id.startsWith("calendar.")) return "calendar";
   if (id.startsWith("update.")) return "update";
   if (id.startsWith("alarm_control_panel.")) return "alarm";
   if (id.startsWith("alert.")) return "alert";
   if (id.startsWith("timer.")) return "timer";
-  if (findThing(a) || "recipe" in a) return "attribute";
+  if (findThing(a)) return "attribute";
   /* Home Assistant merges what an integration sends into an event's attributes, and any integration can add
    * attributes to a device. An event or a device with a thing there keeps the row it had in 0.4. */
   if (id.startsWith("event.")) return "event";
   if (DEVICES[id.split(".")[0]]) return "device";
-  if (id.startsWith("binary_sensor.") && (isCap(a) || platformOf(reg, id) === "nina")) return "warning";
+  if (id.startsWith("binary_sensor.") && (isCap(a) || detailsAction(hass, id))) return "warning";
   /* A duration may count up as well, so it stays a plain number unless its kind is set, as in 0.4. */
   if (id.startsWith("sensor.") && a.device_class === "timestamp") return "countdown";
   return "generic";
@@ -1299,7 +1317,7 @@ const detectType = (id, st, reg) => {
 const kindOf = (src, st, hass) => {
   if (src.type && src.type !== "auto") return src.type;
   if (src.attribute) return "attribute";
-  return st ? detectType(st.entity_id, st, hass && hass.entities) : "generic";
+  return st ? detectType(st.entity_id, st, hass || {}) : "generic";
 };
 
 /* In the order the editor offers them. */
@@ -1308,7 +1326,6 @@ const RENDERERS = {
   update: renderUpdate,
   alarm: renderAlarm,
   alert: renderAlert,
-  dwd: renderDwd,
   timer: renderTimer,
   countdown: renderCountdown,
   event: renderEvent,
@@ -2305,6 +2322,8 @@ const checkConfig = (config) => {
     if (typeof src.entity !== "string" || !src.entity.includes(".")) {
       fail("entities must contain entity ids, got " + JSON.stringify(entry));
     }
+    /* `type: dwd` from 0.6 and earlier. The card finds numbered warnings on its own. */
+    if (src.type === "dwd") src.type = "warning";
     /* `type: recipe` from 0.2, which showed objects only. */
     if (src.type === "recipe") {
       src.type = "attribute";
@@ -2447,7 +2466,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._headSlide = null;
     this._swapping = null;
     this._held = new Set();
-    this._stopped = false;
+    this._byHand = false;
     this._turned = false;
     this._rotateTimer = null;
     this._press = null;
@@ -2482,7 +2501,6 @@ class OrigamiNotificationsCard extends HTMLElement {
     const { sources, audience, infos } = checkConfig(config);
     this._config = { ...DEFAULTS, ...config };
     this._infoConfig = infos;
-    this._turned = false;
     /* Home Assistant reads layout_options only when grid_options is missing. */
     const rows = config.grid_options
       ? config.grid_options.rows
@@ -2853,7 +2871,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       const id = this._weatherId();
       const type = id ? forecastType(h.states[id]) : null;
       if (type) want.set(id + "|" + type, [id, type]);
-      for (const info of this._infoConfig || []) {
+      for (const info of this._quietInfos()) {
         if (showsForecast(info, h.states[info.entity])) want.set(info.entity + "|" + info.forecast_type, [info.entity, info.forecast_type]);
       }
     }
@@ -3008,7 +3026,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       zone: this._clockOpts().timeZone,
       todos: (id) => (this._todos.get(id) || {}).items || null,
       devicePictures: (id) => this._pictures.get(id) || [],
-      ninaDetails: (st) => ninaDetails(h, st, this),
+      details: (st) => askDetails(h, st, this),
       /* The members of a group entity change without the group, so they are watched as well. */
       memberText: (st) => {
         const ids = groupMembers(st);
@@ -3123,7 +3141,7 @@ class OrigamiNotificationsCard extends HTMLElement {
       if (it.dismiss || it.sticky) continue;
       const oldKey = acks[it.key] === undefined && it.oldKey ? it.oldKey : it.key;
       const heldBefore = oldKey !== it.key && it.oldRow !== undefined && heldAs(acks[oldKey], it.oldRow);
-      /* A NINA warning without its details has no signature yet. A dismissal stays as it is and hides it meanwhile. */
+      /* A warning without its details has no signature yet. A dismissal stays as it is and hides it meanwhile. */
       if (it.waiting) {
         if (acks[it.key] !== undefined || heldBefore) items.splice(i, 1);
         continue;
@@ -3179,7 +3197,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     this._seenKeys = new Set(this._items.map((it) => it.key));
     const news = seen && this._items.find((it) => !seen.has(it.key) && Math.abs(now - it.ts) < NEWS_MS);
     if (news) this._news = news;
-    this._infos = h ? this._infosNow(ctx, read) : [];
+    this._infos = h ? this._infosNow(ctx, read, allowed) : [];
     this._readIds = read;
     const reorder = nextReorder(this._items, now);
     if (reorder !== null) ctx.wake(reorder);
@@ -3189,12 +3207,36 @@ class OrigamiNotificationsCard extends HTMLElement {
   }
 
   /* The infos a quiet card shows, in their order, while their entity is there and their conditions hold. */
-  _infosNow(ctx, read) {
+  /* A card that stays while nothing needs attention always has something to say. After the infos come the weather
+   * now and in the hours ahead, and the next event of each calendar it watches. */
+  _quietInfos(allowed = () => true) {
+    const own = this._infoConfig || [];
+    const h = this._hass;
+    if (!h || !this._config || this._config.hide_when_empty !== false) return own;
+    const taken = new Set(own.map((info) => info.entity));
+    const extra = [];
+    const id = this._weatherId();
+    const st = id && h.states[id];
+    if (st && !taken.has(id) && allowed(id)) {
+      const type = forecastType(st);
+      extra.push({ entity: id, state_content: ["state", "temperature"], ...(type ? { forecast_type: type, forecast_slots: 3, ahead: true } : {}) });
+    }
+    for (const src of this._allSources || []) {
+      const cal = h.states[src.entity];
+      if (!src.entity.startsWith("calendar.") || taken.has(src.entity) || !allowed(src.entity)) continue;
+      if (cal && cal.state === "off" && !isEmpty(cal.attributes.message)) {
+        extra.push({ entity: src.entity, name: src.name || undefined, state_content: ["message", "start_time"] });
+      }
+    }
+    return [...own, ...extra];
+  }
+
+  _infosNow(ctx, read, allowed) {
     const h = ctx.hass;
     const out = [];
     const keys = new Set();
     this._serverUsed = new Set();
-    for (const info of this._infoConfig || []) {
+    for (const info of this._quietInfos(allowed)) {
       const st = h.states[info.entity];
       read.push(info.entity);
       if (!st || st.state === "unavailable" || st.state === "unknown") continue;
@@ -3249,7 +3291,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const today = dayNumber(ctx.now, ctx.zone);
     const slots = (Array.isArray(cached.forecast) ? cached.forecast : [])
       .filter((f) => f && Number.isFinite(Date.parse(f.datetime)))
-      .filter((f) => (type === "daily" ? dayNumber(Date.parse(f.datetime), ctx.zone) >= today : Date.parse(f.datetime) + FORECAST_SPAN[type] > ctx.now))
+      .filter((f) => (type === "daily" ? dayNumber(Date.parse(f.datetime), ctx.zone) >= today + (info.ahead ? 1 : 0) : Date.parse(f.datetime) + (info.ahead ? 0 : FORECAST_SPAN[type]) > ctx.now))
       .slice(0, info.forecast_slots || 1);
     if (!slots.length) return null;
     /* Today and Tomorrow move on at midnight, and an hour or half a day when it ends. */
@@ -3511,12 +3553,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     d.head.addEventListener("pointermove", (e) => this._onDrag(e));
     d.head.addEventListener("pointerup", (e) => this._onRelease(e, false));
     d.head.addEventListener("pointercancel", (e) => e !== this._ownCancel && this._onRelease(e, true));
-    d.head.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && this._hold("hover", true));
-    d.head.addEventListener("pointerleave", (e) => {
-      if (e.pointerType === "mouse") this._hold("hover", false);
-      /* A press that leaves the card ends there, like on Home Assistant's ripple. */
-      if (this._press && !this._press.drag) this._onRelease(e, true);
-    });
+    /* A press that leaves the card ends there, like on Home Assistant's ripple. */
+    d.head.addEventListener("pointerleave", (e) => this._press && !this._press.drag && this._onRelease(e, true));
     d.head.addEventListener("focusin", () => this._hold("focus", d.head.matches(":focus-visible")));
     d.head.addEventListener("focusout", () => this._hold("focus", false));
     /* The click that ends a swipe reaches neither the card nor its ripple. */
@@ -3941,8 +3979,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     const fresh = news && this._turns() ? slides.find((s) => s.key === news.key) : null;
     if (fresh) {
       slide = fresh;
-      this._stopped = false;
-    } else if (!slide || topMoved || !this._turned || !(this._turns() || this._stopped)) {
+      this._byHand = false;
+    } else if (!slide || topMoved || !this._turned || !(this._turns() || this._byHand)) {
       /* Until the first turn the card shows the first entry, also one that loads later, like a forecast. */
       slide = top;
     }
@@ -4074,11 +4112,11 @@ class OrigamiNotificationsCard extends HTMLElement {
     return getComputedStyle(this).direction === "rtl";
   }
 
-  /* One timer turns the card while it shows more than one entry. Pointer, focus, an open list, a swipe or the
-   * card being out of sight stop it. */
+  /* One timer turns the card while it shows more than one entry. A press, keyboard focus, an open list or the
+   * card being out of sight hold it. */
   _rotate(restart = false) {
     const go =
-      this._turns() > 0 && Boolean(this._dom) && this._slides.length > 1 && !this._expanded && !this._dialogEl && !this._stopped && !this._held.size &&
+      this._turns() > 0 && Boolean(this._dom) && this._slides.length > 1 && !this._expanded && !this._dialogEl && !this._held.size &&
       this.isConnected && this._visible && !document.hidden && !this._hiding();
     /* Home Assistant sends new states all the time. They must not push the next turn back. */
     if (go && this._rotateTimer && !restart) return;
@@ -4102,7 +4140,7 @@ class OrigamiNotificationsCard extends HTMLElement {
     const slides = this._slides;
     if (slides.length < 2) return;
     this._turned = true;
-    if (how !== "auto") this._stopped = true;
+    if (how !== "auto") this._byHand = true;
     const i = Math.max(0, slides.findIndex((s) => s.key === this._slideKey));
     const next = slides[(i + dir + slides.length) % slides.length];
     this._slideKey = next.key;
@@ -4688,13 +4726,12 @@ const EDITOR_STRINGS = {
     type_update: "Update",
     type_alarm: "Alarm panel",
     type_alert: "Alert",
-    type_dwd: "DWD weather warnings",
     type_timer: "Timer",
     type_countdown: "Countdown",
     type_event: "Event",
     type_todo: "To-do list",
     type_device: "Device",
-    type_warning: "Warning",
+    type_warning: "Warnings",
     type_attribute: "Details from an attribute",
     type_picture: "State as title",
     type_generic: "Plain entity",
@@ -4757,13 +4794,12 @@ const EDITOR_STRINGS = {
     type_update: "Update",
     type_alarm: "Alarmanlage",
     type_alert: "Alarm (alert)",
-    type_dwd: "DWD-Unwetterwarnungen",
     type_timer: "Timer",
     type_countdown: "Countdown",
     type_event: "Ereignis",
     type_todo: "To-do-Liste",
     type_device: "Gerät",
-    type_warning: "Warnung",
+    type_warning: "Warnungen",
     type_attribute: "Details aus einem Attribut",
     type_picture: "Zustand als Titel",
     type_generic: "Einfache Entität",
@@ -4879,7 +4915,8 @@ class OrigamiNotificationsEditor extends HTMLElement {
   }
 
   _typeOf(src) {
-    return src.type === "recipe" ? "attribute" : kindOf(src, this._hass && this._hass.states[src.entity], this._hass);
+    if (src.type === "recipe") return "attribute";
+    return src.type === "dwd" ? "warning" : kindOf(src, this._hass && this._hass.states[src.entity], this._hass);
   }
 
   _summary(rule) {
@@ -5027,7 +5064,7 @@ class OrigamiNotificationsEditor extends HTMLElement {
       this._entries().map((e) => [
         e.entity,
         {
-          type: e.type === "recipe" ? "attribute" : e.type || "auto",
+          type: e.type === "recipe" ? "attribute" : e.type === "dwd" ? "warning" : e.type || "auto",
           attribute: e.attribute || (e.type === "recipe" ? "recipe" : undefined),
           name: typeof e.name === "string" ? e.name : undefined,
           icon: e.icon,
