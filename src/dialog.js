@@ -20,17 +20,18 @@ export class OrigamiNotificationsDialog extends LitElement {
         --dialog-content-padding: 0;
       }
       .list {
-        padding: 0 12px 12px;
+        --inset: 12px;
+        padding: 0 var(--inset) var(--inset);
       }
       /* As a bottom sheet the list keeps the sides of a sections view, see ha-adaptive-dialog.ts and hui-sections-view.ts. */
       @media (max-width: 870px), (max-height: 500px) {
         .list {
-          padding-inline: var(--ha-view-sections-column-gap, 32px);
+          --inset: var(--ha-view-sections-column-gap, 32px);
         }
       }
       @media (max-width: 600px) {
         .list {
-          padding-inline: var(--ha-view-sections-narrow-column-gap, 8px);
+          --inset: var(--ha-view-sections-narrow-column-gap, 8px);
         }
       }
     `,

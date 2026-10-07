@@ -6,7 +6,7 @@ Closed, the card is one row that turns through whatever needs attention, then th
 
 Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
 
-Infos, like the next sunrise, are set up like tiles. With `hide_when_empty: false` the weather now and in the next hours, and the next event of each calendar, join them.
+Infos, like the next sunrise, are set up like tiles. With `hide_when_empty: false` the weather now and what comes next, and the next event of each calendar, join them.
 
 ```yaml
 type: custom:origami-notifications
@@ -129,7 +129,9 @@ infos:
 | Update | an update is available |
 | Sensor with warnings in its attributes, like DWD, NINA or Meteoalarm | there are warnings, one row each, until they expire |
 | Timer | running or paused, with buttons to pause, resume and cancel |
-| Sensor with a time, or with a duration and `type: countdown` | the time lies ahead |
+| Sensor with a time, or with a duration and `type: countdown` | the time lies ahead, or lies within `before` |
+| Bins of Waste Collection Schedule, a sensor or a calendar | from noon the day before until the pickup |
+| Next alarm of the Android app | in the 12 hours before it rings |
 | Event | for a day after it fired, with the picture of its device |
 | To-do list with `type: todo` | an item is due today, overdue or due within `before`, with a button to mark it done |
 | Lock, cover, valve, vacuum, lawn mower, siren | active, with a button to lock, close, dock or turn it off |
@@ -141,13 +143,13 @@ Every entity can take these options.
 
 | Option | |
 | --- | --- |
-| `type` | Skip the detection with `calendar`, `update`, `alarm`, `alert`, `timer`, `countdown`, `event`, `todo`, `device`, `warning`, `attribute`, `picture` or `generic`. `generic` shows any state but off, idle, none, 0, unknown and unavailable. `picture` shows the state as the title. |
+| `type` | Skip the detection with `calendar`, `waste`, `update`, `alarm`, `alert`, `timer`, `countdown`, `next_alarm`, `event`, `todo`, `device`, `warning`, `attribute`, `picture` or `generic`. `generic` shows any state but off, idle, none, 0, unknown and unavailable. `picture` shows the state as the title. |
 | `attribute` | The attribute to show, like `next_due` or `book.title`. A plain value becomes the title. |
 | `name` | Replaces the entity's name, not the event or the thing it shows |
 | `icon` | Replaces the icon |
 | `image` | A picture from an attribute or a URL, instead of the entity's own |
 | `background` | Shows the picture blurred behind the card while this entity is on top |
-| `before` | For a calendar or a to-do list, how far ahead it shows, in minutes or as a duration like `1:30:00` |
+| `before` | For anything with a time ahead, how far ahead it shows, in minutes or as a duration like `1:30:00` |
 | `tap_action` | What a tap does. By default it opens the entity. |
 | `actions` | Buttons, each with a `label` and a `tap_action` |
 

@@ -1,4 +1,4 @@
-import { HOUR, fill, parseTime } from "./format.js";
+import { fill, fromServerTime, HOUR, isoDate, parseTime, zonedParts } from "./format.js";
 import { domainColor } from "./ha.js";
 
 const FEATURE_BITS = { daily: 1, hourly: 2, twice_daily: 4 };
@@ -73,6 +73,66 @@ export function weatherEntries(st, forecast, type, ctx) {
   }
   if (hours.length) ctx.wake(Math.floor(ctx.now / HOUR) * HOUR + HOUR);
   return entries;
+}
+
+// The parts of a day as people name them, by the hour they start.
+const PARTS = [
+  [5, "morning"],
+  [12, "afternoon"],
+  [17, "evening"],
+  [22, "night"],
+];
+
+const WET_FIRST = ["lightning-rainy", "lightning", "hail", "snowy-rainy", "snowy", "pouring", "rainy"];
+
+function mainCondition(slots, unit) {
+  const wet = slots.filter((f) => isWet(f, unit));
+  if (wet.length) return WET_FIRST.find((c) => wet.some((f) => f.condition === c)) || "rainy";
+  const counts = new Map();
+  for (const f of slots) if (f.condition) counts.set(f.condition, (counts.get(f.condition) || 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
+}
+
+// What comes next in the words people use. That is the coming part of the day and, from the evening on, tomorrow.
+export function outlook(st, forecast, type, ctx) {
+  const t = ctx.t;
+  const zone = ctx.clock.zone;
+  const today = ctx.dayOf(ctx.now);
+  const at = (day, hour) => fromServerTime(`${isoDate(day)} ${String(hour).padStart(2, "0")}:00:00`, zone);
+  const evening = zonedParts(ctx.now, zone).hour >= 17;
+  const periods = [];
+  if (type === "daily") {
+    const day = evening ? today + 1 : today;
+    periods.push({ label: ctx.clock.slotLabel(at(day, 12), "daily", ctx.now), start: Math.max(at(day, 0), ctx.now), end: at(day + 1, 0) });
+  } else {
+    const parts = [today, today + 1].flatMap((day) => PARTS.map(([hour, name]) => ({ name, day, start: at(day, hour) })));
+    parts.forEach((p, i) => (p.end = parts[i + 1]?.start ?? at(today + 2, 5)));
+    const next = parts.find((p) => p.start > ctx.now);
+    const names = { morning: next.day === today ? t.wx_this_morning : t.wx_tomorrow_morning, afternoon: t.wx_this_afternoon, evening: t.wx_this_evening, night: t.wx_tonight };
+    if (!(evening && next.day > today)) periods.push({ label: names[next.name], start: next.start, end: next.end, night: next.name === "night" });
+    if (evening) periods.push({ label: ctx.clock.slotLabel(at(today + 1, 12), "daily", ctx.now), start: at(today + 1, 5), end: at(today + 1, 22) });
+    ctx.wake(next.start);
+  }
+  ctx.wake(at(today, 17));
+  ctx.wake(ctx.midnight);
+  return periods
+    .map((p) => {
+      const slots = forecast.filter((f) => {
+        const ts = Date.parse(f?.datetime);
+        return ts < p.end && ts + SPAN[type] > p.start;
+      });
+      if (!slots.length) return null;
+      const temps = slots
+        .flatMap((f) => [f.temperature, f.templow])
+        .filter((v) => v != null && v !== "" && Number.isFinite(Number(v)))
+        .map((v) => Math.round(Number(v)));
+      const [lo, hi] = [Math.min(...temps), Math.max(...temps)];
+      const range = !temps.length ? "" : lo === hi ? ctx.clock.number(hi) + "°" : fill(t.wx_range, { lo: ctx.clock.number(lo), hi: ctx.clock.number(hi) });
+      const condition = mainCondition(slots, st.attributes.precipitation_unit);
+      const shown = { ...st, state: condition || "unknown" };
+      return { label: p.label, condition, night: p.night, text: [condition ? ctx.state(shown) : "", range].filter(Boolean).join(" · ") };
+    })
+    .filter(Boolean);
 }
 
 export const windowIds = (states) =>
