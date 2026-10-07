@@ -3,7 +3,7 @@
 const CARD = "origami-notifications";
 const EDITOR = CARD + "-editor";
 const REPO = "https://github.com/hazymorning/origami_notifications";
-const VERSION = "0.7.0";
+const VERSION = "0.8.0";
 
 const DEFAULTS = {
   hide_when_empty: true,
@@ -3250,6 +3250,7 @@ class OrigamiNotificationsCard extends HTMLElement {
         kind: "info",
         info,
         entity: info.entity,
+        name: ctx.name(st, info.name),
         icon: info.icon || undefined,
         image: info.show_entity_picture ? ctx.url(findPicture(st.attributes)) : null,
       };
@@ -3632,7 +3633,7 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   /* Focus follows the toggle, which hides itself as it opens or closes. */
   _toggle() {
-    if (!this._items.length) return;
+    if (!this._listed().length) return;
     if (this._narrow && !this._expanded && this._openDialog()) return;
     const d = this._dom;
     const active = this.shadowRoot.activeElement;
@@ -3916,7 +3917,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     }
     this._setShown(true);
 
-    if (!items.length) this._expanded = false;
+    const listed = this._listed();
+    if (!listed.length) this._expanded = false;
     const wasOpen = this._shownOpen;
     this._shownOpen = this._expanded;
     d.card.classList.toggle("open", this._expanded);
@@ -3930,14 +3932,15 @@ class OrigamiNotificationsCard extends HTMLElement {
     d.card.classList.toggle("has-items", items.length > 0);
 
     const { slide, moved } = this._pickSlide();
-    /* The head opens the list, or the dialog where the card is narrow, or what an info leads to. */
-    if (items.length && !this._narrow) d.head.setAttribute("aria-expanded", String(this._expanded));
+    /* The head opens the list, or the dialog where the card is narrow. With only one thing it opens that. */
+    const lists = listed.length > 1;
+    if (lists && !this._narrow) d.head.setAttribute("aria-expanded", String(this._expanded));
     else d.head.removeAttribute("aria-expanded");
-    if (items.length && this._narrow) d.head.setAttribute("aria-haspopup", "dialog");
+    if (lists && this._narrow) d.head.setAttribute("aria-haspopup", "dialog");
     else d.head.removeAttribute("aria-haspopup");
     d.badge.hidden = items.length < 2;
     setText(d.badge, badgeText(items.length));
-    d.chev.hidden = !items.length;
+    d.chev.hidden = !lists;
     const shown = this._painted && !this._hiding() && !this._expanded;
     this._paintHead(slide, now, moved && shown ? { dir: 1 } : null);
     this._markIntro();
@@ -3967,7 +3970,7 @@ class OrigamiNotificationsCard extends HTMLElement {
   _pickSlide() {
     const items = this._items;
     const crit = items.filter((it) => it.sev === "crit");
-    const slides = crit.length ? crit : items.length ? items : this._infos;
+    const slides = crit.length ? crit : [...items, ...this._infos];
     const top = slides[0] || null;
     const topMoved = Boolean(top && top.kind !== "info" && top.key !== this._topKey);
     this._slides = slides;
@@ -4056,7 +4059,8 @@ class OrigamiNotificationsCard extends HTMLElement {
   _fillHead(slide, now) {
     const d = this._dom;
     const info = Boolean(slide && slide.kind === "info");
-    const tappable = this._items.length > 0 || Boolean(info && this._infoActs(slide));
+    const listed = this._listed();
+    const tappable = listed.length > 1 || Boolean(listed.length === 1 && this._opener(listed[0])) || Boolean(info && this._infoActs(slide));
     d.card.classList.toggle("tappable", tappable);
     d.head.setAttribute("aria-disabled", String(!tappable));
     d.card.style.setProperty("--tile-color", slide ? itemColor(slide) : "var(--state-inactive-color)");
@@ -4101,6 +4105,9 @@ class OrigamiNotificationsCard extends HTMLElement {
         const ts = st[String(c).replace("-", "_")];
         if (/^last[_-](changed|updated)$/.test(c)) return this._relTime(parseTs(ts, Date.now()));
         if (!(c in st.attributes) || st.attributes[c] == null) return "";
+        /* Like Home Assistant's state text, a time reads relative, like the start of an event or the next sunrise. */
+        const at = isoTime(st.attributes[c], serverZone(h));
+        if (Number.isFinite(at)) return this._relTime(at);
         return h && h.formatEntityAttributeValue ? h.formatEntityAttributeValue(st, c) : String(st.attributes[c]);
       })
       .filter(Boolean)
@@ -4224,23 +4231,63 @@ class OrigamiNotificationsCard extends HTMLElement {
   /* A tap opens the list, or does what the info on show is set to do. */
   _activate() {
     const slide = this._headSlide;
-    if (slide && slide.kind === "info") {
-      const info = slide.info;
-      if (!hasAction(info.double_tap_action)) {
-        this._infoAction(slide, "tap");
-      } else if (this._tapWait) {
-        clearTimeout(this._tapWait);
+    if (!(slide && slide.kind === "info" && hasAction(slide.info.double_tap_action))) {
+      this._tapHead();
+    } else if (this._tapWait) {
+      clearTimeout(this._tapWait);
+      this._tapWait = null;
+      this._infoAction(slide, "double_tap");
+    } else {
+      this._tapWait = setTimeout(() => {
         this._tapWait = null;
-        this._infoAction(slide, "double_tap");
-      } else {
-        this._tapWait = setTimeout(() => {
-          this._tapWait = null;
-          this._infoAction(slide, "tap");
-        }, DOUBLE_TAP_MS);
-      }
-      return;
+        this._tapHead();
+      }, DOUBLE_TAP_MS);
     }
-    this._toggle();
+  }
+
+  /* A tap opens the list of all the card has to say. With only one thing, it opens that, as its row would. */
+  _tapHead() {
+    const listed = this._listed();
+    const go = listed.length === 1 ? this._opener(listed[0]) : null;
+    if (go) go();
+    else this._toggle();
+  }
+
+  _opener(it) {
+    return it.inert ? null : it.open || (it.entity ? () => fireMoreInfo(this, it.entity) : null);
+  }
+
+  /* What the open card lists, the entries first and then one row per info, with the state of its entity. The
+   * forecast is in the entity's own dialog. An info opens as its tap action says. */
+  _listed() {
+    const seen = new Set();
+    const infos = this._infos.filter((slide) => !seen.has(slide.info) && seen.add(slide.info));
+    return [...this._items, ...infos.map((slide) => this._infoRow(slide))];
+  }
+
+  _infoRow(slide) {
+    const tap = slide.info.tap_action;
+    const st = this._hass && this._hass.states[slide.entity];
+    const now = { ...slide, stateObj: st || slide.stateObj, title: slide.name, content: slide.info.state_content, icon: slide.info.icon };
+    return {
+      key: slide.key.split("#")[0],
+      kind: "info",
+      title: now.title,
+      message: this._infoText(now),
+      icon: now.icon,
+      image: slide.image,
+      stateObj: now.stateObj,
+      color: now.stateObj === slide.stateObj ? slide.color : undefined,
+      entity: slide.entity,
+      ts: NaN,
+      inert: Boolean(tap) && !hasAction(tap),
+      open: () => this._infoAction(slide, "tap"),
+    };
+  }
+
+  _listTitle() {
+    const n = this._items.length;
+    return n ? fill(n === 1 ? this._t.count_one : this._t.count_other, { n }) : this._t.idle_title;
   }
 
   /* Home Assistant runs the action as for its own cards. Without a tap action it opens the entity. */
@@ -4261,10 +4308,8 @@ class OrigamiNotificationsCard extends HTMLElement {
     const d = this._dom;
     const items = this._items;
     animate = animate && this._animOK();
-    if (items.length) {
-      setText(d.count, fill(items.length === 1 ? this._t.count_one : this._t.count_other, { n: items.length }));
-    }
-    this._rowCache = this._renderList(items, animate, now);
+    setText(d.count, this._listTitle());
+    this._rowCache = this._renderList(this._listed(), animate, now);
     this._setFoot(items.length > 1 && items.some((it) => it.dismiss), animate);
   }
 
@@ -4511,7 +4556,7 @@ class OrigamiNotificationsCard extends HTMLElement {
 
   getCardSize() {
     const head = this._config && this._config.vertical ? 2 : 1;
-    return this._expanded ? 1 + this._items.length : head;
+    return this._expanded ? 1 + this._listed().length : head;
   }
 
   /* A vertical tile fits a quarter of a section. */
@@ -4596,14 +4641,14 @@ class OrigamiNotificationsDialog extends HTMLElement {
   update() {
     const card = this._card;
     if (!card || !this._dialog) return;
-    const items = card._hiding() ? [] : card._items;
+    const items = card._hiding() ? [] : card._listed();
     if (!items.length) {
       this.closeDialog();
       return;
     }
-    this._dialog.setAttribute("header-title", fill(items.length === 1 ? card._t.count_one : card._t.count_other, { n: items.length }));
+    this._dialog.setAttribute("header-title", card._listTitle());
     this._clear.label = card._t.clear;
-    this._clear.hidden = !(items.length > 1 && items.some((it) => it.dismiss));
+    this._clear.hidden = !(card._items.length > 1 && card._items.some((it) => it.dismiss));
     this._cache = card._renderList(items, this._shown && card._animOK(), Date.now(), this._list, this._cache, this.shadowRoot);
   }
 
@@ -4817,7 +4862,7 @@ const EDITOR_HELPERS = {
     image: "An attribute, a path into one like book.cover, or a URL. If empty, the card uses the picture of the shown object or of the entity.",
     background: "Blurred behind the card while this entity is on top.",
     before: "How long before it starts or is due.",
-    infos: "Shown in turn while nothing needs attention.",
+    infos: "Shown in turn after what needs attention.",
     rotate: "At 0 the card holds still.",
     css: "Goes into the card after its own styles, so you can change any part of it.",
     visibility_intro: "The info shows while all of these conditions hold.",
@@ -4832,7 +4877,7 @@ const EDITOR_HELPERS = {
     image: "Ein Attribut, ein Pfad darin wie book.cover, oder eine URL. Bleibt es leer, nimmt die Karte das Bild des gezeigten Objekts oder der Entität.",
     background: "Unscharf hinter der Karte, solange diese Entität oben steht.",
     before: "Wie lange vor dem Beginn oder der Fälligkeit.",
-    infos: "Erscheinen im Wechsel, solange nichts anliegt.",
+    infos: "Erscheinen im Wechsel nach dem, was anliegt.",
     rotate: "Bei 0 bleibt die Karte stehen.",
     css: "Kommt nach den Styles der Karte, so lässt sich jeder Teil ändern.",
     visibility_intro: "Die Info erscheint, solange alle diese Bedingungen erfüllt sind.",
