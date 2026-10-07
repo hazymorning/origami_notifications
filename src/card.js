@@ -369,12 +369,22 @@ export class OrigamiNotificationsCard extends LitElement {
   async _turn(from, slide, dir, side) {
     const now = getComputedStyle(slide);
     const start = { transform: now.transform, opacity: now.opacity, filter: now.filter };
-    const shift = [...slide.querySelectorAll(":scope > div > span")].map((span) => getComputedStyle(span).transform);
+    const lines = [...slide.querySelectorAll(":scope > div")].map((line) => ({
+      long: line.hasAttribute("data-long"),
+      mask: getComputedStyle(line).maskPosition,
+      shift: getComputedStyle(line.firstElementChild).transform,
+    }));
     slide.style.transform = slide.style.opacity = "";
     this._turnAnims?.forEach((a) => a.cancel());
     const sign = dir * (side && this._rtl() ? -1 : 1);
-    const leaving = (this._leaving = { entry: from, side, shift });
+    const leaving = (this._leaving = { entry: from, side });
     await this.updateComplete;
+    this.renderRoot.querySelectorAll(".slide.leaving > div").forEach((line, i) => {
+      const was = lines[i] || {};
+      line.toggleAttribute("data-long", Boolean(was.long));
+      line.style.maskPosition = was.mask || "";
+      line.firstElementChild.style.transform = was.shift || "";
+    });
     const away = { duration: duration(this, "slow") * 0.8, easing: EASE.out, fill: "forwards" };
     const [axis, px] = side ? ["X", 24] : ["Y", 12];
     this._turnAnims = [
@@ -712,11 +722,11 @@ export class OrigamiNotificationsCard extends LitElement {
   _slideTemplate(slide, t, leaving) {
     const time = slide && slide.kind !== "info" && this._headTime(slide);
     const secondary = this._secondary(slide, t);
-    const line = (text, i) => keyed(slide?.key, html`<span style=${leaving ? `transform: ${leaving.shift[i] || "none"}` : nothing}>${text}</span>`);
+    const line = (text) => keyed(slide?.key, html`<span>${text}</span>`);
     return html`
       <div class="slide ${leaving ? "leaving" : ""}" aria-hidden=${leaving ? "true" : nothing}>
-        <div class="title">${line(slide ? slide.title : t.idle_title, 0)}</div>
-        ${secondary ? html`<div class="secondary ${time ? "time" : ""}" aria-live=${time && !leaving ? "off" : nothing}>${line(secondary, 1)}</div>` : nothing}
+        <div class="title">${line(slide ? slide.title : t.idle_title)}</div>
+        ${secondary ? html`<div class="secondary ${time ? "time" : ""}" aria-live=${time && !leaving ? "off" : nothing}>${line(secondary)}</div>` : nothing}
       </div>
     `;
   }

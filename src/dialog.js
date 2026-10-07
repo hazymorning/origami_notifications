@@ -22,6 +22,17 @@ export class OrigamiNotificationsDialog extends LitElement {
       .list {
         padding: 0 12px 12px;
       }
+      /* As a bottom sheet the list keeps the sides of a sections view, see ha-adaptive-dialog.ts and hui-sections-view.ts. */
+      @media (max-width: 870px), (max-height: 500px) {
+        .list {
+          padding-inline: var(--ha-view-sections-column-gap, 32px);
+        }
+      }
+      @media (max-width: 600px) {
+        .list {
+          padding-inline: var(--ha-view-sections-narrow-column-gap, 8px);
+        }
+      }
     `,
   ];
 
@@ -89,9 +100,11 @@ export class OrigamiNotificationsDialog extends LitElement {
         @opened=${(e) => e.target === e.currentTarget && ((this._shown = true), this.requestUpdate())}
         @closed=${(e) => e.target === e.currentTarget && this._closed()}
       >
-        <ha-icon-button slot="headerActionItems" .label=${card.texts.clear} ?hidden=${!clear.length} @click=${() => card.dismiss(clear)}>
-          <ha-icon icon="mdi:notification-clear-all"></ha-icon>
-        </ha-icon-button>
+        ${clear.length
+          ? html`<ha-icon-button slot="headerActionItems" .label=${card.texts.clear} @click=${() => card.dismiss(clear)}>
+              <ha-icon icon="mdi:notification-clear-all"></ha-icon>
+            </ha-icon-button>`
+          : nothing}
         <div class="list" role="list">${rowsTemplate(this._motion.withLeaving(items, this._animate), card.rowView((i) => (this._refocus = i)))}</div>
       </ha-adaptive-dialog>
     `;
