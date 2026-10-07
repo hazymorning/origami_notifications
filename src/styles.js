@@ -286,15 +286,11 @@ export const variables = css`
 export const cardStyles = css`
   :host {
     --origami-bg-auto: 0.22;
-    --origami-dir: 1;
     display: grid;
     -webkit-tap-highlight-color: transparent;
   }
   :host(.dark) {
     --origami-bg-auto: 0.32;
-  }
-  :host(:dir(rtl)) {
-    --origami-dir: -1;
   }
   :host([hidden]) {
     display: none !important;
@@ -484,11 +480,12 @@ export const cardStyles = css`
     margin-inline: calc(var(--origami-gap) * -1);
     padding-inline: var(--origami-gap);
     overflow: hidden;
-    mask-image: linear-gradient(to right, transparent, #000 var(--origami-gap), #000 calc(100% - var(--origami-gap)), transparent);
   }
   .texts.up {
-    mask-image: linear-gradient(to right, transparent, #000 var(--origami-gap), #000 calc(100% - var(--origami-gap)), transparent), linear-gradient(to bottom, transparent, #000 8px, #000 calc(100% - 8px), transparent);
-    mask-composite: intersect;
+    mask-image: linear-gradient(to bottom, transparent, #000 8px, #000 calc(100% - 8px), transparent);
+  }
+  .texts.side {
+    mask-image: linear-gradient(to right, transparent, #000 var(--origami-gap), #000 calc(100% - var(--origami-gap)), transparent);
   }
   .slide {
     grid-area: 1 / 1;
@@ -499,8 +496,9 @@ export const cardStyles = css`
     gap: var(--ha-tile-info-gap, 0);
   }
   .head :is(.title, .secondary) {
-    container-type: inline-size;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .head .title {
     color: var(--ha-tile-info-primary-color, var(--primary-text-color));
@@ -522,27 +520,12 @@ export const cardStyles = css`
   .head state-display {
     display: inline;
   }
-  .head :is(.title, .secondary) > span {
+  .head [data-long] {
+    text-overflow: clip;
+    mask: linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 16px), transparent) -16px 0 / calc(100% + 16px) 100% no-repeat;
+  }
+  .head :is([data-long], .leaving div) > span {
     display: inline-block;
-    animation: origami-scroll var(--origami-cycle) ease-in-out infinite alternate;
-  }
-  .head .leaving span {
-    animation: none;
-  }
-  @keyframes origami-scroll {
-    0%,
-    20% {
-      transform: none;
-    }
-    80%,
-    100% {
-      transform: translateX(calc(var(--origami-dir) * min(0px, 100cqi - 100%)));
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .head :is(.title, .secondary) > span {
-      animation: none;
-    }
   }
 
   .cycle {
@@ -552,7 +535,7 @@ export const cardStyles = css`
     border-radius: calc(var(--ha-tile-icon-border-radius, var(--ha-border-radius-pill, 9999px)) + 4px);
     color: color-mix(in srgb, var(--tile-color) 60%, transparent);
     mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-    animation: origami-cycle-fade var(--origami-cycle) linear both;
+    animation: origami-cycle-fade var(--origami-cycle, 8s) linear both;
     pointer-events: none;
   }
   .cycle i {
@@ -568,7 +551,7 @@ export const cardStyles = css`
     position: absolute;
     inset: -25%;
     background: linear-gradient(to right, currentColor 50%, transparent 0);
-    animation: origami-cycle-right var(--origami-cycle) linear both;
+    animation: origami-cycle-right var(--origami-cycle, 8s) linear both;
   }
   .cycle i + i::before {
     background: linear-gradient(to left, currentColor 50%, transparent 0);

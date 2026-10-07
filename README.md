@@ -76,7 +76,7 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | `repairs` | `true` | Show repairs, to admins only |
 | `hide_when_empty` | `true` | Hide the card when there is nothing to show. With `false`, quiet times show the weather, the next events and your infos. |
 | `vertical` | `false` | The icon above the text, like a tile with vertical content. The text then has the whole width, as in half a header. |
-| `rotate` | `8` | Seconds between turns of the closed card. A ring around the icon fills until the next turn. At `0` it holds still. A swipe or an arrow key turns it by hand. The turns wait while the list is open, a finger is on the card or the card is out of sight. |
+| `rotate` | `8` | Seconds between turns of the closed card. A ring around the icon fills until the next turn, which waits until long text has scrolled to its end. At `0` it holds still. A swipe or an arrow key turns it by hand. The turns wait while the list is open, a finger is on the card or the card is out of sight. |
 | `slide` | `up` | Whether the text moves `up` or to the `side` at a turn |
 | `audience` | | Who sees what, see below |
 | `css` | | Your own CSS, see Styling |

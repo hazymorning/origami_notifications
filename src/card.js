@@ -19,6 +19,10 @@ export const DIALOG = CARD + "-dialog";
 
 const NARROW_PX = 300;
 const NEWS_MS = 2 * MINUTE;
+const HOLD_MS = 1500;
+const SCROLL_PX_PER_S = 30;
+// The width of the fade on lines marked data-long in styles.js.
+const FADE_PX = 16;
 
 const HASS_PARTS = ["connection", "user", "locale", "config", "localize", "entities", "devices", "areas", "services", "themes", "formatEntityState", "formatEntityName", "formatEntityAttributeValue"];
 
@@ -404,16 +408,50 @@ export class OrigamiNotificationsCard extends LitElement {
   }
 
   _cycle() {
-    clearTimeout(this._turnTimer);
     this._cycleKey++;
-    if (this._config?.rotate > 0 && this.isConnected) this._turnTimer = setTimeout(() => this._autoTurn(), this._config.rotate * 1000);
+    this._cycleAt = Date.now();
+    this._turnAfter(this._config?.rotate * 1000);
     this.requestUpdate();
+  }
+
+  _turnAfter(ms) {
+    clearTimeout(this._turnTimer);
+    if (ms > 0 && this.isConnected) this._turnTimer = setTimeout(() => this._autoTurn(), ms - (Date.now() - this._cycleAt));
   }
 
   _autoTurn() {
     const shown = this._shown;
-    if (this._visible && !document.hidden && !this._open && !this._dialog && !this._gestures?.press) this._step(1, "auto");
+    if (this._config.rotate > 0 && this._visible && !document.hidden && !this._open && !this._dialog && !this._gestures?.press) this._step(1, "auto");
     if (this._shown === shown) this._cycle();
+  }
+
+  // Long text holds, moves to its end at reading speed and holds again, and the next turn waits for it.
+  _scroll() {
+    this._scrolled = this._cycleKey;
+    const key = this._shown?.key;
+    const last = this._scrollLast;
+    const back = Boolean(last && last.key === key && !last.back && last.anim?.playState === "finished");
+    this._scrollAnims?.forEach((a) => a.cancel());
+    this._scrollAnims = [];
+    const still = this.preview || this._matches("(prefers-reduced-motion: reduce)");
+    const rtl = this._rtl();
+    let longest = 0;
+    for (const line of this.renderRoot.querySelectorAll(".head .slide:not(.leaving) > div")) {
+      const over = still ? 0 : line.scrollWidth - line.clientWidth;
+      line.toggleAttribute("data-long", over > 1);
+      if (over <= 1) continue;
+      longest = Math.max(longest, over);
+      const timing = { delay: HOLD_MS, duration: (over / SCROLL_PX_PER_S) * 1000, easing: "ease-in-out", fill: "both", direction: back ? "reverse" : "normal" };
+      const masks = rtl ? ["0 0", `${-FADE_PX}px 0`] : [`${-FADE_PX}px 0`, "0 0"];
+      this._scrollAnims.push(
+        line.firstElementChild.animate([{ transform: "none" }, { transform: `translateX(${rtl ? over : -over}px)` }], timing),
+        line.animate(masks.map((maskPosition) => ({ maskPosition })), timing),
+      );
+    }
+    this._scrollLast = { key, back, anim: this._scrollAnims[0] };
+    const ms = Math.max(this._config.rotate * 1000, longest && 2 * HOLD_MS + (longest / SCROLL_PX_PER_S) * 1000);
+    this.renderRoot.querySelector(".head .cycle")?.style.setProperty("--origami-cycle", `${ms}ms`);
+    if (ms > this._config.rotate * 1000) this._turnAfter(ms);
   }
 
   _tick() {
@@ -447,6 +485,10 @@ export class OrigamiNotificationsCard extends LitElement {
   }
 
   _onResize(width) {
+    if (Math.round(width) !== this._width) {
+      this._width = Math.round(width);
+      this._cycle();
+    }
     const narrow = width > 0 && width < NARROW_PX;
     if (narrow === this.classList.contains("narrow")) return;
     this.classList.toggle("narrow", narrow);
@@ -555,6 +597,7 @@ export class OrigamiNotificationsCard extends LitElement {
     }
     if (this._refocus != null) this._focusRow(this._refocus);
     if (this._intro) this._playIntro();
+    if (this._scrolled !== this._cycleKey) this._scroll();
   }
 
   _playIntro() {
@@ -692,7 +735,7 @@ export class OrigamiNotificationsCard extends LitElement {
     return html`
       <ha-card
         class=${classMap({ open: this._open, crit: slide?.sev === "crit", tappable, settled: this._open && this._settled })}
-        style="--tile-color: ${slide ? entryColor(slide) : "var(--state-inactive-color)"}; --origami-cycle: ${this._config.rotate || 8}s"
+        style="--tile-color: ${slide ? entryColor(slide) : "var(--state-inactive-color)"}"
         @keydown=${(e) => e.key === "Escape" && this._open && (e.stopPropagation(), this._toggle())}
       >
         <div class="backdrop" aria-hidden="true">
@@ -715,7 +758,7 @@ export class OrigamiNotificationsCard extends LitElement {
               ${leaving ? keyed(leaving, html`<div class="glyph leaving" style="color: ${entryColor(leaving.entry)}">${iconTemplate(leaving.entry, this._hass)}</div>`) : nothing}
               ${count > 1 ? html`<div class="badge">${count > 9 ? "9+" : count}</div>` : nothing}
             </div>
-            <div class=${classMap({ texts: true, up: Boolean(leaving && !leaving.side) })}>
+            <div class=${classMap({ texts: true, up: Boolean(leaving && !leaving.side), side: Boolean(leaving?.side) })}>
               ${this._slideTemplate(slide, t)}
               ${leaving ? keyed(leaving, this._slideTemplate(leaving.entry, t, leaving)) : nothing}
             </div>

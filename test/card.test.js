@@ -278,7 +278,7 @@ test("a ring around the icon fills until the next turn, and long text scrolls ag
   const el = await mount(w, card(Object.keys(doors())), makeHass(doors()));
   const parts = () => [q(el, ".head .cycle"), q(el, ".head .title span")];
   const [ring, title] = parts();
-  same([Boolean(ring), title.textContent, w.getComputedStyle(q(el, "ha-card")).getPropertyValue("--origami-cycle")], [true, "Door", "8s"]);
+  same([title.textContent, ring.style.getPropertyValue("--origami-cycle")], ["Door", "8000ms"]);
   await tick(el, 8000);
   assert.ok(parts().every((part, i) => part && part !== [ring, title][i]), "both start over with the next entry");
   const one = await mount(w, card(["binary_sensor.door"]), makeHass(doors()));
@@ -287,6 +287,23 @@ test("a ring around the icon fills until the next turn, and long text scrolls ag
   const alone = q(one, ".head .title span");
   await tick(one, 8000);
   assert.equal(q(one, ".head .title span"), alone, "a single entry scrolls back and forth without starting over");
+});
+
+test("long text holds, scrolls at reading speed and holds again, and the turn waits for it", async () => {
+  const w = makeWindow({ clock: true });
+  const moves = [];
+  w.HTMLElement.prototype.animate = function (frames, timing) {
+    if (frames[1].transform) moves.push([frames[1].transform, timing.delay, timing.duration]);
+    return { cancel() {} };
+  };
+  const width = { scrollWidth: (line) => (line.textContent === "Door" ? 400 : 100), clientWidth: () => 100 };
+  for (const [name, get] of Object.entries(width)) Object.defineProperty(w.HTMLElement.prototype, name, { get() { return get(this); } });
+  const el = await mount(w, card(Object.keys(doors())), makeHass(doors()));
+  same([moves, q(el, ".head .title").hasAttribute("data-long"), q(el, ".head .cycle").style.getPropertyValue("--origami-cycle")], [[["translateX(-300px)", 1500, 10000]], true, "13000ms"]);
+  await tick(el, 12000);
+  assert.equal(head(el).title, "Door", "the turn waits for the text");
+  await tick(el, 1000);
+  assert.deepEqual([head(el).title, q(el, ".head .title").hasAttribute("data-long")], ["Garage", false]);
 });
 
 test("news comes forward and is read out, and what was there before is not news", async () => {
