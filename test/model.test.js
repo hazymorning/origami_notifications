@@ -156,10 +156,10 @@ test("an event leads with its name in the color of a running calendar, and color
   assert.deepEqual(named.map((s) => [s.title, s.content, s.color]), [["Family", ["message", "start_time"], "var(--green-color)"]], "a name set by hand leads instead");
 });
 
-test("a timer counts down while it runs and shows the time left while paused", () => {
+test("a timer counts down while it runs, says when it ends and shows the time left while paused", () => {
   const timer = (state, attributes) => statesOf(st("timer.kitchen", state, { friendly_name: "Kitchen", ...attributes }));
   const [running] = model({ entities: ["timer.kitchen"] }, timer("active", { finishes_at: at(5) })).entries;
-  assert.deepEqual([running.ts, running.clock, running.actions.map((a) => a.action.tap_action.perform_action)], [NOW + 300000, true, ["timer.pause", "timer.cancel"]]);
+  assert.deepEqual([running.ts, running.clock, running.message, running.actions.map((a) => a.action.tap_action.perform_action)], [NOW + 300000, true, "Ends at 12:05", ["timer.pause", "timer.cancel"]]);
   const [paused] = model({ entities: ["timer.kitchen"] }, timer("paused", { remaining: "0:03:12" })).entries;
   assert.deepEqual([paused.message, paused.actions.map((a) => a.label)], ["Paused, 3:12 left", ["Resume", "Cancel"]]);
   assert.equal(model({ entities: ["timer.kitchen"] }, timer("idle")).entries.length, 0);

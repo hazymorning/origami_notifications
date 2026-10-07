@@ -149,7 +149,9 @@ function timer(st, src, ctx) {
   const t = ctx.t;
   const entry = { kind: "timer", title: ctx.name(st, src.name) };
   if (st.state === "active") {
-    return [{ ...entry, message: ctx.state(st), ts: parseTime(a.finishes_at), live: true, clock: true, ack: String(a.finishes_at), actions: [service(id, t.act_pause, "timer.pause"), service(id, t.act_cancel, "timer.cancel")] }];
+    const end = parseTime(a.finishes_at);
+    const message = Number.isFinite(end) ? fill(t.ends_at, { t: ctx.clock.clockTime(end), s: ctx.state(st) }) : ctx.state(st);
+    return [{ ...entry, message, ts: end, live: true, clock: true, ack: String(a.finishes_at), actions: [service(id, t.act_pause, "timer.pause"), service(id, t.act_cancel, "timer.cancel")] }];
   }
   if (st.state !== "paused") return [];
   return [
