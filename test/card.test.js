@@ -306,10 +306,27 @@ test("long text holds, scrolls at reading speed and holds again, the turn waits 
   assert.deepEqual([head(el).title, title().hasAttribute("data-long")], ["Garage", false]);
 });
 
+test("a burst of changes, as when the dashboard opens again, shows as one change to the latest", async () => {
+  const w = makeWindow({ clock: true });
+  const sensors = ["Hall", "Bath", "Attic"].map((name, i) => on(`binary_sensor.s${i}`, name, {}, at(-1)));
+  const el = await mount(w, card(["binary_sensor.door", ...sensors.map((s) => s.entity_id)]), makeHass(statesOf(on("binary_sensor.door", "Door", {}, at(-60)))));
+  await tick(el, 3000);
+  const seen = [head(el).title];
+  for (let i = 0; i < sensors.length; i++) {
+    el.hass = makeHass(statesOf(on("binary_sensor.door", "Door", {}, at(-60)), ...sensors.slice(0, i + 1).map((s) => ({ ...s, last_changed: new Date().toISOString() }))));
+    await tick(el, 100);
+    seen.push(head(el).title);
+  }
+  await tick(el, 2000);
+  seen.push(head(el).title);
+  assert.deepEqual(seen, ["Door", "Hall", "Hall", "Hall", "Attic"], "the first change shows at once, the rest wait for it and collapse");
+});
+
 test("news comes forward and is read out, and what was there before is not news", async () => {
   const w = makeWindow({ clock: true });
   const subs = [];
   const el = await mount(w, card([...Object.keys(doors()), "binary_sensor.smoke"]), makeHass(doors(), { subs }));
+  await tick(el, 2000);
   const say = () => q(el, ".say").textContent;
   notifications(subs[0], { notification_id: "n1", title: "Backup", message: "done", created_at: "2026-09-21T09:00:00+00:00" });
   await settle(el);

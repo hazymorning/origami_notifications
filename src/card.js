@@ -20,6 +20,7 @@ export const DIALOG = CARD + "-dialog";
 const NARROW_PX = 300;
 const NEWS_MS = 2 * MINUTE;
 const HOLD_MS = 1500;
+const SHOW_MS = 2000;
 const SCROLL_PX_PER_S = 30;
 // As wide as the scroll fade in Home Assistant's lists, --ha-space-4.
 const FADE_PX = 16;
@@ -105,7 +106,10 @@ export class OrigamiNotificationsCard extends LitElement {
     this.classList.toggle("docked", host === "hui-view-footer");
     this._inPicker = host === "hui-card-picker";
     this._dismissals.connect();
-    this._onVisibility ||= () => this._onView(this._visible);
+    this._onVisibility ||= () => {
+      if (!document.hidden) this._cycle();
+      this._onView(this._visible);
+    };
     document.addEventListener("visibilitychange", this._onVisibility);
     this._resize ||= new ResizeObserver(([entry]) => this._onResize(entry.contentRect.width));
     // The observer can report several changes at once, and only the last one holds.
@@ -129,7 +133,7 @@ export class OrigamiNotificationsCard extends LitElement {
     document.removeEventListener("visibilitychange", this._onVisibility);
     this._resize?.disconnect();
     this._view?.disconnect();
-    [this._wakeTimer, this._clock, this._turnTimer, this._repairsTimer, this._holdTimer].forEach(clearTimeout);
+    [this._wakeTimer, this._clock, this._turnTimer, this._repairsTimer, this._holdTimer, this._showTimer].forEach(clearTimeout);
     cancelAnimationFrame(this._frameId);
     this._sizes?.disconnect();
     // The dashboard editor detaches and attaches cards while it moves them.
@@ -346,7 +350,7 @@ export class OrigamiNotificationsCard extends LitElement {
     const topMoved = Boolean(top && top.kind !== "info" && top.key !== this._topKey);
     this._topKey = top?.key;
     this._turnable = slides;
-    let target = slides.find((s) => s.key === this._shown?.key);
+    let target = slides.find((s) => s.key === this._target?.key);
     const fresh = news && this._config.rotate ? slides.find((s) => s.key === news.key) : null;
     if (fresh) {
       target = fresh;
@@ -357,10 +361,24 @@ export class OrigamiNotificationsCard extends LitElement {
     this._show(target, 1, this._config.slide === "side");
   }
 
-  _show(target, dir, side) {
+  // Changes come in bursts, as when the dashboard opens again. So the card changes on its own only after an entry has
+  // been on show for a moment, and then to the latest.
+  _show(target, dir, side, now = false) {
+    this._target = target;
+    clearTimeout(this._showTimer);
+    if (target?.key === this._shown?.key) {
+      this._shown = target;
+      return;
+    }
+    const wait = this._shownAt + SHOW_MS - Date.now();
+    const stays = this._turnable.some((s) => s.key === this._shown?.key);
+    if (stays && !now && wait > 0) {
+      this._showTimer = setTimeout(() => this._show(this._target, dir, side, true), wait);
+      return;
+    }
     const from = this._shown;
     this._shown = target;
-    if (target?.key === from?.key) return;
+    this._shownAt = Date.now();
     this._cycle();
     const slide = this.renderRoot?.querySelector(".slide:not(.leaving)");
     if (from && slide && this._animate() && !this._open) this._turn(from, slide, dir, side);
@@ -411,7 +429,7 @@ export class OrigamiNotificationsCard extends LitElement {
     this._turned = true;
     if (how !== "auto") this._byHand = true;
     const i = Math.max(0, slides.findIndex((s) => s.key === this._shown?.key));
-    this._show(slides[(i + dir + slides.length) % slides.length], dir, how === "swipe" || this._config.slide === "side");
+    this._show(slides[(i + dir + slides.length) % slides.length], dir, how === "swipe" || this._config.slide === "side", true);
     this._tick();
   }
 
@@ -630,10 +648,14 @@ export class OrigamiNotificationsCard extends LitElement {
     if (this._scrolled !== this._cycleKey) this._scroll();
   }
 
+  // Home Assistant attaches a card again when the dashboard comes back, so the slide comes in only the first time.
   _playIntro() {
     this._intro = false;
     const side = this._config.slide === "side";
-    if (this._turnable.length > 1 && !this.preview && this.getClientRects().length) this._enter(side && this._rtl() ? -1 : 1, side);
+    if (!this._introduced && this._turnable.length > 1 && !this.preview && this.getClientRects().length) {
+      this._introduced = true;
+      this._enter(side && this._rtl() ? -1 : 1, side);
+    }
     requestAnimationFrame(() => (this._painted = true));
   }
 
