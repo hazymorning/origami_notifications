@@ -272,11 +272,15 @@ export const variables = css`
 export const cardStyles = css`
   :host {
     --origami-bg-auto: 0.22;
+    --origami-dir: 1;
     display: grid;
     -webkit-tap-highlight-color: transparent;
   }
   :host(.dark) {
     --origami-bg-auto: 0.32;
+  }
+  :host(:dir(rtl)) {
+    --origami-dir: -1;
   }
   :host([hidden]) {
     display: none !important;
@@ -461,51 +465,123 @@ export const cardStyles = css`
     min-width: 0;
     min-height: var(--row-height, 56px);
     align-self: stretch;
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     margin-inline: calc(var(--origami-gap) * -1);
     padding-inline: var(--origami-gap);
     overflow: hidden;
-  }
-  .texts.up {
-    mask-image: linear-gradient(to bottom, transparent, #000 8px, #000 calc(100% - 8px), transparent);
-  }
-  .texts.side {
     mask-image: linear-gradient(to right, transparent, #000 var(--origami-gap), #000 calc(100% - var(--origami-gap)), transparent);
   }
+  .texts.up {
+    mask-image: linear-gradient(to right, transparent, #000 var(--origami-gap), #000 calc(100% - var(--origami-gap)), transparent), linear-gradient(to bottom, transparent, #000 8px, #000 calc(100% - 8px), transparent);
+    mask-composite: intersect;
+  }
   .slide {
-    flex: 1 1 auto;
+    grid-area: 1 / 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
   }
+  .head :is(.title, .secondary) {
+    container-type: inline-size;
+    white-space: nowrap;
+  }
   .head .title {
-    min-width: 0;
     color: var(--ha-tile-info-primary-color, var(--primary-text-color));
     font-size: var(--ha-tile-info-primary-font-size, var(--ha-font-size-m, 14px));
     font-weight: var(--ha-tile-info-primary-font-weight, var(--ha-font-weight-medium, 500));
     line-height: var(--ha-tile-info-primary-line-height, var(--ha-line-height-normal, 1.6));
     letter-spacing: var(--ha-tile-info-primary-letter-spacing, 0.1px);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   .head .secondary {
-    min-width: 0;
     color: var(--ha-tile-info-secondary-color, var(--secondary-text-color));
     font-size: var(--ha-tile-info-secondary-font-size, var(--ha-font-size-s, 12px));
     font-weight: var(--ha-tile-info-secondary-font-weight, var(--ha-font-weight-normal, 400));
     line-height: var(--ha-tile-info-secondary-line-height, var(--ha-line-height-condensed, 1.2));
     letter-spacing: var(--ha-tile-info-secondary-letter-spacing, 0.4px);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   .head .secondary.time {
     font-variant-numeric: tabular-nums;
   }
   .head state-display {
     display: inline;
+  }
+  .head :is(.title, .secondary) > span {
+    display: inline-block;
+    animation: origami-scroll var(--origami-cycle) ease-in-out infinite alternate;
+  }
+  .head .leaving span {
+    animation: none;
+  }
+  @keyframes origami-scroll {
+    0%,
+    20% {
+      transform: none;
+    }
+    80%,
+    100% {
+      transform: translateX(calc(var(--origami-dir) * min(0px, 100cqi - 100%)));
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .head :is(.title, .secondary) > span {
+      animation: none;
+    }
+  }
+
+  .cycle {
+    position: absolute;
+    inset: -4px;
+    padding: 2px;
+    border-radius: calc(var(--ha-tile-icon-border-radius, var(--ha-border-radius-pill, 9999px)) + 4px);
+    color: color-mix(in srgb, var(--tile-color) 60%, transparent);
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    animation: origami-cycle-fade var(--origami-cycle) linear both;
+    pointer-events: none;
+  }
+  .cycle i {
+    position: absolute;
+    inset: 0;
+    clip-path: inset(0 0 0 50%);
+  }
+  .cycle i + i {
+    clip-path: inset(0 50% 0 0);
+  }
+  .cycle i::before {
+    content: "";
+    position: absolute;
+    inset: -25%;
+    background: linear-gradient(to right, currentColor 50%, transparent 0);
+    animation: origami-cycle-right var(--origami-cycle) linear both;
+  }
+  .cycle i + i::before {
+    background: linear-gradient(to left, currentColor 50%, transparent 0);
+    animation-name: origami-cycle-left;
+  }
+  @keyframes origami-cycle-right {
+    50%,
+    100% {
+      transform: rotate(180deg);
+    }
+  }
+  @keyframes origami-cycle-left {
+    0%,
+    50% {
+      transform: none;
+    }
+    100% {
+      transform: rotate(180deg);
+    }
+  }
+  @keyframes origami-cycle-fade {
+    0%,
+    92% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
   }
 
   .chevron {

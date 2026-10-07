@@ -1,5 +1,6 @@
 import { html, LitElement, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
+import { keyed } from "lit/directives/keyed.js";
 import { CARD, parseConfig } from "./config.js";
 import { warningDetails } from "./details.js";
 import { canDismiss, Dismissals } from "./dismissals.js";
@@ -7,7 +8,7 @@ import { Clock, fill, MINUTE } from "./format.js";
 import { HeadGestures } from "./gestures.js";
 import { infoText } from "./infos.js";
 import { buildModel, finishEntries, formatters, isAhead, nextWake } from "./model.js";
-import { duration, EASE, ListMotion } from "./motion.js";
+import { duration, EASE, ListMotion, SPRING } from "./motion.js";
 import { entryColor, focusRow, iconTemplate, imageUrl, opener, rowsTemplate } from "./rows.js";
 import { cardTexts, languageOf } from "./strings.js";
 import { adoptCss, cardStyles, iconStyles, rowStyles, variables } from "./styles.js";
@@ -46,11 +47,12 @@ export class OrigamiNotificationsCard extends LitElement {
     this._wakes = [];
     this._opened = new Set();
     this._things = new Map();
-    this._held = new Set();
     this._media = new Map();
     this._backdrops = [{}, {}];
     this._open = false;
     this._visible = true;
+    // A new key restarts the ring, since a CSS animation restarts only on a new element.
+    this._cycleKey = 0;
     this._now = Date.now();
     for (const tag of ["ha-state-icon", "state-display", "ha-ripple"]) {
       if (!customElements.get(tag)) customElements.whenDefined(tag).then(() => this.requestUpdate());
@@ -71,6 +73,7 @@ export class OrigamiNotificationsCard extends LitElement {
     this.classList.toggle("bounded", typeof config.grid_options?.rows === "number");
     this._derived = null;
     this._refresh();
+    this._cycle();
   }
 
   set hass(hass) {
@@ -101,13 +104,15 @@ export class OrigamiNotificationsCard extends LitElement {
     this._onVisibility ||= () => this._onView(this._visible);
     document.addEventListener("visibilitychange", this._onVisibility);
     this._resize ||= new ResizeObserver(([entry]) => this._onResize(entry.contentRect.width));
-    this._view ||= window.IntersectionObserver && new IntersectionObserver(([entry]) => this._onView(entry.isIntersecting), { threshold: 0.01 });
+    // The observer can report several changes at once, and only the last one holds.
+    this._view ||= window.IntersectionObserver && new IntersectionObserver((changes) => this._onView(changes.at(-1).isIntersecting), { threshold: 0.01 });
     this._view?.observe(this);
     const card = this.renderRoot?.querySelector("ha-card");
     if (card) this._resize.observe(card);
     this._painted = false;
     this._intro = true;
     this._refresh();
+    this._cycle();
   }
 
   disconnectedCallback() {
@@ -115,13 +120,12 @@ export class OrigamiNotificationsCard extends LitElement {
     this._subs.clear();
     this._dismissals.disconnect();
     this._gestures?.reset();
-    this._held.clear();
     for (const query of this._media.values()) query.onchange = null;
     this._media.clear();
     document.removeEventListener("visibilitychange", this._onVisibility);
     this._resize?.disconnect();
     this._view?.disconnect();
-    [this._wakeTimer, this._clock, this._rotateTimer, this._repairsTimer].forEach(clearTimeout);
+    [this._wakeTimer, this._clock, this._turnTimer, this._repairsTimer].forEach(clearTimeout);
     // The dashboard editor detaches and attaches cards while it moves them.
     this._collapseTimer = setTimeout(() => this._setOpen(false), 150);
   }
@@ -213,7 +217,6 @@ export class OrigamiNotificationsCard extends LitElement {
     const wake = this.isConnected ? nextWake(this._wakes, now) : null;
     if (wake !== null) this._wakeTimer = setTimeout(() => this._refresh(), wake);
     this._tick();
-    this._rotate();
     this.requestUpdate();
     this._dialog?.requestUpdate();
   }
@@ -337,7 +340,7 @@ export class OrigamiNotificationsCard extends LitElement {
     const topMoved = Boolean(top && top.kind !== "info" && top.key !== this._topKey);
     this._topKey = top?.key;
     this._turnable = slides;
-    let target = slides.find((s) => s.key === this._target?.key);
+    let target = slides.find((s) => s.key === this._shown?.key);
     const fresh = news && this._config.rotate ? slides.find((s) => s.key === news.key) : null;
     if (fresh) {
       target = fresh;
@@ -349,49 +352,45 @@ export class OrigamiNotificationsCard extends LitElement {
   }
 
   _show(target, dir, side) {
-    const moved = target?.key !== this._target?.key;
-    this._target = target;
-    if (this._turning) return;
-    if (moved && this._animate() && !this._open) return this._turn(dir, side);
+    const from = this._shown;
     this._shown = target;
-    const slide = this.renderRoot?.querySelector(".slide");
-    if (slide) slide.style.transform = slide.style.opacity = "";
+    if (target?.key === from?.key) return;
+    this._cycle();
+    const slide = this.renderRoot?.querySelector(".slide:not(.leaving)");
+    if (from && slide && this._animate() && !this._open) this._turn(from, slide, dir, side);
+    else if (slide) slide.style.transform = slide.style.opacity = "";
   }
 
-  async _turn(dir, side) {
-    const slide = this.renderRoot.querySelector(".slide");
-    const glyph = this.renderRoot.querySelector(".head .glyph");
-    const sign = dir * (side && this._rtl() ? -1 : 1);
-    const ms = duration(this, "slow") * 1.6;
-    const from = { transform: slide.style.transform || "none", opacity: slide.style.opacity || "1" };
+  // The leaving slide is drawn again from its entry, so the old and the new one move at the same time.
+  async _turn(from, slide, dir, side) {
+    const now = getComputedStyle(slide);
+    const start = { transform: now.transform, opacity: now.opacity, filter: now.filter };
+    const shift = [...slide.querySelectorAll(":scope > div > span")].map((span) => getComputedStyle(span).transform);
     slide.style.transform = slide.style.opacity = "";
-    this._motionClass = side ? "side" : "up";
-    this._turning = true;
-    const away = { duration: ms * 0.4, easing: EASE.out, fill: "forwards" };
-    const out = slide.animate([from, { transform: side ? `translateX(${-sign * 24}px)` : `translateY(${-sign * 14}px)`, opacity: 0 }], away);
-    const iconOut = glyph.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(0.6)" }], away);
-    await out.finished.catch(() => {});
-    this._turning = false;
-    this._shown = this._target;
-    this.requestUpdate();
+    this._turnAnims?.forEach((a) => a.cancel());
+    const sign = dir * (side && this._rtl() ? -1 : 1);
+    const leaving = (this._leaving = { entry: from, side, shift });
     await this.updateComplete;
-    this._slideIn(sign, side, ms * 0.6);
-    out.cancel();
-    iconOut.cancel();
+    const away = { duration: duration(this, "slow") * 0.8, easing: EASE.out, fill: "forwards" };
+    const [axis, px] = side ? ["X", 24] : ["Y", 12];
+    this._turnAnims = [
+      this.renderRoot.querySelector(".slide.leaving").animate([start, { transform: `translate${axis}(${-sign * px}px)`, opacity: 0, filter: "blur(4px)" }], away),
+      this.renderRoot.querySelector(".head .glyph.leaving").animate([{ opacity: 1 }, { opacity: 0, transform: "scale(0.8)", filter: "blur(2px)" }], away),
+      ...this._enter(sign, side, duration(this, "slow") * 0.35),
+    ];
+    await Promise.all(this._turnAnims.map((a) => a.finished)).catch(() => {});
+    if (this._leaving !== leaving) return;
+    this._leaving = null;
+    this.requestUpdate();
   }
 
-  _slideIn(sign, side, ms) {
-    const back = { duration: ms, easing: EASE.in };
-    this._motionClass = side ? "side" : "up";
-    this.requestUpdate();
-    const into = this.renderRoot
-      .querySelector(".slide")
-      .animate([{ transform: side ? `translateX(${sign * 24}px)` : `translateY(${sign * 14}px)`, opacity: 0 }, { transform: "none", opacity: 1 }], back);
-    this.renderRoot.querySelector(".head .glyph").animate([{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "none" }], back);
-    into.finished.then(() => {
-      this._motionClass = null;
-      this.requestUpdate();
-    }, () => {});
+  _enter(sign, side, delay = 0) {
+    const [axis, px] = side ? ["X", 24] : ["Y", 12];
+    const timing = { duration: duration(this, "slow") * 2, delay, easing: SPRING, fill: "backwards" };
+    return [
+      this.renderRoot.querySelector(".slide:not(.leaving)").animate([{ transform: `translate${axis}(${sign * px}px)`, opacity: 0, filter: "blur(4px)" }, { transform: "none", opacity: 1, filter: "none" }], timing),
+      this.renderRoot.querySelector(".head .glyph:not(.leaving)").animate([{ opacity: 0, transform: "scale(0.8)", filter: "blur(2px)" }, { opacity: 1, transform: "none", filter: "none" }], timing),
+    ];
   }
 
   _step(dir, how) {
@@ -399,31 +398,22 @@ export class OrigamiNotificationsCard extends LitElement {
     if (slides.length < 2) return;
     this._turned = true;
     if (how !== "auto") this._byHand = true;
-    const i = Math.max(0, slides.findIndex((s) => s.key === this._target?.key));
+    const i = Math.max(0, slides.findIndex((s) => s.key === this._shown?.key));
     this._show(slides[(i + dir + slides.length) % slides.length], dir, how === "swipe" || this._config.slide === "side");
-    this.requestUpdate();
     this._tick();
-    this._rotate(true);
   }
 
-  _rotate(restart = false) {
-    const go =
-      this._config.rotate > 0 && this._turnable.length > 1 && !this._open && !this._dialog && !this._held.size &&
-      this.isConnected && this._visible && !document.hidden && !this.hidden && !this._hiding;
-    if (go && this._rotateTimer && !restart) return;
-    clearTimeout(this._rotateTimer);
-    this._rotateTimer = null;
-    if (go) this._rotateTimer = setTimeout(() => {
-      this._rotateTimer = null;
-      this._step(1, "auto");
-    }, this._config.rotate * 1000);
+  _cycle() {
+    clearTimeout(this._turnTimer);
+    this._cycleKey++;
+    if (this._config?.rotate > 0 && this.isConnected) this._turnTimer = setTimeout(() => this._autoTurn(), this._config.rotate * 1000);
+    this.requestUpdate();
   }
 
-  _hold(reason, on) {
-    if (on === this._held.has(reason)) return;
-    if (on) this._held.add(reason);
-    else this._held.delete(reason);
-    this._rotate(true);
+  _autoTurn() {
+    const shown = this._shown;
+    if (this._visible && !document.hidden && !this._open && !this._dialog && !this._gestures?.press) this._step(1, "auto");
+    if (this._shown === shown) this._cycle();
   }
 
   _tick() {
@@ -454,7 +444,6 @@ export class OrigamiNotificationsCard extends LitElement {
     this._now = Date.now();
     this.requestUpdate();
     this._tick();
-    this._rotate();
   }
 
   _onResize(width) {
@@ -489,9 +478,9 @@ export class OrigamiNotificationsCard extends LitElement {
         this.requestUpdate();
       }, this._animate() ? duration(this, "normal") : 0);
     }
+    if (!open) this._cycle();
     this.requestUpdate();
     this._tick();
-    this._rotate();
   }
 
   _toggle() {
@@ -526,17 +515,15 @@ export class OrigamiNotificationsCard extends LitElement {
     const head = this.renderRoot.querySelector(".head");
     this._resize.observe(this.renderRoot.querySelector("ha-card"));
     this._gestures = new HeadGestures(head, {
-      pressed: (on) => this._hold("press", on),
       canDrag: () => this._turnable.length > 1 && !this._open,
       drag: (dx) => {
-        if (this._turning) return;
-        const slide = this.renderRoot.querySelector(".slide");
+        const slide = this.renderRoot.querySelector(".slide:not(.leaving)");
         slide.style.transform = `translateX(${dx * 0.6}px)`;
         slide.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 160));
       },
       dragEnd: (step) => {
         if (step) return this._step(step, "swipe");
-        const slide = this.renderRoot.querySelector(".slide");
+        const slide = this.renderRoot.querySelector(".slide:not(.leaving)");
         const from = { transform: slide.style.transform || "none", opacity: slide.style.opacity || "1" };
         slide.style.transform = slide.style.opacity = "";
         slide.animate([from, { transform: "none", opacity: 1 }], { duration: duration(this, "normal"), easing: EASE.standard });
@@ -547,8 +534,6 @@ export class OrigamiNotificationsCard extends LitElement {
       doubleTapAction: () => this._gestureAction("double_tap"),
       rtl: () => this._rtl(),
     });
-    head.addEventListener("focusin", () => this._hold("focus", head.matches(":focus-visible")));
-    head.addEventListener("focusout", () => this._hold("focus", false));
   }
 
   willUpdate(changed) {
@@ -575,7 +560,7 @@ export class OrigamiNotificationsCard extends LitElement {
   _playIntro() {
     this._intro = false;
     const side = this._config.slide === "side";
-    if (this._turnable.length > 1 && !this.preview && this.getClientRects().length) this._slideIn(side && this._rtl() ? -1 : 1, side, duration(this, "slow") * 1.6 * 0.6);
+    if (this._turnable.length > 1 && !this.preview && this.getClientRects().length) this._enter(side && this._rtl() ? -1 : 1, side);
     requestAnimationFrame(() => (this._painted = true));
   }
 
@@ -616,7 +601,6 @@ export class OrigamiNotificationsCard extends LitElement {
     this.hidden = true;
     fire(this, "card-visibility-changed", { value: false });
     this._setOpen(false);
-    this._rotate();
   }
 
   _focusRow(index) {
@@ -649,7 +633,7 @@ export class OrigamiNotificationsCard extends LitElement {
   setDialog(dialog) {
     this._dialog = dialog;
     this._tick();
-    this._rotate();
+    if (!dialog) this._cycle();
   }
 
   get gone() {
@@ -682,6 +666,18 @@ export class OrigamiNotificationsCard extends LitElement {
     return html`<state-display .hass=${this._hass} .stateObj=${slide.stateObj} .content=${slide.info.state_content} .timeFormat=${slide.info.time_format} .name=${slide.title}></state-display>`;
   }
 
+  _slideTemplate(slide, t, leaving) {
+    const time = slide && slide.kind !== "info" && this._headTime(slide);
+    const secondary = this._secondary(slide, t);
+    const line = (text, i) => keyed(slide?.key, html`<span style=${leaving ? `transform: ${leaving.shift[i] || "none"}` : nothing}>${text}</span>`);
+    return html`
+      <div class="slide ${leaving ? "leaving" : ""}" aria-hidden=${leaving ? "true" : nothing}>
+        <div class="title">${line(slide ? slide.title : t.idle_title, 0)}</div>
+        ${secondary ? html`<div class="secondary ${time ? "time" : ""}" aria-live=${time && !leaving ? "off" : nothing}>${line(secondary, 1)}</div>` : nothing}
+      </div>
+    `;
+  }
+
   render() {
     if (!this._config || !this._hass) return nothing;
     const t = this._derive().texts;
@@ -690,14 +686,13 @@ export class OrigamiNotificationsCard extends LitElement {
     const tappable = this._tappable(listed);
     const many = listed.length > 1;
     const narrow = this.classList.contains("narrow");
-    const time = slide && slide.kind !== "info" && this._headTime(slide);
-    const secondary = this._secondary(slide, t);
     const count = this._entries.length;
+    const leaving = this._leaving;
     const clear = this.dismissible();
     return html`
       <ha-card
         class=${classMap({ open: this._open, crit: slide?.sev === "crit", tappable, settled: this._open && this._settled })}
-        style="--tile-color: ${slide ? entryColor(slide) : "var(--state-inactive-color)"}"
+        style="--tile-color: ${slide ? entryColor(slide) : "var(--state-inactive-color)"}; --origami-cycle: ${this._config.rotate || 8}s"
         @keydown=${(e) => e.key === "Escape" && this._open && (e.stopPropagation(), this._toggle())}
       >
         <div class="backdrop" aria-hidden="true">
@@ -715,14 +710,14 @@ export class OrigamiNotificationsCard extends LitElement {
           >
             <ha-ripple></ha-ripple>
             <div class=${classMap({ icon: true, idle: !slide })}>
+              ${this._config.rotate > 0 && this._turnable.length > 1 ? keyed(this._cycleKey, html`<div class="cycle"><i></i><i></i></div>`) : nothing}
               <div class="glyph">${iconTemplate(slide || { icon: "mdi:bell-outline" }, this._hass)}</div>
+              ${leaving ? keyed(leaving, html`<div class="glyph leaving" style="color: ${entryColor(leaving.entry)}">${iconTemplate(leaving.entry, this._hass)}</div>`) : nothing}
               ${count > 1 ? html`<div class="badge">${count > 9 ? "9+" : count}</div>` : nothing}
             </div>
-            <div class="texts ${this._motionClass || ""}">
-              <div class="slide">
-                <div class="title">${slide ? slide.title : t.idle_title}</div>
-                ${secondary ? html`<div class="secondary ${time ? "time" : ""}" aria-live=${time ? "off" : nothing}>${secondary}</div>` : nothing}
-              </div>
+            <div class=${classMap({ texts: true, up: Boolean(leaving && !leaving.side) })}>
+              ${this._slideTemplate(slide, t)}
+              ${leaving ? keyed(leaving, this._slideTemplate(leaving.entry, t, leaving)) : nothing}
             </div>
             ${many ? html`<ha-icon class="chevron" icon="mdi:chevron-down"></ha-icon>` : nothing}
           </div>

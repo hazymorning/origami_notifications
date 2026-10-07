@@ -241,29 +241,52 @@ test("a swipe or an arrow key turns the card by hand, and the turns go on from t
   assert.equal(head(el).title, "Door");
 });
 
-test("the turns wait while the card is pressed, focused by keyboard, open or out of sight", async () => {
+test("the turns wait while the card is pressed, open or out of sight, and go on under keyboard focus", async () => {
   const w = makeWindow({ clock: true });
   const el = await mount(w, card(Object.keys(doors())), makeHass(doors()));
   const h = q(el, ".head");
-  h.matches = (s) => s === ":focus-visible";
-  h.dispatchEvent(new w.FocusEvent("focusin", { bubbles: true }));
+  const pointer = (type) => h.dispatchEvent(new w.PointerEvent(type, { pointerId: 1, isPrimary: true, pointerType: "touch", clientX: 10, clientY: 10, bubbles: true }));
+  pointer("pointerdown");
   await tick(el, 30000);
-  assert.equal(head(el).title, "Door", "keyboard focus holds it");
-  h.dispatchEvent(new w.FocusEvent("focusout", { bubbles: true }));
+  assert.equal(head(el).title, "Door", "a finger on the card holds it");
+  pointer("pointercancel");
   el.show(false);
   await tick(el, 30000);
   assert.equal(head(el).title, "Door", "out of sight nothing turns");
-  el.show(true);
+  el.show(false, true);
+  await tick(el, 8000);
+  assert.equal(head(el).title, "Garage", "back in sight it turns again");
   h.click();
   await tick(el, 30000);
-  assert.equal(head(el).title, "Door", "nor while the list is open");
+  assert.equal(head(el).title, "Garage", "nor while the list is open");
   q(el, ".bar").click();
   for (let i = 0; i < 7; i++) {
     await tick(el, 1000);
     el.hass = makeHass({ ...doors(), ...statesOf({ ...on("binary_sensor.door", "Door", {}, at(-1)), last_updated: new Date().toISOString() }) });
   }
+  assert.equal(head(el).title, "Garage", "a closed list shows the entry for a full turn");
   await tick(el, 1000);
-  assert.equal(head(el).title, "Garage", "new states do not push the next turn back");
+  assert.equal(head(el).title, "Gate", "and new states do not push the next turn back");
+  h.matches = (s) => s === ":focus-visible";
+  h.dispatchEvent(new w.FocusEvent("focusin", { bubbles: true }));
+  await tick(el, 8000);
+  assert.equal(head(el).title, "Door", "keyboard focus does not hold it");
+});
+
+test("a ring around the icon fills until the next turn, and long text scrolls again with each entry", async () => {
+  const w = makeWindow({ clock: true });
+  const el = await mount(w, card(Object.keys(doors())), makeHass(doors()));
+  const parts = () => [q(el, ".head .cycle"), q(el, ".head .title span")];
+  const [ring, title] = parts();
+  same([Boolean(ring), title.textContent, w.getComputedStyle(q(el, "ha-card")).getPropertyValue("--origami-cycle")], [true, "Door", "8s"]);
+  await tick(el, 8000);
+  assert.ok(parts().every((part, i) => part && part !== [ring, title][i]), "both start over with the next entry");
+  const one = await mount(w, card(["binary_sensor.door"]), makeHass(doors()));
+  const still = await mount(w, card(Object.keys(doors()), { rotate: 0 }), makeHass(doors()));
+  same([q(one, ".cycle"), q(still, ".cycle")], [null, null], "no ring where nothing turns");
+  const alone = q(one, ".head .title span");
+  await tick(one, 8000);
+  assert.equal(q(one, ".head .title span"), alone, "a single entry scrolls back and forth without starting over");
 });
 
 test("news comes forward and is read out, and what was there before is not news", async () => {

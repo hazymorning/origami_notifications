@@ -38,7 +38,7 @@ export function makeWindow({ clock = false, zone, define = [] } = {}) {
       this.cb = cb;
     }
     observe(target) {
-      target.show = (isIntersecting) => this.cb([{ isIntersecting }]);
+      target.show = (...changes) => this.cb(changes.map((isIntersecting) => ({ isIntersecting })));
     }
     disconnect() {}
   };
