@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseConfig } from "../src/config.js";
 import { Clock } from "../src/format.js";
+import { infoText } from "../src/infos.js";
 import { buildModel, finishEntries } from "../src/model.js";
 import { cardTexts } from "../src/strings.js";
 import { windowIds } from "../src/weather.js";
@@ -395,38 +396,40 @@ test("infos turn in their order, without the ones that are unavailable", () => {
   ]);
 });
 
-test("a weather info leads with the weather and turns through its forecast, in the number format of the profile", () => {
+test("a weather info shows its name over the weather, as a tile does, and turns through its forecast, in the number format of the profile", () => {
   const day = (d, rest) => ({ datetime: new Date(Date.parse("2026-10-02T00:00:00Z") + d * 86400000).toISOString(), condition: "sunny", temperature: 16.5, templow: 9, ...rest });
   const states = statesOf(weather("rainy", { supported_features: 7 }));
   const slides = (info, forecast, opts) => model({ infos: [{ entity: "weather.home", ...info }] }, states, { forecast: { "weather.home": forecast }, ...opts }).slides.map((s) => [s.title, s.text ?? s.stateObj.state, s.icon ?? null]);
   assert.deepEqual(slides({ forecast_type: "daily", forecast_slots: 2 }, [day(-1), day(0), day(1, { condition: "rainy" })]), [
-    ["rainy · 12", "Home", null],
-    ["16.5° / 9° · sunny", "Today", null],
-    ["16.5° / 9° · rainy", "Tomorrow", null],
+    ["Home", "rainy", null],
+    ["Today", "16.5° / 9° · sunny", null],
+    ["Tomorrow", "16.5° / 9° · rainy", null],
   ]);
-  assert.deepEqual(slides({ forecast_type: "daily", show_current: false }, [day(0)], { locale: { number_format: "decimal_comma" } }), [["16,5° / 9° · sunny", "Today", null]]);
+  assert.deepEqual(slides({ forecast_type: "daily", show_current: false }, [day(0)], { locale: { number_format: "decimal_comma" } }), [["Today", "16,5° / 9° · sunny", null]]);
   assert.deepEqual(slides({ forecast_type: "daily", show_current: false }, null), [], "only the forecast waits for it");
   const hours = [{ datetime: at(0), condition: "partlycloudy", temperature: 11, is_daytime: false }];
   assert.deepEqual(slides({ forecast_type: "hourly", show_current: false, name: "Oslo" }, hours), [["Oslo", "12:00 · 11° · partlycloudy", "mdi:weather-night-partly-cloudy"]]);
-  assert.deepEqual(slides({ forecast_type: "twice_daily", show_current: false }, [{ ...hours[0], is_daytime: true }]), [["Day · 11° · partlycloudy", "Today", null]]);
+  assert.deepEqual(slides({ forecast_type: "twice_daily", show_current: false }, [{ ...hours[0], is_daytime: true }]), [["Today", "Day · 11° · partlycloudy", null]]);
 });
 
 test("a card that stays while nothing needs attention shows the weather now, what comes next and the next events", () => {
   const states = statesOf(weather("cloudy", { supported_features: 3 }), st("calendar.family", "off", { friendly_name: "Family", message: "Dentist", start_time: "2026-10-03 09:00:00" }), st("calendar.empty", "off"));
   const forecast = hourly(...Array.from({ length: 40 }, (_, i) => ({ temperature: 8 + (i % 4), condition: i === 6 ? "rainy" : "cloudy" })));
-  const slides = (now) =>
-    model({ hide_when_empty: false, weather: "weather.home", entities: ["calendar.family", "calendar.empty"] }, states, { forecast: { "weather.home": forecast }, now }).slides.map((s) => [s.title, s.text ?? ""]);
+  const slides = (now) => {
+    const m = model({ hide_when_empty: false, weather: "weather.home", entities: ["calendar.family", "calendar.empty"] }, states, { forecast: { "weather.home": forecast }, now });
+    return m.slides.map((s) => [s.title, s.text ?? infoText(s.stateObj, s.content ?? s.info.state_content, s.name, m.ctx)]);
+  };
   assert.deepEqual(slides(NOW), [
-    ["cloudy · 12", "Home"],
-    ["rainy · 8 to 11°", "This evening"],
-    ["Dentist", ""],
-  ], "the weather and the event lead, the place and the time follow");
-  assert.deepEqual(slides(NOW + 7 * 3600000).map(([, text]) => text), ["Home", "Tonight", "Tomorrow", ""], "from the evening on, tomorrow joins");
-  assert.deepEqual(slides(NOW + 11 * 3600000).map(([, text]) => text), ["Home", "Tomorrow", ""], "and tomorrow morning goes into tomorrow");
+    ["Home", "cloudy · 12"],
+    ["This evening", "rainy · 8 to 11°"],
+    ["Dentist", "in 21 hr."],
+  ], "the place and the time of day lead the weather, and the event leads its time");
+  assert.deepEqual(slides(NOW + 7 * 3600000).map(([title]) => title), ["Home", "Tonight", "Tomorrow", "Dentist"], "from the evening on, tomorrow joins");
+  assert.deepEqual(slides(NOW + 11 * 3600000).map(([title]) => title), ["Home", "Tomorrow", "Dentist"], "and tomorrow morning goes into tomorrow");
   const daily = statesOf(weather("sunny", { supported_features: 1 }));
   const day = (d, rest) => ({ datetime: new Date(Date.parse("2026-10-02T00:00:00Z") + d * 86400000).toISOString(), temperature: 16.4, templow: 9, condition: "sunny", ...rest });
   const daySlides = model({ hide_when_empty: false, weather: "weather.home" }, daily, { forecast: { "weather.home": [day(0), day(1, { condition: "rainy" })] } }).slides;
-  assert.deepEqual(daySlides.map((s) => [s.title, s.text ?? ""]), [["sunny · 12", "Home"], ["sunny · 9 to 16°", "Today"]], "a daily forecast names the day");
+  assert.deepEqual(daySlides.map((s) => [s.title, s.text ?? ""]), [["Home", ""], ["Today", "sunny · 9 to 16°"]], "a daily forecast names the day");
   assert.equal(model({ weather: "weather.home", entities: ["calendar.family"] }, states).slides.length, 0, "a card that hides when empty adds none");
 });
 

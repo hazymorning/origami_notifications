@@ -2,11 +2,13 @@
 
 A notification card for Home Assistant that folds away when there is nothing to see.
 
-Closed, the card is one row that turns through whatever needs attention, then through your infos. Long text scrolls. A tap unfolds the list of all of it. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
+Closed, the card is one row that turns through whatever needs attention, then through your infos. Long text scrolls. A tap unfolds the list. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
 
 Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
 
 Infos, like the next sunrise, are set up like tiles. With `hide_when_empty: false` the weather now and what comes next, and the next event of each calendar, join them.
+
+A row leads with what happens, like an event or a pickup. Anything else leads with its name, as on a tile.
 
 ```yaml
 type: custom:origami-notifications
@@ -93,7 +95,7 @@ Infos take the options of a tile card.
 | Option | |
 | --- | --- |
 | `entity` | The entity to show |
-| `name`, `icon`, `color`, `show_entity_picture` | As on a tile. Without a name, a calendar leads with its next event and the weather with its state. |
+| `name`, `icon`, `color`, `show_entity_picture` | As on a tile. Without a name, a calendar leads with its next event. |
 | `state_content`, `time_format` | What the second line says, like `[temperature, state]` or `next_rising` |
 | `forecast_type` | For a weather entity, `daily`, `hourly` or `twice_daily` adds the forecast |
 | `forecast_slots` | How many days or hours turn by, 1 unless set |
@@ -139,8 +141,6 @@ infos:
 
 Some sensors describe a thing in an attribute, like tonight's dinner, a library book or a parcel. If the attribute holds a `name` or `title` plus a `description`, `summary` or picture, the card shows that thing for as long as it is there, whatever the state.
 
-Every entity can take these options.
-
 | Option | |
 | --- | --- |
 | `type` | Skip the detection with `calendar`, `waste`, `update`, `alarm`, `alert`, `timer`, `countdown`, `next_alarm`, `event`, `todo`, `device`, `warning`, `attribute`, `picture` or `generic`. `generic` shows any state but off, idle, none, 0, unknown and unavailable. `picture` shows the state as the title. |
@@ -182,7 +182,7 @@ Sensors of one kind that are on, like open windows, share one row with their roo
 <details>
 <summary>Dismissing</summary>
 
-Dismissing a Home Assistant notification removes it for everyone. For admins, dismissing a repair ignores it and dismissing an update skips it. Admins can also install an update from the card, if its integration supports that.
+Dismissing a Home Assistant notification removes it for everyone. For admins, dismissing a repair ignores it and dismissing an update skips it. Admins can also install an update, where its integration allows it.
 
 Everything else is only hidden in this browser, until it happens again or changes. That includes updates that install themselves, since Home Assistant can't skip them. Alarm panels can't be dismissed.
 
@@ -201,13 +201,13 @@ audience:
 
 The keys are `system` for Home Assistant's notifications, `updates`, `repairs` or an entity ID. People are matched by the user account linked to them in Settings > People. While you edit the dashboard, you see everything.
 
-This only tidies the card. Everyone can still see every entity in Home Assistant itself.
+This only tidies the card. Everyone still sees every entity in Home Assistant.
 
 </details>
 
 <details>
 <summary>Development</summary>
 
-The card is written with Lit in `src`. `npm run build` bundles it into `dist`. `npm test` and `npm run lint` check it.
+`npm run build` bundles the card from `src` into `dist`. `npm test` and `npm run lint` check it.
 
 </details>
