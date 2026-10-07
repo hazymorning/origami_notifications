@@ -367,6 +367,12 @@ test("a narrow card opens its list in Home Assistant's dialog", async () => {
   await settle(el);
   await settle(dialog);
   assert.deepEqual(shown(), ["Garage", "Gate"], "a dismissal reaches it at once");
+  const clearAll = () => Boolean(dialog.shadowRoot.querySelector("ha-icon-button"));
+  assert.equal(clearAll(), true);
+  dialog.shadowRoot.querySelector(".dismiss").click();
+  await settle(el);
+  await settle(dialog);
+  assert.deepEqual([shown(), clearAll()], [["Gate"], false], "clear all shows only while it has something to clear");
   const closed = [];
   dialog.addEventListener("dialog-closed", (e) => closed.push(e.detail.dialog));
   dialog.closeDialog();
