@@ -1,5 +1,5 @@
 import { isoTime, parseTime } from "./format.js";
-import { stateActive, stateColor, themeColor } from "./ha.js";
+import { domainOf, stateActive, stateColor, themeColor } from "./ha.js";
 import { findPicture } from "./kinds.js";
 import { isEmpty, isObject } from "./values.js";
 import { forecastSupported, forecastType, outlook, SPAN } from "./weather.js";
@@ -20,7 +20,7 @@ export function quietInfos(config, sources, hass, allowed) {
   for (const src of sources) {
     const st = hass.states[src.entity];
     if (!src.entity.startsWith("calendar.") || taken.has(src.entity) || !allowed(src.entity)) continue;
-    if (st?.state === "off" && !isEmpty(st.attributes.message)) extra.push({ entity: src.entity, name: src.name, state_content: ["message", "start_time"] });
+    if (st?.state === "off" && !isEmpty(st.attributes.message)) extra.push({ entity: src.entity, name: src.name, icon: src.icon, color: src.color });
   }
   return [...config.infos, ...extra];
 }
@@ -86,16 +86,22 @@ export function infoSlides(infos, ctx) {
     const name = ctx.name(st, info.name);
     const base = { kind: "info", info, entity: info.entity, row: key, name, icon: info.icon, image: info.show_entity_picture ? findPicture(st.attributes) : null };
     const ahead = forecastAhead(info, st, ctx);
-    if (!ahead || info.show_current !== false) slides.push({ ...base, key, stateObj: st, title: name, color: colorOf(st) });
+    const domain = domainOf(info.entity);
+    const event = domain === "calendar" && !isEmpty(st.attributes.message);
     const named = isObject(info.name) || !isEmpty(info.name) ? name : "";
+    const current = { ...base, key, stateObj: st, title: name, color: colorOf(event ? { ...st, state: "on" } : st) };
+    // A calendar's or the weather's name stays the same, so without a name set what they show leads.
+    if (event) Object.assign(current, named ? { content: info.state_content ?? ["message", "start_time"] } : { title: st.attributes.message, content: info.state_content ?? ["start_time"] });
+    if (!named && domain === "weather") Object.assign(current, { title: infoText(st, info.state_content ?? ["state", "temperature"], name, ctx), text: name });
+    if (!ahead || info.show_current !== false) slides.push(current);
     (ahead || []).forEach((a, n) => {
       const shown = { ...st, state: a.condition || "unknown" };
       slides.push({
         ...base,
         key: `${key}#${n}`,
         stateObj: shown,
-        title: named || a.label,
-        text: [named ? a.label : "", a.text].filter(Boolean).join(" · "),
+        title: named || a.text,
+        text: named ? [a.label, a.text].filter(Boolean).join(" · ") : a.label,
         icon: info.icon || (a.night && NIGHT_ICONS[a.condition]) || undefined,
         color: colorOf(shown),
       });

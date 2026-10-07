@@ -310,8 +310,8 @@ export class OrigamiNotificationsCard extends LitElement {
     return {
       key: slide.row,
       kind: "info",
-      title: slide.name,
-      message: infoText(st, slide.info.state_content, slide.name, this._formatters()),
+      title: slide.title,
+      message: slide.text ?? infoText(st, slide.content ?? slide.info.state_content, slide.name, this._formatters()),
       icon: slide.icon,
       image: slide.image,
       stateObj: st,
@@ -735,8 +735,9 @@ export class OrigamiNotificationsCard extends LitElement {
     if (!slide) return t.idle_msg;
     if (slide.kind !== "info") return this._headTime(slide) ? this._derive().clock.entryTime(slide, this._now) : slide.message;
     if (slide.text != null) return slide.text;
-    if (!customElements.get("state-display")) return infoText(slide.stateObj, slide.info.state_content, slide.title, this._formatters());
-    return html`<state-display .hass=${this._hass} .stateObj=${slide.stateObj} .content=${slide.info.state_content} .timeFormat=${slide.info.time_format} .name=${slide.title}></state-display>`;
+    const content = slide.content ?? slide.info.state_content;
+    if (!customElements.get("state-display")) return infoText(slide.stateObj, content, slide.name, this._formatters());
+    return html`<state-display .hass=${this._hass} .stateObj=${slide.stateObj} .content=${content} .timeFormat=${slide.info.time_format} .name=${slide.name}></state-display>`;
   }
 
   _slideTemplate(slide, t, leaving) {

@@ -1,5 +1,5 @@
 import { clockText, DAY, dayNumber, dayStart, fill, HOUR, isoDate, isoTime, parseDuration, parseTime } from "./format.js";
-import { domainOf, FEATURE, stateActive, supports } from "./ha.js";
+import { domainColor, domainOf, FEATURE, stateActive, supports, themeColor } from "./ha.js";
 import { linkAction, plainText } from "./markdown.js";
 import { isEmpty, isObject } from "./values.js";
 
@@ -71,7 +71,8 @@ function within(ts, lead, ctx) {
 function calendar(st, src, ctx) {
   const a = st.attributes;
   if (!a.message) return [];
-  const entry = { kind: "calendar", title: a.message, message: ctx.clock.calendar(a.start_time, a.all_day, ctx.now) };
+  // An event on show colors the calendar as Home Assistant does while one runs.
+  const entry = { kind: "calendar", title: a.message, message: ctx.clock.calendar(a.start_time, a.all_day, ctx.now), color: domainColor("calendar", null, "on", true) };
   if (st.state === "on") return [{ ...entry, ts: parseTime(st.last_changed, ctx.now), past: true, ack: sig(a.message, a.start_time) }];
   const start = isoTime(a.start_time, ctx.clock.server);
   if (st.state !== "off" || !(src.lead >= 0) || !within(start, src.lead, ctx)) return [];
@@ -445,6 +446,7 @@ export function entityEntries(src, st, ctx) {
       entity: id,
       ...entry,
       icon: src.icon || entry.icon,
+      color: src.color && src.color !== "state" ? themeColor(src.color) : entry.color,
       image: typeof picture === "string" && picture ? picture : null,
       backdrop: Boolean(src.background),
       tap: src.tap_action ? tap : entry.tap,

@@ -143,6 +143,16 @@ test("a calendar shows a running event and, with before, the next one ahead", ()
   assert.equal(m.wakes[0], Date.parse("2026-10-02T14:00:00Z"), "it wakes when the dentist is an hour ahead");
 });
 
+test("an event leads with its name in the color of a running calendar, and color picks a theme color as on a tile", () => {
+  const states = statesOf(st("calendar.family", "off", { friendly_name: "Family", message: "Dentist", start_time: "2026-10-02 12:30:00" }), on("binary_sensor.door", "Door"));
+  const running = "var(--state-calendar-on-color, var(--state-calendar-active-color, var(--state-active-color)))";
+  const m = model({ hide_when_empty: false, entities: [{ entity: "calendar.family", before: 60 }, { entity: "binary_sensor.door", color: "green" }] }, states);
+  assert.deepEqual(show(m, "title", "color"), [["Dentist", running], ["Door", "var(--green-color)"]]);
+  assert.deepEqual(m.slides.map((s) => [s.title, s.content, s.color]), [["Dentist", ["start_time"], running]], "the next event leads, and its time follows");
+  const named = model({ hide_when_empty: false, entities: [{ entity: "calendar.family", name: "Family", color: "green" }] }, states).slides;
+  assert.deepEqual(named.map((s) => [s.title, s.content, s.color]), [["Family", ["message", "start_time"], "var(--green-color)"]], "a name set by hand leads instead");
+});
+
 test("a timer counts down while it runs and shows the time left while paused", () => {
   const timer = (state, attributes) => statesOf(st("timer.kitchen", state, { friendly_name: "Kitchen", ...attributes }));
   const [running] = model({ entities: ["timer.kitchen"] }, timer("active", { finishes_at: at(5) })).entries;
@@ -378,20 +388,20 @@ test("infos turn in their order, without the ones that are unavailable", () => {
   ]);
 });
 
-test("a weather info turns through its forecast after the current weather, in the number format of the profile", () => {
+test("a weather info leads with the weather and turns through its forecast, in the number format of the profile", () => {
   const day = (d, rest) => ({ datetime: new Date(Date.parse("2026-10-02T00:00:00Z") + d * 86400000).toISOString(), condition: "sunny", temperature: 16.5, templow: 9, ...rest });
   const states = statesOf(weather("rainy", { supported_features: 7 }));
   const slides = (info, forecast, opts) => model({ infos: [{ entity: "weather.home", ...info }] }, states, { forecast: { "weather.home": forecast }, ...opts }).slides.map((s) => [s.title, s.text ?? s.stateObj.state, s.icon ?? null]);
   assert.deepEqual(slides({ forecast_type: "daily", forecast_slots: 2 }, [day(-1), day(0), day(1, { condition: "rainy" })]), [
-    ["Home", "rainy", null],
-    ["Today", "16.5° / 9° · sunny", null],
-    ["Tomorrow", "16.5° / 9° · rainy", null],
+    ["rainy · 12", "Home", null],
+    ["16.5° / 9° · sunny", "Today", null],
+    ["16.5° / 9° · rainy", "Tomorrow", null],
   ]);
-  assert.deepEqual(slides({ forecast_type: "daily", show_current: false }, [day(0)], { locale: { number_format: "decimal_comma" } }), [["Today", "16,5° / 9° · sunny", null]]);
+  assert.deepEqual(slides({ forecast_type: "daily", show_current: false }, [day(0)], { locale: { number_format: "decimal_comma" } }), [["16,5° / 9° · sunny", "Today", null]]);
   assert.deepEqual(slides({ forecast_type: "daily", show_current: false }, null), [], "only the forecast waits for it");
   const hours = [{ datetime: at(0), condition: "partlycloudy", temperature: 11, is_daytime: false }];
   assert.deepEqual(slides({ forecast_type: "hourly", show_current: false, name: "Oslo" }, hours), [["Oslo", "12:00 · 11° · partlycloudy", "mdi:weather-night-partly-cloudy"]]);
-  assert.deepEqual(slides({ forecast_type: "twice_daily", show_current: false }, [{ ...hours[0], is_daytime: true }]), [["Today", "Day · 11° · partlycloudy", null]]);
+  assert.deepEqual(slides({ forecast_type: "twice_daily", show_current: false }, [{ ...hours[0], is_daytime: true }]), [["Day · 11° · partlycloudy", "Today", null]]);
 });
 
 test("a card that stays while nothing needs attention shows the weather now, what comes next and the next events", () => {
@@ -400,16 +410,16 @@ test("a card that stays while nothing needs attention shows the weather now, wha
   const slides = (now) =>
     model({ hide_when_empty: false, weather: "weather.home", entities: ["calendar.family", "calendar.empty"] }, states, { forecast: { "weather.home": forecast }, now }).slides.map((s) => [s.title, s.text ?? ""]);
   assert.deepEqual(slides(NOW), [
-    ["Home", ""],
-    ["This evening", "rainy · 8 to 11°"],
-    ["Family", ""],
-  ]);
-  assert.deepEqual(slides(NOW + 7 * 3600000).map(([title]) => title), ["Home", "Tonight", "Tomorrow", "Family"], "from the evening on, tomorrow joins");
-  assert.deepEqual(slides(NOW + 11 * 3600000).map(([title]) => title), ["Home", "Tomorrow", "Family"], "and tomorrow morning goes into tomorrow");
+    ["cloudy · 12", "Home"],
+    ["rainy · 8 to 11°", "This evening"],
+    ["Dentist", ""],
+  ], "the weather and the event lead, the place and the time follow");
+  assert.deepEqual(slides(NOW + 7 * 3600000).map(([, text]) => text), ["Home", "Tonight", "Tomorrow", ""], "from the evening on, tomorrow joins");
+  assert.deepEqual(slides(NOW + 11 * 3600000).map(([, text]) => text), ["Home", "Tomorrow", ""], "and tomorrow morning goes into tomorrow");
   const daily = statesOf(weather("sunny", { supported_features: 1 }));
   const day = (d, rest) => ({ datetime: new Date(Date.parse("2026-10-02T00:00:00Z") + d * 86400000).toISOString(), temperature: 16.4, templow: 9, condition: "sunny", ...rest });
   const daySlides = model({ hide_when_empty: false, weather: "weather.home" }, daily, { forecast: { "weather.home": [day(0), day(1, { condition: "rainy" })] } }).slides;
-  assert.deepEqual(daySlides.map((s) => [s.title, s.text ?? ""]), [["Home", ""], ["Today", "sunny · 9 to 16°"]], "a daily forecast names the day");
+  assert.deepEqual(daySlides.map((s) => [s.title, s.text ?? ""]), [["sunny · 12", "Home"], ["sunny · 9 to 16°", "Today"]], "a daily forecast names the day");
   assert.equal(model({ weather: "weather.home", entities: ["calendar.family"] }, states).slides.length, 0, "a card that hides when empty adds none");
 });
 
