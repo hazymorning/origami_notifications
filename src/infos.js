@@ -1,12 +1,10 @@
-import { isObject } from "./config.js";
 import { isoTime, parseTime } from "./format.js";
 import { stateActive, stateColor, themeColor } from "./ha.js";
 import { findPicture } from "./kinds.js";
-import { forecastSupported, forecastType, SPAN } from "./weather.js";
+import { isEmpty, isObject } from "./values.js";
+import { forecastSupported, forecastType, outlook, SPAN } from "./weather.js";
 
 const NIGHT_ICONS = { sunny: "mdi:weather-night", partlycloudy: "mdi:weather-night-partly-cloudy" };
-
-const isEmpty = (v) => v == null || v === "";
 
 export const showsForecast = (info, st) => info.entity.startsWith("weather.") && info.show_forecast !== false && forecastSupported(st, info.forecast_type);
 
@@ -17,7 +15,7 @@ export function quietInfos(config, sources, hass, allowed) {
   const weather = config.weather && hass.states[config.weather];
   if (weather && !taken.has(config.weather) && allowed(config.weather)) {
     const type = forecastType(weather);
-    extra.push({ entity: config.weather, state_content: ["state", "temperature"], ...(type ? { forecast_type: type, forecast_slots: 3, ahead: true } : {}) });
+    extra.push({ entity: config.weather, state_content: ["state", "temperature"], ...(type ? { forecast_type: type, outlook: true } : {}) });
   }
   for (const src of sources) {
     const st = hass.states[src.entity];
@@ -49,20 +47,27 @@ function slotText(slot, shown, type, ctx) {
   return [half, temps, slot.condition ? ctx.state(shown) : ""].filter(Boolean).join(" · ");
 }
 
-function forecastSlots(info, st, ctx) {
+// Each slide ahead has a label, the condition it shows and its text.
+function forecastAhead(info, st, ctx) {
   if (!showsForecast(info, st)) return null;
   const type = info.forecast_type;
   const forecast = ctx.forecast(info.entity, type);
   if (!forecast) return [];
+  if (info.outlook) return outlook(st, forecast, type, ctx);
   const today = ctx.dayOf(ctx.now);
   const slots = forecast
     .filter((f) => Number.isFinite(Date.parse(f?.datetime)))
-    .filter((f) => (type === "daily" ? ctx.dayOf(Date.parse(f.datetime)) >= today + (info.ahead ? 1 : 0) : Date.parse(f.datetime) + (info.ahead ? 0 : SPAN[type]) > ctx.now))
+    .filter((f) => (type === "daily" ? ctx.dayOf(Date.parse(f.datetime)) >= today : Date.parse(f.datetime) + SPAN[type] > ctx.now))
     .slice(0, info.forecast_slots || 1);
   if (!slots.length) return null;
   ctx.wake(ctx.midnight);
   if (type !== "daily") ctx.wake(Date.parse(slots[0].datetime) + SPAN[type]);
-  return slots;
+  return slots.map((slot) => ({
+    label: ctx.clock.slotLabel(Date.parse(slot.datetime), type, ctx.now),
+    condition: slot.condition,
+    night: slot.is_daytime === false,
+    text: slotText(slot, { ...st, state: slot.condition || "unknown" }, type, ctx),
+  }));
 }
 
 export function infoSlides(infos, ctx) {
@@ -80,19 +85,18 @@ export function infoSlides(infos, ctx) {
     const colorOf = (s) => (custom ? (stateActive(s) ? themeColor(info.color) : "var(--state-inactive-color)") : stateColor(s));
     const name = ctx.name(st, info.name);
     const base = { kind: "info", info, entity: info.entity, row: key, name, icon: info.icon, image: info.show_entity_picture ? findPicture(st.attributes) : null };
-    const slots = forecastSlots(info, st, ctx);
-    if (!slots || info.show_current !== false) slides.push({ ...base, key, stateObj: st, title: name, color: colorOf(st) });
+    const ahead = forecastAhead(info, st, ctx);
+    if (!ahead || info.show_current !== false) slides.push({ ...base, key, stateObj: st, title: name, color: colorOf(st) });
     const named = isObject(info.name) || !isEmpty(info.name) ? name : "";
-    (slots || []).forEach((slot, n) => {
-      const shown = { ...st, state: slot.condition || "unknown" };
-      const label = ctx.clock.slotLabel(Date.parse(slot.datetime), info.forecast_type, ctx.now);
+    (ahead || []).forEach((a, n) => {
+      const shown = { ...st, state: a.condition || "unknown" };
       slides.push({
         ...base,
         key: `${key}#${n}`,
         stateObj: shown,
-        title: named || label,
-        text: [named ? label : "", slotText(slot, shown, info.forecast_type, ctx)].filter(Boolean).join(" · "),
-        icon: info.icon || (slot.is_daytime === false && NIGHT_ICONS[slot.condition]) || undefined,
+        title: named || a.label,
+        text: [named ? a.label : "", a.text].filter(Boolean).join(" · "),
+        icon: info.icon || (a.night && NIGHT_ICONS[a.condition]) || undefined,
         color: colorOf(shown),
       });
     });

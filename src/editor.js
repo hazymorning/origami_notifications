@@ -1,10 +1,11 @@
 import { css, html, LitElement, nothing } from "lit";
-import { DEFAULTS, FORECAST_TYPES, isObject, KINDS, parseBefore, parseConfig } from "./config.js";
+import { DEFAULTS, FORECAST_TYPES, parseBefore, parseConfig } from "./config.js";
 import { DAY, fill, HOUR, MINUTE } from "./format.js";
 import { isTimestampDomain } from "./ha.js";
-import { KIND_ICONS, kindOf } from "./kinds.js";
+import { AHEAD_KINDS, KIND_ICONS, KIND_NAMES, kindOf } from "./kinds.js";
 import { entityName } from "./model.js";
 import { editorTexts, languageOf } from "./strings.js";
+import { isObject } from "./values.js";
 import { forecastSupported } from "./weather.js";
 
 const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "vertical", "rotate", "slide", "audience", "css"];
@@ -12,7 +13,6 @@ const ENTITY_KEYS = ["type", "attribute", "name", "icon", "image", "background",
 const ENTITY_ORDER = ["entity", ...ENTITY_KEYS, "actions"];
 const INFO_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
 const READS_ATTRIBUTE = ["attribute", "picture"];
-const HAS_BEFORE = ["calendar", "todo"];
 
 const isEmpty = (v) => v == null || v === "" || v === false || (Array.isArray(v) && !v.length) || (isObject(v) && !Object.keys(v).length);
 
@@ -156,12 +156,12 @@ export class OrigamiNotificationsEditor extends LitElement {
                   title: e.name || this._name(e.entity),
                   icon: e.icon || KIND_ICONS[kind],
                   schema: [
-                    { name: "type", selector: { select: { mode: "dropdown", options: choices(["auto", ...KINDS], (v) => t.label("type_" + v)) } } },
+                    { name: "type", selector: { select: { mode: "dropdown", options: choices(["auto", ...KIND_NAMES], (v) => t.label("type_" + v)) } } },
                     ...(!e.type || READS_ATTRIBUTE.includes(e.type) ? [{ name: "attribute", helper: e.type === "picture" ? "attribute_picture" : "attribute", selector: { attribute: { entity_id: e.entity } } }] : []),
                     { name: "", type: "grid", schema: [{ name: "name", selector: { text: {} } }, { name: "icon", selector: { icon: { placeholder: KIND_ICONS[kind] } } }] },
                     { name: "image", selector: { text: {} } },
                     { name: "background", selector: { boolean: {} } },
-                    ...(HAS_BEFORE.includes(kind) ? [{ name: "before", selector: { duration: { enable_day: true } } }] : []),
+                    ...(AHEAD_KINDS.includes(kind) ? [{ name: "before", selector: { duration: { enable_day: true } } }] : []),
                     { name: "tap_action", selector: { ui_action: { default_action: "more-info" } } },
                   ],
                 };

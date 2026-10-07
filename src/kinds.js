@@ -1,7 +1,7 @@
-import { isObject } from "./config.js";
-import { clockText, DAY, fill, isoTime, parseDuration, parseTime } from "./format.js";
+import { clockText, DAY, dayNumber, dayStart, fill, HOUR, isoDate, isoTime, parseDuration, parseTime } from "./format.js";
 import { domainOf, FEATURE, stateActive, supports } from "./ha.js";
 import { linkAction, plainText } from "./markdown.js";
+import { isEmpty, isObject } from "./values.js";
 
 export const sig = (...parts) => parts.join("\u0000");
 
@@ -17,8 +17,6 @@ const textOf = (obj, keys) => {
   }
   return "";
 };
-
-const isEmpty = (v) => v == null || v === "" || v === false || (typeof v === "object" && Object.keys(v).length === 0);
 
 const attrPath = (attrs, path) => path.split(".").reduce((v, k) => v?.[k], attrs);
 
@@ -63,18 +61,52 @@ function thing(st, src, ctx, kind) {
   return [{ ...base, title: ctx.state(st), message: ctx.name(st, src.name), ack: String(st.state) }];
 }
 
+function within(ts, lead, ctx) {
+  if (!(ts > ctx.now)) return false;
+  if (!(ts - ctx.now > lead)) return true;
+  ctx.wake(ts - lead);
+  return false;
+}
+
 function calendar(st, src, ctx) {
   const a = st.attributes;
   if (!a.message) return [];
   const entry = { kind: "calendar", title: a.message, message: ctx.clock.calendar(a.start_time, a.all_day, ctx.now) };
   if (st.state === "on") return [{ ...entry, ts: parseTime(st.last_changed, ctx.now), past: true, ack: sig(a.message, a.start_time) }];
   const start = isoTime(a.start_time, ctx.clock.server);
-  if (st.state !== "off" || !(src.lead >= 0) || !(start > ctx.now)) return [];
-  if (start - ctx.now > src.lead) {
-    ctx.wake(start - src.lead);
-    return [];
-  }
+  if (st.state !== "off" || !(src.lead >= 0) || !within(start, src.lead, ctx)) return [];
   return [{ ...entry, ts: start, day: Boolean(a.all_day), ack: sig(a.message, a.start_time, "ahead") }];
+}
+
+// Bins go out the evening before, so a pickup shows from noon the day before.
+const PICKUP_LEAD = 12 * HOUR;
+
+const ISO_DAY = /^\d{4}-\d\d-\d\d$/;
+
+// Waste Collection Schedule names its sensor's attributes after the days of the next pickups.
+function waste(st, src, ctx) {
+  const lead = src.lead >= 0 ? src.lead : PICKUP_LEAD;
+  if (domainOf(st.entity_id) === "calendar") return calendar(st, { ...src, lead }, ctx).map((entry) => ({ ...entry, kind: "waste" }));
+  const today = ctx.dayOf(ctx.now, ctx.clock.server);
+  const day = Object.keys(st.attributes)
+    .filter((k) => ISO_DAY.test(k) && dayNumber(Date.parse(k + "T12:00:00Z"), "UTC") >= today)
+    .sort()[0];
+  if (!day) return [];
+  const n = dayNumber(Date.parse(day + "T12:00:00Z"), "UTC");
+  const start = dayStart(n, ctx.clock.server);
+  if (n > today && !within(start, lead, ctx)) return [];
+  const types = st.attributes[day];
+  return [
+    {
+      kind: "waste",
+      title: (typeof types === "string" && types) || ctx.name(st, src.name),
+      message: ctx.clock.calendar(isoDate(n), true, ctx.now),
+      ts: start,
+      day: true,
+      expires: dayStart(n + 1, ctx.clock.server),
+      ack: sig(day, types),
+    },
+  ];
 }
 
 function update(st, src, ctx) {
@@ -139,8 +171,17 @@ function countdown(st, src, ctx) {
   const unit = durationUnit(st.attributes);
   const end = unit ? parseTime(st.last_changed) + Number(st.state) * unit : isoTime(st.state, ctx.clock.server);
   const ts = Math.round(end / 60000) * 60000;
-  if (!(ts > ctx.now)) return [];
+  if (!within(ts, src.lead >= 0 ? src.lead : Infinity, ctx)) return [];
   return [{ kind: "countdown", title: ctx.name(st, src.name), message: unit ? ctx.clock.absolute(ts) : ctx.state(st), ts, live: true, ack: "" }];
+}
+
+// An alarm matters the evening before it rings.
+const ALARM_LEAD = 12 * HOUR;
+
+function nextAlarm(st, src, ctx) {
+  const ts = isoTime(st.state, ctx.clock.server);
+  if (!within(ts, src.lead >= 0 ? src.lead : ALARM_LEAD, ctx)) return [];
+  return [{ kind: "next_alarm", title: src.name ? ctx.name(st, src.name) : ctx.t.next_alarm, message: ctx.clock.at(ts, ctx.now), ts, ack: String(st.state) }];
 }
 
 function devicePicture(hass, ids) {
@@ -339,70 +380,56 @@ function generic(st, src, ctx) {
   ];
 }
 
-const BUILDERS = {
-  calendar,
-  update,
-  alarm,
-  alert,
-  timer,
-  countdown,
-  event,
-  todo,
-  device,
-  warning,
-  attribute: (st, src, ctx) => thing(st, src, ctx, "attribute"),
-  picture: (st, src, ctx) => thing(st, src, ctx, "picture"),
-  generic,
-};
+// Tried in order, the way Home Assistant tries its tile features.
+const KINDS = [
+  { name: "warning", icon: "mdi:alert-circle", fits: (st, hass) => numberedWarnings(st.attributes).length > 0 || (domainOf(st.entity_id) === "binary_sensor" && (isCap(st.attributes) || hasDetails(hass, st.entity_id))), show: warning },
+  { name: "waste", icon: "mdi:trash-can-outline", ahead: true, fits: (st, hass) => platformOf(hass, st.entity_id) === "waste_collection_schedule", show: waste },
+  { name: "calendar", icon: "mdi:calendar-month", ahead: true, fits: (st) => domainOf(st.entity_id) === "calendar", show: calendar },
+  { name: "update", icon: "mdi:rocket-launch", fits: (st) => domainOf(st.entity_id) === "update", show: update },
+  { name: "alarm", icon: "mdi:shield-alert", fits: (st) => domainOf(st.entity_id) === "alarm_control_panel", show: alarm },
+  { name: "alert", icon: "mdi:alert", fits: (st) => domainOf(st.entity_id) === "alert", show: alert },
+  { name: "timer", icon: "mdi:timer-outline", fits: (st) => domainOf(st.entity_id) === "timer", show: timer },
+  { name: "attribute", icon: "mdi:card-text-outline", fits: (st) => Boolean(findThing(st.attributes)), show: (st, src, ctx) => thing(st, src, ctx, "attribute") },
+  { name: "event", icon: "mdi:eye-check", fits: (st) => domainOf(st.entity_id) === "event", show: event },
+  { name: "device", icon: "mdi:devices", fits: (st) => Boolean(DEVICES[domainOf(st.entity_id)]), show: device },
+  // The Android app's next alarm sensor also gives its time in milliseconds.
+  { name: "next_alarm", icon: "mdi:alarm", ahead: true, fits: (st) => st.attributes["Time in Milliseconds"] != null && st.attributes.device_class === "timestamp", show: nextAlarm },
+  { name: "countdown", icon: "mdi:timer-sand", ahead: true, fits: (st) => domainOf(st.entity_id) === "sensor" && st.attributes.device_class === "timestamp", show: countdown },
+  { name: "todo", icon: "mdi:clipboard-check-outline", ahead: true, show: todo },
+  { name: "picture", icon: "mdi:image-outline", show: (st, src, ctx) => thing(st, src, ctx, "picture") },
+  { name: "generic", icon: "mdi:information-outline", fits: () => true, show: generic },
+];
 
-const DOMAIN_KINDS = { calendar: "calendar", update: "update", alarm_control_panel: "alarm", alert: "alert", timer: "timer" };
+const BY_NAME = Object.fromEntries(KINDS.map((k) => [k.name, k]));
+
+export const KIND_NAMES = KINDS.map((k) => k.name);
+
+export const AHEAD_KINDS = KINDS.filter((k) => k.ahead).map((k) => k.name);
+
+export const KIND_ICONS = {
+  ...Object.fromEntries(KINDS.map((k) => [k.name, k.icon])),
+  system: "mdi:bell",
+  repair: "mdi:wrench",
+  group: "mdi:google-circles-communities",
+  weather: "mdi:weather-partly-rainy",
+};
 
 export function kindOf(src, st, hass) {
   if (src.type) return src.type;
   if (src.attribute) return "attribute";
-  if (!st) return "generic";
-  const domain = domainOf(st.entity_id);
-  const a = st.attributes;
-  if (numberedWarnings(a).length) return "warning";
-  if (DOMAIN_KINDS[domain]) return DOMAIN_KINDS[domain];
-  if (findThing(a)) return "attribute";
-  if (domain === "event") return "event";
-  if (DEVICES[domain]) return "device";
-  if (domain === "binary_sensor" && (isCap(a) || hasDetails(hass, st.entity_id))) return "warning";
-  if (domain === "sensor" && a.device_class === "timestamp") return "countdown";
-  return "generic";
+  return st ? KINDS.find((k) => k.fits?.(st, hass)).name : "generic";
 }
 
 export const platformOf = (hass, id) => hass?.entities?.[id]?.platform || "";
 
 export const hasDetails = (hass, id) => Boolean(hass?.services?.[platformOf(hass, id)]?.get_details);
 
-export const KIND_ICONS = {
-  system: "mdi:bell",
-  update: "mdi:rocket-launch",
-  repair: "mdi:wrench",
-  alarm: "mdi:shield-alert",
-  alert: "mdi:alert",
-  calendar: "mdi:calendar-month",
-  timer: "mdi:timer-outline",
-  countdown: "mdi:timer-sand",
-  event: "mdi:eye-check",
-  todo: "mdi:clipboard-check-outline",
-  device: "mdi:devices",
-  warning: "mdi:alert-circle",
-  group: "mdi:google-circles-communities",
-  weather: "mdi:weather-partly-rainy",
-  attribute: "mdi:card-text-outline",
-  picture: "mdi:image-outline",
-  generic: "mdi:information-outline",
-};
-
 export function entityEntries(src, st, ctx) {
   if (!st) return [];
   const kind = kindOf(src, st, ctx.hass);
   let entries;
   try {
-    entries = BUILDERS[kind](st, src, ctx);
+    entries = BY_NAME[kind].show(st, src, ctx);
   } catch (e) {
     console.warn(`origami-notifications: ${st.entity_id} could not be shown`, e);
     return [];

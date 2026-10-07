@@ -157,12 +157,17 @@ export class Clock {
     return { near: false, text: dateFormat(this.lang, { day: "2-digit", month: "2-digit", timeZone }).format(ts) };
   }
 
+  at(ts, now) {
+    const { near, text } = this.day(ts, this.zone, now);
+    return fill(near ? this.t.day_at : this.t.date_at, { d: text, t: this.clockTime(ts) });
+  }
+
   calendar(start, allDay, now) {
     const ts = start ? fromServerTime(start, this.server) : NaN;
     if (Number.isNaN(ts)) return this.t.event;
-    const { near, text } = this.day(ts, allDay ? this.server : this.zone, now);
-    if (allDay) return near ? text : fill(this.t.on_date, { d: text });
-    return fill(near ? this.t.day_at : this.t.date_at, { d: text, t: this.clockTime(ts) });
+    if (!allDay) return this.at(ts, now);
+    const { near, text } = this.day(ts, this.server, now);
+    return near ? text : fill(this.t.on_date, { d: text });
   }
 
   slotLabel(ts, type, now) {

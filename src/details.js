@@ -1,4 +1,4 @@
-import { isObject } from "./config.js";
+import { isObject } from "./values.js";
 import { hasDetails, platformOf } from "./kinds.js";
 
 const answers = new Map();

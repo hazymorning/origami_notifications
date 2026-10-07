@@ -1,14 +1,12 @@
 import { DAY, HOUR, MINUTE } from "./format.js";
+import { KIND_NAMES } from "./kinds.js";
+import { isObject } from "./values.js";
 
 export const CARD = "origami-notifications";
-
-export const KINDS = ["calendar", "update", "alarm", "alert", "timer", "countdown", "event", "todo", "device", "warning", "attribute", "picture", "generic"];
 
 export const FORECAST_TYPES = ["daily", "hourly", "twice_daily"];
 
 export const DEFAULTS = { updates: true, repairs: true, hide_when_empty: true, vertical: false, rotate: 8, slide: "up" };
-
-export const isObject = (v) => v != null && typeof v === "object" && !Array.isArray(v);
 
 export const isEntityId = (v) => typeof v === "string" && /^\w+\.\w+$/.test(v);
 
@@ -39,7 +37,7 @@ const isAction = (v) => optional(v, isObject);
 function parseEntity(entry) {
   const src = typeof entry === "string" ? { entity: entry } : isObject(entry) ? { ...entry } : null;
   check(src && isEntityId(src.entity), "entities must contain entity ids, got " + JSON.stringify(entry));
-  check(optional(src.type, (t) => KINDS.includes(t)), `unknown type '${src.type}'`);
+  check(optional(src.type, (t) => KIND_NAMES.includes(t)), `unknown type '${src.type}'`);
   check(optional(src.attribute, (a) => typeof a === "string"), "attribute must be the name of an attribute");
   check(optional(src.image, (i) => typeof i === "string"), "image must be an attribute path or URL");
   check(optional(src.background, (b) => typeof b === "boolean"), "background must be true or false");

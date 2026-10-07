@@ -1,4 +1,5 @@
-import { isEntityId, isObject } from "./config.js";
+import { isEntityId } from "./config.js";
+import { isObject } from "./values.js";
 import { DAY, dayNumber, dayStart, fromServerTime, isoDate, zonedParts } from "./format.js";
 
 // Copied from frontend src/panels/lovelace/common/validate-condition.ts. Every other kind goes to the server.
