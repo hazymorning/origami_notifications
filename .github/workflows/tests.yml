@@ -31,5 +31,8 @@ jobs:
 
       - run: npm test
 
+      - name: The committed build matches the source
+        run: git diff --exit-code -- dist
+
       - run: npm run lint
         if: ${{ !cancelled() }}

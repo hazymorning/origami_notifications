@@ -2,13 +2,11 @@
 
 A notification card for Home Assistant that folds away when there is nothing to see.
 
-Closed, the card is one row that turns through whatever needs attention, then through your infos. A tap unfolds the list of all of it, or opens the one thing on show. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
+Closed, the card is one row that turns through whatever needs attention, then through your infos. A tap unfolds the list of all of it. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
 
 Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
 
 Infos, like the next sunrise, are set up like tiles. With `hide_when_empty: false` the weather now and in the next hours, and the next event of each calendar, join them.
-
-**You can style the card with plain CSS.**
 
 ```yaml
 type: custom:origami-notifications
@@ -42,12 +40,11 @@ Everything in `css` goes into the card after its own styles, so you can change a
 | Variable | Default | |
 | --- | --- | --- |
 | `--origami-pad`, `--origami-gap` | `10px`, `10px` | Padding, and the space between icon and text |
-| `--origami-gap-s` | `8px` | Small gaps |
 | `--origami-tile`, `--origami-icon` | `36px`, `24px` | Size of the icon area and of the icon |
 | `--origami-radius` | `8px` | Corners of the rows |
 | `--origami-card-bg`, `--origami-row-bg` | theme, none | Card and row background |
 | `--origami-hover`, `--origami-focus` | light tint, theme | Hover tint and keyboard focus ring |
-| `--origami-pulse-opacity` | `0.2` | How strongly the card pulses while something is critical |
+| `--origami-pulse-opacity` | `0.3` | How strongly the card pulses while something is critical, like Home Assistant's alert card |
 | `--origami-max-height` | none | The card's maximum height. The open list scrolls inside. |
 | `--origami-bg-opacity`, `--origami-bg-blur` | `0.22` (`0.32` dark), `24px` | The background picture |
 
@@ -55,9 +52,9 @@ Everything in `css` goes into the card after its own styles, so you can change a
 
 | Part | Classes |
 | --- | --- |
-| Closed | `.head` with `.tile`, `.badge`, `.title`, `.msg` and `.eta` |
-| Open | `.ebar` with `.count`, the `.list` of `.row`s and the `.foot` with `.clear` |
-| Row | `.rtile`, `.title`, `.when`, `.x`, `.body` and `.act` buttons, the same in the dialog |
+| Closed | `.head` with `.icon`, `.badge`, `.title` and `.secondary` |
+| Open | `.bar` with `.count`, the `.list` of `.row`s and the `.foot` with `.clear` |
+| Row | `.icon`, `.title`, `.time`, `.dismiss`, `.message` and the `.actions` with `.action` buttons, the same in the dialog |
 | Background picture | `.backdrop` |
 
 Rows carry `.warn` or `.crit`, and their kind in `data-kind`, like `update`, `weather` or `group`.
@@ -84,7 +81,7 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | `audience` | | Who sees what, see below |
 | `css` | | Your own CSS, see Styling |
 
-The visual editor has all of it except buttons. The card's texts are in English and German. Other languages get Home Assistant's words where it has them, and English otherwise.
+The visual editor has all of it except buttons. Words Home Assistant has come from it, in your language. The rest is in English or German.
 
 </details>
 
@@ -179,7 +176,7 @@ Sensors of one kind that are on, like open windows, share one row with their roo
 
 Dismissing a Home Assistant notification removes it for everyone. For admins, dismissing a repair ignores it and dismissing an update skips it. Admins can also install an update from the card, if its integration supports that.
 
-Everything else is only hidden in this browser, until it happens again or changes. That includes updates that install themselves, since Home Assistant can't skip them. Alarm panels can't be dismissed. Home Assistant's notice about a failed login never shows up.
+Everything else is only hidden in this browser, until it happens again or changes. That includes updates that install themselves, since Home Assistant can't skip them. Alarm panels can't be dismissed.
 
 </details>
 
@@ -195,5 +192,14 @@ audience:
 ```
 
 The keys are `system` for Home Assistant's notifications, `updates`, `repairs` or an entity ID. People are matched by the user account linked to them in Settings > People. While you edit the dashboard, you see everything.
+
+This only tidies the card. Everyone can still see every entity in Home Assistant itself.
+
+</details>
+
+<details>
+<summary>Development</summary>
+
+The card is written with Lit in `src`. `npm run build` bundles it into `dist`. `npm test` and `npm run lint` check it.
 
 </details>
