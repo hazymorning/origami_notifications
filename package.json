@@ -1,14 +1,23 @@
 {
   "name": "origami-notifications",
-  "version": "0.8.0",
+  "version": "1.0.0",
   "private": true,
   "description": "A notification card for Home Assistant",
   "license": "MIT",
+  "type": "module",
   "scripts": {
-    "test": "node --test",
-    "lint": "python3 scripts/text-style.py"
+    "build": "esbuild src/index.js --bundle --minify --format=esm --target=es2022 --legal-comments=eof --outfile=dist/origami-notifications.js",
+    "test": "npm run build && node --test test/*.test.js",
+    "lint": "eslint . && python3 scripts/text-style.py"
+  },
+  "dependencies": {
+    "lit": "3.3.3"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "esbuild": "0.28.2",
+    "eslint": "10.12.0",
+    "globals": "17.13.0",
     "jsdom": "^29.1.1"
   }
 }

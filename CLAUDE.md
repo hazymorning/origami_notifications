@@ -1,6 +1,6 @@
 # Working on Origami Notifications
 
-The card is `dist/origami-notifications.js`, with no build step and no runtime dependencies. `npm test` and `npm run lint` must pass before every commit.
+The card is written with Lit in `src`. `npm run build` bundles it into `dist/origami-notifications.js`, which HACS installs and which is committed. `npm test` builds the card and runs the tests. `npm test` and `npm run lint` must pass before every commit.
 
 ## Writing
 
@@ -8,15 +8,22 @@ This covers the readme, the card's texts, comments, commits, pull requests and r
 
 - Short and plain. Say what the user sees and does.
 - One thought per sentence. No colon in the middle of a sentence, no dash as punctuation, no emoji, no sales words.
-- Comment only what the code can't say, at most three lines.
+- A comment names a fact the code can't show, like a quirk of Home Assistant or a browser, in one or two lines. Never what the code does, and never how it came to be.
 - Commit subjects say what changed in at most 72 characters. No trailers and no tool names.
 
 ## Code
 
-- Change only what the task needs. Configs from older versions keep working.
-- Tests cover what the card must keep doing, not every fix. Add a check to an existing test before you add a test, and keep the suite under 60 tests.
-- No new dependencies. `VERSION` in the card and `version` in `package.json` change together, and only for a release.
+- Use what Home Assistant offers before writing your own. That means the formatters and registries on `hass`, `hass-action`, its translations and its design tokens. Copy its logic only where it offers no other way, and name the source file.
+- No code for cases nobody reported and Home Assistant itself does not handle.
+- No compatibility with older versions. The card has one user, who always runs the latest release.
+- Change only what the task needs.
+- Lit is the only runtime dependency.
 
-## Pull requests
+## Tests
 
-One open pull request at a time. Its title and body follow the writing rules.
+- One test per behavior a user would notice, named like a sentence of the readme.
+- Logic is tested against `src` in `test/model.test.js`. What needs a page is tested against the build in `test/card.test.js` and `test/editor.test.js`.
+
+## Pull requests and releases
+
+One open pull request at a time. Its title and body follow the writing rules. `version` in `package.json` changes only for a release. When a pull request with a new version is merged, its body becomes the notes of that release.

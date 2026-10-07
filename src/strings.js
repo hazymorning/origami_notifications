@@ -1,0 +1,357 @@
+import { fill } from "./format.js";
+
+const OWN = {
+  en: {
+    idle_title: "All quiet",
+    idle_msg: "No notifications",
+    clear: "Clear all",
+    dismiss: "Dismiss",
+    install: "Install",
+    installing: "Installing",
+    installing_pct: "Installing ({p}%)",
+    just_now: "just now",
+    soon: "in a moment",
+    count_one: "1 notification",
+    count_other: "{n} notifications",
+    event: "Event",
+    notification: "Notification",
+    update: "Update",
+    update_msg: "Update {v} available",
+    update_msg_plain: "Update available",
+    level: "Level {l}",
+    breaks_in: "Stops working in {v}",
+    day_at: "{d} at {t}",
+    date_at: "on {d} at {t}",
+    on_date: "on {d}",
+    paused_left: "Paused, {t} left",
+    act_pause: "Pause",
+    act_resume: "Resume",
+    act_cancel: "Cancel",
+    act_lock: "Lock",
+    act_close_cover: "Close",
+    act_close_valve: "Close",
+    act_dock_vacuum: "Dock",
+    act_dock_mower: "Dock",
+    act_off: "Turn off",
+    act_done: "Done",
+    wx_rain_from: "Rain from {t}",
+    wx_snow_from: "Snow from {t}",
+    wx_thunder_from: "Thunderstorms from {t}",
+    wx_hail_from: "Hail from {t}",
+    wx_rain_now: "It is raining",
+    wx_snow_now: "It is snowing",
+    wx_thunder_now: "Thunderstorm",
+    wx_hail_now: "Hail",
+    wx_chance: "{p} chance",
+    wx_frost_from: "Frost from {t}",
+    wx_low: "Low of {v}",
+    wx_day: "Day",
+    wx_night: "Night",
+  },
+  de: {
+    idle_title: "Alles ruhig",
+    just_now: "gerade eben",
+    soon: "gleich",
+    count_one: "1 Benachrichtigung",
+    count_other: "{n} Benachrichtigungen",
+    event: "Termin",
+    notification: "Benachrichtigung",
+    update_msg: "Update {v} verfügbar",
+    update_msg_plain: "Update verfügbar",
+    level: "Stufe {l}",
+    breaks_in: "Funktioniert ab {v} nicht mehr",
+    day_at: "{d} um {t}",
+    date_at: "am {d} um {t}",
+    on_date: "am {d}",
+    paused_left: "Pausiert, noch {t}",
+    act_done: "Erledigt",
+    wx_rain_from: "Regen ab {t}",
+    wx_snow_from: "Schnee ab {t}",
+    wx_thunder_from: "Gewitter ab {t}",
+    wx_hail_from: "Hagel ab {t}",
+    wx_rain_now: "Es regnet",
+    wx_snow_now: "Es schneit",
+    wx_thunder_now: "Gewitter",
+    wx_hail_now: "Hagel",
+    wx_chance: "{p} Wahrscheinlichkeit",
+    wx_frost_from: "Frost ab {t}",
+    wx_low: "Tiefstwert {v}",
+  },
+};
+
+const NEUTRAL = { just_now: null, soon: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}", paused_left: "{s}, {t}" };
+
+const FROM_HA = {
+  idle_msg: ["ui.notification_drawer.empty"],
+  clear: ["ui.notification_drawer.dismiss_all"],
+  dismiss: ["ui.card.persistent_notification.dismiss"],
+  install: ["ui.dialogs.more_info_control.update.install"],
+  installing: ["ui.card.update.installing"],
+  installing_pct: ["ui.card.update.installing_with_progress", { progress: "{p}" }],
+  update: ["ui.dialogs.more_info_control.update.update"],
+  act_pause: ["ui.card.timer.actions.pause"],
+  act_resume: ["ui.card.timer.actions.start"],
+  act_cancel: ["ui.card.timer.actions.cancel"],
+  act_lock: ["ui.card.lock.lock"],
+  act_close_cover: ["ui.card.cover.close_cover"],
+  act_close_valve: ["ui.card.valve.close_valve"],
+  act_dock_vacuum: ["ui.card.vacuum.actions.return_to_base"],
+  act_dock_mower: ["ui.card.lawn_mower.actions.dock"],
+  act_off: ["ui.card.common.turn_off"],
+  wx_day: ["ui.card.weather.day"],
+  wx_night: ["ui.card.weather.night"],
+};
+
+const WET_STATES = { rain: "rainy", snow: "snowy", thunder: "lightning", hail: "hail" };
+
+export const baseLanguage = (lang) => String(lang).split("-")[0];
+
+export const languageOf = (hass) => hass?.locale?.language || hass?.language || "en";
+
+export function cardTexts(lang, localize) {
+  const own = OWN[baseLanguage(lang)];
+  const t = { ...OWN.en, ...(own || NEUTRAL) };
+  const ha = (id, vars) => (typeof localize === "function" && localize(id, vars)) || "";
+  for (const [key, [id, vars]] of Object.entries(FROM_HA)) t[key] = ha(id, vars) || t[key];
+  if (!own) {
+    const title = ha("ui.notification_drawer.title");
+    if (title) t.count_one = t.count_other = title + " ({n})";
+    for (const [kind, state] of Object.entries(WET_STATES)) {
+      const name = ha("component.weather.entity_component._.state." + state);
+      if (name) Object.assign(t, { [`wx_${kind}_now`]: name, [`wx_${kind}_from`]: name + ", {t}" });
+    }
+  }
+  return t;
+}
+
+const ALIKE = {
+  en: {
+    window: { one: "1 window open", other: "{n} windows open" },
+    door: { other: "{n} doors open" },
+    garage_door: { other: "{n} garage doors open" },
+    opening: { other: "{n} sensors open" },
+    battery: { other: "{n} batteries low" },
+    moisture: { other: "{n} water alarms" },
+    smoke: { other: "{n} smoke alarms" },
+    gas: { other: "{n} gas alarms" },
+    carbon_monoxide: { other: "{n} CO alarms" },
+    heat: { other: "{n} heat alarms" },
+    problem: { other: "{n} problems" },
+    tamper: { other: "{n} tamper alerts" },
+    safety: { other: "{n} safety alerts" },
+    sound: { other: "{n} sounds detected" },
+  },
+  de: {
+    window: { one: "1 Fenster offen", other: "{n} Fenster offen" },
+    door: { other: "{n} Türen offen" },
+    garage_door: { other: "{n} Garagentore offen" },
+    opening: { other: "{n} Sensoren offen" },
+    battery: { other: "{n} Batterien schwach" },
+    moisture: { other: "{n} Wassermelder ausgelöst" },
+    smoke: { other: "{n} Rauchmelder ausgelöst" },
+    gas: { other: "{n} Gasmelder ausgelöst" },
+    carbon_monoxide: { other: "{n} CO-Melder ausgelöst" },
+    heat: { other: "{n} Hitzemelder ausgelöst" },
+    problem: { other: "{n} Probleme" },
+    tamper: { other: "{n} Sabotagealarme" },
+    safety: { other: "{n} Sicherheitswarnungen" },
+    sound: { other: "{n} Geräusche erkannt" },
+  },
+};
+
+export function alikeTitle(lang, deviceClass, n, localize) {
+  const forms = ALIKE[baseLanguage(lang)]?.[deviceClass];
+  if (forms) return fill(n === 1 && forms.one ? forms.one : forms.other, { n });
+  const name = (typeof localize === "function" && localize(`component.binary_sensor.entity_component.${deviceClass}.name`)) || prettySlug(deviceClass);
+  return `${name} (${n})`;
+}
+
+export function prettySlug(slug) {
+  const s = String(slug).replace(/[_-]+/g, " ").trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+const EDITOR_OWN = {
+  en: {
+    label: "Include entities by label",
+    weather: "Weather",
+    updates: "Pending updates",
+    repairs: "Repairs",
+    hide_when_empty: "Hide when there is nothing to show",
+    infos: "Infos",
+    info_options: "Info options",
+    rotate: "Seconds between turns",
+    slide: "Turn",
+    slide_up: "Upwards",
+    slide_side: "Sideways",
+    options: "Entity options",
+    type: "Kind",
+    image: "Picture",
+    background: "Picture as card background",
+    before: "Show ahead of time",
+    audience: "Who sees what",
+    styling: "Styling",
+    css: "CSS",
+    visible: "Visible to",
+    people: "People",
+    system: "System notifications",
+    everyone: "Everyone",
+    only: "Only these people",
+    except: "Everyone except these people",
+    nobody: "Nobody",
+    only_x: "Only {x}",
+    except_x: "Everyone except {x}",
+    type_auto: "Detect automatically",
+    type_calendar: "Calendar event",
+    type_update: "Update",
+    type_alarm: "Alarm panel",
+    type_alert: "Alert",
+    type_timer: "Timer",
+    type_countdown: "Countdown",
+    type_event: "Event",
+    type_todo: "To-do list",
+    type_device: "Device",
+    type_warning: "Warnings",
+    type_attribute: "Details from an attribute",
+    type_picture: "State as title",
+    type_generic: "Plain entity",
+    entities: "Entities",
+    name: "Name",
+    icon: "Icon",
+    attribute: "Attribute",
+    tap_action: "Tap behavior",
+    hold_action: "Hold behavior",
+    double_tap_action: "Double tap behavior",
+    color: "Color",
+    state_content: "State content",
+    time_format: "Time format",
+    show_entity_picture: "Show entity picture",
+    visibility: "Visibility",
+    content_layout: "Content layout",
+    horizontal: "Horizontal",
+    vertical: "Vertical",
+    forecast: "Weather to show",
+    show_both: "Current weather and forecast",
+    show_current: "Only the current weather",
+    show_forecast: "Only the forecast",
+    forecast_type: "Forecast",
+    forecast_slots: "Forecasts to show",
+    daily: "Daily",
+    hourly: "Hourly",
+    twice_daily: "Twice daily",
+  },
+  de: {
+    label: "Entitäten mit diesem Label einbeziehen",
+    weather: "Wetter",
+    updates: "Ausstehende Updates",
+    repairs: "Reparaturen",
+    hide_when_empty: "Ausblenden, wenn nichts anliegt",
+    infos: "Infos",
+    info_options: "Optionen je Info",
+    rotate: "Sekunden bis zum Wechsel",
+    slide: "Wechsel",
+    slide_up: "Nach oben",
+    slide_side: "Seitlich",
+    options: "Optionen je Entität",
+    type: "Art",
+    image: "Bild",
+    background: "Bild als Kartenhintergrund",
+    before: "Im Voraus zeigen",
+    audience: "Wer sieht was",
+    styling: "Gestaltung",
+    css: "CSS",
+    visible: "Sichtbar für",
+    people: "Personen",
+    system: "Systembenachrichtigungen",
+    everyone: "Alle",
+    only: "Nur diese Personen",
+    except: "Alle außer diesen Personen",
+    nobody: "Niemand",
+    only_x: "Nur {x}",
+    except_x: "Alle außer {x}",
+    type_auto: "Automatisch erkennen",
+    type_calendar: "Kalendertermin",
+    type_update: "Update",
+    type_alarm: "Alarmanlage",
+    type_alert: "Alarm (alert)",
+    type_timer: "Timer",
+    type_countdown: "Countdown",
+    type_event: "Ereignis",
+    type_todo: "To-do-Liste",
+    type_device: "Gerät",
+    type_warning: "Warnungen",
+    type_attribute: "Details aus einem Attribut",
+    type_picture: "Zustand als Titel",
+    type_generic: "Einfache Entität",
+  },
+};
+
+const EDITOR_FROM_HA = {
+  entities: "ui.panel.lovelace.editor.card.generic.entities",
+  name: "ui.panel.lovelace.editor.card.generic.name",
+  icon: "ui.panel.lovelace.editor.card.generic.icon",
+  attribute: "ui.panel.lovelace.editor.card.generic.attribute",
+  tap_action: "ui.panel.lovelace.editor.card.generic.tap_action",
+  hold_action: "ui.panel.lovelace.editor.card.generic.hold_action",
+  double_tap_action: "ui.panel.lovelace.editor.card.generic.double_tap_action",
+  color: "ui.panel.lovelace.editor.card.tile.color",
+  state_content: "ui.panel.lovelace.editor.card.tile.state_content",
+  time_format: "ui.panel.lovelace.editor.card.generic.time_format",
+  show_entity_picture: "ui.panel.lovelace.editor.card.tile.show_entity_picture",
+  visibility: "ui.panel.lovelace.editor.card.heading.entity_config.visibility",
+  visibility_intro: "ui.panel.lovelace.editor.card.heading.entity_config.visibility_explanation",
+  content_layout: "ui.panel.lovelace.editor.card.tile.content_layout",
+  horizontal: "ui.panel.lovelace.editor.card.tile.content_layout_options.horizontal",
+  vertical: "ui.panel.lovelace.editor.card.tile.content_layout_options.vertical",
+  forecast: "ui.panel.lovelace.editor.card.weather-forecast.weather_to_show",
+  show_both: "ui.panel.lovelace.editor.card.weather-forecast.show_both",
+  show_current: "ui.panel.lovelace.editor.card.weather-forecast.show_only_current",
+  show_forecast: "ui.panel.lovelace.editor.card.weather-forecast.show_only_forecast",
+  forecast_type: "ui.panel.lovelace.editor.card.weather-forecast.forecast_type",
+  forecast_slots: "ui.panel.lovelace.editor.card.weather-forecast.forecast_slots",
+  daily: "ui.panel.lovelace.editor.card.weather-forecast.daily",
+  hourly: "ui.panel.lovelace.editor.card.weather-forecast.hourly",
+  twice_daily: "ui.panel.lovelace.editor.card.weather-forecast.twice_daily",
+};
+
+const EDITOR_HELPERS = {
+  en: {
+    label: "Every entity with this label is added and detected automatically.",
+    weather: "Shows rain, snow and frost ahead.",
+    visible: "Applies outside edit mode, like Home Assistant's own card visibility.",
+    people: "Matches the user account linked to each person in Settings → People.",
+    attribute: "An attribute that holds an object with a name or title, or a plain value. If empty, the card looks for an object with a description or a picture.",
+    attribute_picture: "An attribute that holds an object with a name or title. The object is shown instead of the state.",
+    image: "An attribute, a path into one like book.cover, or a URL. If empty, the card uses the picture of the shown object or of the entity.",
+    background: "Blurred behind the card while this entity is on top.",
+    before: "How long before it starts or is due.",
+    infos: "Shown in turn after what needs attention.",
+    rotate: "At 0 the card holds still.",
+    css: "Goes into the card after its own styles, so you can change any part of it.",
+    visibility_intro: "The info shows while all of these conditions hold.",
+  },
+  de: {
+    label: "Jede Entität mit diesem Label kommt dazu und wird automatisch erkannt.",
+    weather: "Zeigt Regen, Schnee und Frost im Voraus.",
+    visible: "Gilt außerhalb des Bearbeitungsmodus, wie die Sichtbarkeit von Home Assistant selbst.",
+    people: "Verglichen wird das Benutzerkonto, das unter Einstellungen → Personen verknüpft ist.",
+    attribute: "Ein Attribut, das ein Objekt mit name oder title enthält, oder ein einfacher Wert. Bleibt es leer, sucht die Karte ein Objekt mit description oder Bild.",
+    attribute_picture: "Ein Attribut, das ein Objekt mit name oder title enthält. Das Objekt erscheint statt des Zustands.",
+    image: "Ein Attribut, ein Pfad darin wie book.cover, oder eine URL. Bleibt es leer, nimmt die Karte das Bild des gezeigten Objekts oder der Entität.",
+    background: "Unscharf hinter der Karte, solange diese Entität oben steht.",
+    before: "Wie lange vor dem Beginn oder der Fälligkeit.",
+    infos: "Erscheinen im Wechsel nach dem, was anliegt.",
+    rotate: "Bei 0 bleibt die Karte stehen.",
+    css: "Kommt nach den Styles der Karte, so lässt sich jeder Teil ändern.",
+    visibility_intro: "Die Info erscheint, solange alle diese Bedingungen erfüllt sind.",
+  },
+};
+
+export function editorTexts(lang, localize) {
+  const base = baseLanguage(lang);
+  const ha = (id) => (id && typeof localize === "function" && localize(id)) || "";
+  return {
+    label: (key) => ha(EDITOR_FROM_HA[key]) || EDITOR_OWN[base]?.[key] || EDITOR_OWN.en[key] || key,
+    helper: (key) => (key === "visibility_intro" && ha(EDITOR_FROM_HA[key])) || EDITOR_HELPERS[base]?.[key] || EDITOR_HELPERS.en[key],
+  };
+}

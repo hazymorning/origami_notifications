@@ -59,7 +59,7 @@ body:
     attributes:
       label: Versions
       description: The card's version is in HACS and in the browser console. Home Assistant's is in Settings > About.
-      placeholder: Card 0.4.0, Home Assistant 2026.10.0
+      placeholder: Card 1.0.0, Home Assistant 2026.10.0
     validations:
       required: true
 
