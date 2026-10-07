@@ -3,7 +3,7 @@
 const CARD = "origami-notifications";
 const EDITOR = CARD + "-editor";
 const REPO = "https://github.com/hazymorning/origami_notifications";
-const VERSION = "0.7.0";
+const VERSION = "0.8.0";
 
 const DEFAULTS = {
   hide_when_empty: true,
