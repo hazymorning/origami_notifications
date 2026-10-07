@@ -199,6 +199,9 @@ export const rowStyles = css`
     .dismiss:hover::after {
       opacity: 0.1;
     }
+    .row .icon[role="button"]:hover::before {
+      opacity: 0.35;
+    }
     .action:hover {
       background: var(--ha-color-fill-primary-normal-hover, color-mix(in srgb, var(--primary-color) 20%, transparent));
     }
@@ -219,6 +222,17 @@ export const iconStyles = css`
     --mdc-icon-size: var(--origami-icon);
     transition: color var(--ha-animation-duration-normal, 250ms) ease-in-out;
     outline: none;
+  }
+  .icon::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-color: var(--tile-color);
+    opacity: 0.2;
+    transition:
+      background-color var(--ha-animation-duration-normal, 250ms) ease-in-out,
+      opacity var(--ha-animation-duration-normal, 250ms) ease-in-out;
   }
   .glyph {
     position: absolute;
@@ -482,6 +496,7 @@ export const cardStyles = css`
     display: flex;
     flex-direction: column;
     justify-content: center;
+    gap: var(--ha-tile-info-gap, 0);
   }
   .head :is(.title, .secondary) {
     container-type: inline-size;
@@ -495,7 +510,7 @@ export const cardStyles = css`
     letter-spacing: var(--ha-tile-info-primary-letter-spacing, 0.1px);
   }
   .head .secondary {
-    color: var(--ha-tile-info-secondary-color, var(--secondary-text-color));
+    color: var(--ha-tile-info-secondary-color, var(--primary-text-color));
     font-size: var(--ha-tile-info-secondary-font-size, var(--ha-font-size-s, 12px));
     font-weight: var(--ha-tile-info-secondary-font-weight, var(--ha-font-weight-normal, 400));
     line-height: var(--ha-tile-info-secondary-line-height, var(--ha-line-height-condensed, 1.2));
