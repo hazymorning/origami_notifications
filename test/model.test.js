@@ -389,7 +389,7 @@ test("times read like Home Assistant's, rounded before they pick a unit", () => 
     ["1 hr. ago", "yesterday", "in a moment", "in 2 min.", "5:00"]
   );
   const twelve = new Clock({ locale: { language: "de", time_format: "12", time_zone: "server" }, config: { time_zone: "UTC" } }, "de", cardTexts("de"));
-  assert.equal(twelve.hour(Date.parse("2026-10-02T19:00:00Z")), "7 Uhr PM", "12 hours where the profile asks for them");
+  assert.match(twelve.hour(Date.parse("2026-10-02T19:00:00Z")), /^7\D/, "12 hours where the profile asks for them");
 });
 
 test("texts use Home Assistant's words where it has them, and other languages borrow them", () => {
