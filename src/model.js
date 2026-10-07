@@ -86,7 +86,8 @@ export function buildModel(input) {
     return true;
   });
   if (current.some((entry) => entry.day || entry.kind === "calendar")) ctx.wake(ctx.midnight);
-  const slides = infoSlides(quietInfos(config, input.sources, hass, allowed), { ...ctx, forecast: data.forecast });
+  const shown = new Set(current.map((entry) => entry.entity));
+  const slides = infoSlides(quietInfos(config, input.sources, hass, allowed, shown), { ...ctx, forecast: data.forecast });
   return { entries: current, slides, watched, wakes, known, available, ctx };
 }
 

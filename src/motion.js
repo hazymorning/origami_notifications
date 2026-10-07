@@ -50,7 +50,10 @@ export class ListMotion {
     if (!list || !animate) return;
     const fast = duration(list, "fast");
     const normal = duration(list, "normal");
-    const side = getComputedStyle(list).direction === "rtl" ? "-16px" : "16px";
+    const style = getComputedStyle(list);
+    const side = style.direction === "rtl" ? "-16px" : "16px";
+    // A gap of the list stays until its row leaves the page, so the row closes it as it shrinks.
+    const shut = `${-(parseFloat(style.rowGap) || 0)}px`;
     for (const el of list.children) {
       const key = el.dataset.key;
       if (el.dataset.leaving && !this.ghosts.has(key)) {
@@ -63,9 +66,9 @@ export class ListMotion {
         this.run(
           el,
           [
-            { opacity: 1, gridTemplateRows: "1fr", transform: "none", easing: EASE.out },
-            { opacity: 0, gridTemplateRows: "1fr", transform: `translateX(${side})`, offset: fast / (fast + normal), easing: EASE.standard },
-            { opacity: 0, gridTemplateRows: "0fr", transform: `translateX(${side})` },
+            { opacity: 1, gridTemplateRows: "1fr", marginTop: "0px", transform: "none", easing: EASE.out },
+            { opacity: 0, gridTemplateRows: "1fr", marginTop: "0px", transform: `translateX(${side})`, offset: fast / (fast + normal), easing: EASE.standard },
+            { opacity: 0, gridTemplateRows: "0fr", marginTop: shut, transform: `translateX(${side})` },
           ],
           fast + normal,
           () => {
@@ -77,9 +80,9 @@ export class ListMotion {
         this.run(
           el,
           [
-            { opacity: 0, gridTemplateRows: "0fr", easing: EASE.standard },
-            { opacity: 0, gridTemplateRows: "1fr", offset: normal / (fast + normal), easing: EASE.in },
-            { opacity: 1, gridTemplateRows: "1fr" },
+            { opacity: 0, gridTemplateRows: "0fr", marginTop: shut, easing: EASE.standard },
+            { opacity: 0, gridTemplateRows: "1fr", marginTop: "0px", offset: normal / (fast + normal), easing: EASE.in },
+            { opacity: 1, gridTemplateRows: "1fr", marginTop: "0px" },
           ],
           fast + normal
         );

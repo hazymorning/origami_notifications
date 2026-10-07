@@ -8,7 +8,7 @@ const NIGHT_ICONS = { sunny: "mdi:weather-night", partlycloudy: "mdi:weather-nig
 
 export const showsForecast = (info, st) => info.entity.startsWith("weather.") && info.show_forecast !== false && forecastSupported(st, info.forecast_type);
 
-export function quietInfos(config, sources, hass, allowed) {
+export function quietInfos(config, sources, hass, allowed, shown) {
   if (config.hide_when_empty !== false) return config.infos;
   const taken = new Set(config.infos.map((info) => info.entity));
   const extra = [];
@@ -19,7 +19,7 @@ export function quietInfos(config, sources, hass, allowed) {
   }
   for (const src of sources) {
     const st = hass.states[src.entity];
-    if (!src.entity.startsWith("calendar.") || taken.has(src.entity) || !allowed(src.entity)) continue;
+    if (!src.entity.startsWith("calendar.") || taken.has(src.entity) || shown.has(src.entity) || !allowed(src.entity)) continue;
     if (st?.state === "off" && !isEmpty(st.attributes.message)) extra.push({ entity: src.entity, name: src.name, icon: src.icon, color: src.color });
   }
   return [...config.infos, ...extra];
@@ -90,9 +90,8 @@ export function infoSlides(infos, ctx) {
     const event = domain === "calendar" && !isEmpty(st.attributes.message);
     const named = isObject(info.name) || !isEmpty(info.name) ? name : "";
     const current = { ...base, key, stateObj: st, title: name, color: colorOf(event ? { ...st, state: "on" } : st) };
-    // A calendar's or the weather's name stays the same, so without a name set what they show leads.
+    // A calendar's own state is only on or off, so its event says more than its name.
     if (event) Object.assign(current, named ? { content: info.state_content ?? ["message", "start_time"] } : { title: st.attributes.message, content: info.state_content ?? ["start_time"] });
-    if (!named && domain === "weather") Object.assign(current, { title: infoText(st, info.state_content ?? ["state", "temperature"], name, ctx), text: name });
     if (!ahead || info.show_current !== false) slides.push(current);
     (ahead || []).forEach((a, n) => {
       const shown = { ...st, state: a.condition || "unknown" };
@@ -100,8 +99,8 @@ export function infoSlides(infos, ctx) {
         ...base,
         key: `${key}#${n}`,
         stateObj: shown,
-        title: named || a.text,
-        text: named ? [a.label, a.text].filter(Boolean).join(" · ") : a.label,
+        title: named || a.label,
+        text: [named ? a.label : "", a.text].filter(Boolean).join(" · "),
         icon: info.icon || (a.night && NIGHT_ICONS[a.condition]) || undefined,
         color: colorOf(shown),
       });

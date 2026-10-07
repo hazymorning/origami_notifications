@@ -24,6 +24,7 @@ const OWN = {
     date_at: "on {d} at {t}",
     on_date: "on {d}",
     paused_left: "Paused, {t} left",
+    ends_at: "Ends at {t}",
     act_pause: "Pause",
     act_resume: "Resume",
     act_cancel: "Cancel",
@@ -71,6 +72,7 @@ const OWN = {
     date_at: "am {d} um {t}",
     on_date: "am {d}",
     paused_left: "Pausiert, noch {t}",
+    ends_at: "Endet um {t}",
     act_done: "Erledigt",
     next_alarm: "Wecker",
     wx_rain_from: "Regen ab {t}",
@@ -93,7 +95,7 @@ const OWN = {
   },
 };
 
-const NEUTRAL = { just_now: null, soon: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}", paused_left: "{s}, {t}" };
+const NEUTRAL = { just_now: null, soon: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}", paused_left: "{s}, {t}", ends_at: "{s}, {t}" };
 
 const FROM_HA = {
   idle_msg: ["ui.notification_drawer.empty"],

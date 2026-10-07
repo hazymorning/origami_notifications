@@ -1,4 +1,4 @@
-import { clockText, DAY, dayNumber, dayStart, fill, HOUR, isoDate, isoTime, parseDuration, parseTime } from "./format.js";
+import { clockText, DAY, dayNumber, dayStart, fill, HOUR, isoTime, parseDuration, parseTime } from "./format.js";
 import { domainColor, domainOf, FEATURE, stateActive, supports, themeColor } from "./ha.js";
 import { linkAction, plainText } from "./markdown.js";
 import { isEmpty, isObject } from "./values.js";
@@ -76,7 +76,8 @@ function calendar(st, src, ctx) {
   if (st.state === "on") return [{ ...entry, ts: parseTime(st.last_changed, ctx.now), past: true, ack: sig(a.message, a.start_time) }];
   const start = isoTime(a.start_time, ctx.clock.server);
   if (st.state !== "off" || !(src.lead >= 0) || !within(start, src.lead, ctx)) return [];
-  return [{ ...entry, ts: start, day: Boolean(a.all_day), ack: sig(a.message, a.start_time, "ahead") }];
+  // The time of a day ahead already names the day.
+  return [{ ...entry, ...(a.all_day ? { message: "" } : {}), ts: start, day: Boolean(a.all_day), ack: sig(a.message, a.start_time, "ahead") }];
 }
 
 // Bins go out the evening before, so a pickup shows from noon the day before.
@@ -101,7 +102,7 @@ function waste(st, src, ctx) {
     {
       kind: "waste",
       title: (typeof types === "string" && types) || ctx.name(st, src.name),
-      message: ctx.clock.calendar(isoDate(n), true, ctx.now),
+      message: "",
       ts: start,
       day: true,
       expires: dayStart(n + 1, ctx.clock.server),
@@ -148,7 +149,9 @@ function timer(st, src, ctx) {
   const t = ctx.t;
   const entry = { kind: "timer", title: ctx.name(st, src.name) };
   if (st.state === "active") {
-    return [{ ...entry, message: ctx.state(st), ts: parseTime(a.finishes_at), live: true, clock: true, ack: String(a.finishes_at), actions: [service(id, t.act_pause, "timer.pause"), service(id, t.act_cancel, "timer.cancel")] }];
+    const end = parseTime(a.finishes_at);
+    const message = Number.isFinite(end) ? fill(t.ends_at, { t: ctx.clock.clockTime(end), s: ctx.state(st) }) : ctx.state(st);
+    return [{ ...entry, message, ts: end, live: true, clock: true, ack: String(a.finishes_at), actions: [service(id, t.act_pause, "timer.pause"), service(id, t.act_cancel, "timer.cancel")] }];
   }
   if (st.state !== "paused") return [];
   return [

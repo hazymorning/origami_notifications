@@ -146,9 +146,11 @@ export class Clock {
     return dateFormat(this.lang, { hour: "numeric", minute: "2-digit", ...this.time }).format(ts);
   }
 
-  // Intl writes 01 Uhr where people write 1 Uhr.
+  // Intl writes 01 Uhr where people write 1 Uhr, and a bare 21 where people write 21:00.
   hour(ts) {
-    return dateFormat(this.lang, { hour: "numeric", ...this.time }).format(ts).replace(/^0(?=\d\D)/, "");
+    const format = dateFormat(this.lang, { hour: "numeric", ...this.time });
+    if (format.formatToParts(ts).every((part) => part.type === "hour")) return this.clockTime(ts);
+    return format.format(ts).replace(/^0(?=\d\D)/, "");
   }
 
   day(ts, timeZone, now) {
