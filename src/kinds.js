@@ -219,7 +219,7 @@ const DEVICES = {
 
 // A lock that asks for a code gets no button, since the card can't ask for one.
 function device(st, src, ctx) {
-  if (st.state === "unknown" || !stateActive(st)) return [];
+  if (!stateActive(st)) return [];
   const { attributes: a, entity_id: id } = st;
   const d = DEVICES[domainOf(id)];
   const offered =
@@ -251,7 +251,10 @@ const numberedWarnings = (a) => {
   const found = new Map();
   for (const key of Object.keys(a)) {
     const m = NUMBERED.exec(key);
-    if (m && !isEmpty(a[key])) found.set(m[1] + m[2], { prefix: m[1], n: Number(m[2]) });
+    if (!m || isEmpty(a[key])) continue;
+    const field = (name) => a[`${m[1]}_${m[2]}_${name}`];
+    const warns = m[3] === "headline" || m[3] === "event" || !isEmpty(field("level")) || !isEmpty(field("severity"));
+    if (warns) found.set(m[1] + m[2], { prefix: m[1], n: Number(m[2]) });
   }
   return [...found.values()].sort((x, y) => x.n - y.n);
 };
@@ -411,7 +414,7 @@ export function entityEntries(src, st, ctx) {
   return entries.map((entry) => {
     const picture = src.image ? image : entry.image || findPicture(st.attributes);
     return {
-      key: `${kind}:${id}`,
+      key: `${kind}:${id}${src.attribute ? ":" + src.attribute : ""}`,
       entity: id,
       ...entry,
       icon: src.icon || entry.icon,

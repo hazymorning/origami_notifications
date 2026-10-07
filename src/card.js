@@ -8,7 +8,7 @@ import { HeadGestures } from "./gestures.js";
 import { infoText } from "./infos.js";
 import { buildModel, finishEntries, formatters, isAhead, nextWake } from "./model.js";
 import { duration, EASE, ListMotion } from "./motion.js";
-import { entryColor, iconTemplate, imageUrl, opener, rowsTemplate } from "./rows.js";
+import { entryColor, focusRow, iconTemplate, imageUrl, opener, rowsTemplate } from "./rows.js";
 import { cardTexts, languageOf } from "./strings.js";
 import { cardStyles, iconStyles, rowStyles, variables } from "./styles.js";
 import { Subscriptions } from "./subs.js";
@@ -37,6 +37,7 @@ export class OrigamiNotificationsCard extends LitElement {
     this._seq = 0;
     this._subs = new Subscriptions();
     this._dismissals = new Dismissals(() => this._refresh());
+    this._onDetails = () => this._refresh();
     this._motion = new ListMotion(() => this.requestUpdate());
     this._entries = [];
     this._slides = [];
@@ -175,7 +176,7 @@ export class OrigamiNotificationsCard extends LitElement {
       updates: d.updates,
       windows: d.windows,
       devicePictures: d.pictures,
-      details: (st) => warningDetails(hass, st, () => this._refresh()),
+      details: (st) => warningDetails(hass, st, this._onDetails),
       todos: (id) => {
         need.todos.add(id);
         return data.todos.get(id);
@@ -221,7 +222,7 @@ export class OrigamiNotificationsCard extends LitElement {
     const hass = this._hass;
     const conn = hass.connection;
     const wanted = new Map();
-    const subscribe = (key, message, then, token) => wanted.set(key, { token, start: () => conn.subscribeMessage(then, message) });
+    const subscribe = (key, message, then, retryOn) => wanted.set(key, { retryOn, start: () => conn.subscribeMessage(then, message) });
     if (conn && this.isConnected) {
       subscribe("notifications", { type: "persistent_notification/subscribe" }, (msg) => this._onNotifications(msg));
       if (this._config.repairs && hass.user?.is_admin) {
@@ -337,26 +338,24 @@ export class OrigamiNotificationsCard extends LitElement {
     this._topKey = top?.key;
     this._turnable = slides;
     let target = slides.find((s) => s.key === this._target?.key);
-    const fresh = news && this._turns() ? slides.find((s) => s.key === news.key) : null;
+    const fresh = news && this._config.rotate ? slides.find((s) => s.key === news.key) : null;
     if (fresh) {
       target = fresh;
       this._byHand = false;
-    } else if (!target || topMoved || !this._turned || !(this._turns() || this._byHand)) {
+    } else if (!target || topMoved || !this._turned || !(this._config.rotate || this._byHand)) {
       target = top;
     }
     this._show(target, 1, this._config.slide === "side");
-  }
-
-  _turns() {
-    return this._config.rotate > 0 ? this._config.rotate : 0;
   }
 
   _show(target, dir, side) {
     const moved = target?.key !== this._target?.key;
     this._target = target;
     if (this._turning) return;
-    if (moved && this._animate() && !this._open) this._turn(dir, side);
-    else this._shown = target;
+    if (moved && this._animate() && !this._open) return this._turn(dir, side);
+    this._shown = target;
+    const slide = this.renderRoot?.querySelector(".slide");
+    if (slide) slide.style.transform = slide.style.opacity = "";
   }
 
   async _turn(dir, side) {
@@ -409,7 +408,7 @@ export class OrigamiNotificationsCard extends LitElement {
 
   _rotate(restart = false) {
     const go =
-      this._turns() > 0 && this._turnable.length > 1 && !this._open && !this._dialog && !this._held.size &&
+      this._config.rotate > 0 && this._turnable.length > 1 && !this._open && !this._dialog && !this._held.size &&
       this.isConnected && this._visible && !document.hidden && !this.hidden && !this._hiding;
     if (go && this._rotateTimer && !restart) return;
     clearTimeout(this._rotateTimer);
@@ -417,7 +416,7 @@ export class OrigamiNotificationsCard extends LitElement {
     if (go) this._rotateTimer = setTimeout(() => {
       this._rotateTimer = null;
       this._step(1, "auto");
-    }, this._turns() * 1000);
+    }, this._config.rotate * 1000);
   }
 
   _hold(reason, on) {
@@ -552,7 +551,8 @@ export class OrigamiNotificationsCard extends LitElement {
     head.addEventListener("focusout", () => this._hold("focus", false));
   }
 
-  willUpdate() {
+  willUpdate(changed) {
+    if (changed.has("preview")) this._refresh();
     this._updateBackdrop(this._shown?.backdrop ? imageUrl(this._hass, this._shown.image) : null);
     this._listMotion = this._open && this._animate();
     if (this._listMotion) this._motion.measure(this.renderRoot.querySelector(".list"));
@@ -621,9 +621,7 @@ export class OrigamiNotificationsCard extends LitElement {
 
   _focusRow(index) {
     this._refocus = null;
-    const items = [...this.renderRoot.querySelectorAll(".item:not(.leaving)")];
-    const item = items[Math.min(index, items.length - 1)];
-    (item?.querySelector(".dismiss, .icon[role=button]") || this.renderRoot.querySelector(this._open ? ".bar" : ".head")).focus({ preventScroll: true });
+    focusRow(this.renderRoot, index, this.renderRoot.querySelector(this._open ? ".bar" : ".head"));
   }
 
   rowView(refocus) {
@@ -751,7 +749,6 @@ export class OrigamiNotificationsCard extends LitElement {
     `;
   }
 
-  // Two layers, so a new picture fades in over the old one once it has loaded.
   _updateBackdrop(url) {
     if (url === this._backdropUrl) return;
     this._backdropUrl = url;

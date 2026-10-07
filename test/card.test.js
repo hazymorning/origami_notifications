@@ -39,10 +39,16 @@ test("an empty card hides the way Home Assistant expects, and shows in the edito
   el.hass = makeHass(states("on"));
   await settle(el);
   assert.deepEqual([el.hidden, events], [false, [false, true]]);
-  el.preview = true;
   el.hass = makeHass(states("off"));
   await settle(el);
+  el.preview = true;
+  await settle(el);
   assert.equal(el.hidden, false, "never hidden in the editor");
+  const ruled = await mount(w, card(["binary_sensor.door"], { audience: { "binary_sensor.door": { only: ["person.anna"] } } }), makeHass(states("on")));
+  assert.equal(ruled.hidden, true);
+  ruled.preview = true;
+  await settle(ruled);
+  assert.deepEqual([ruled.hidden, head(ruled).title], [false, "Door"], "the editor shows what the rules hide");
   const picker = w.document.createElement("hui-card-picker");
   picker.attachShadow({ mode: "open" });
   w.document.body.append(picker);

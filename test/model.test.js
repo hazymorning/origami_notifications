@@ -222,6 +222,8 @@ test("numbered warnings and alerts of the Common Alerting Protocol follow their 
   assert.ok([NOW + 3600000, NOW + 90 * 60000].every((end) => m.wakes.includes(end)), "each wakes the card when it ends");
   assert.equal(model({ entities: ["sensor.dwd"] }, states, { now: NOW + 61 * 60000 }).entries.length, 1, "an ended warning goes");
   assert.deepEqual(["Extreme", "Severe", "Minor"].map((s) => model({ entities: ["binary_sensor.meteoalarm"] }, statesOf(cap(s))).entries[0].sev), ["crit", "crit", undefined]);
+  const zones = statesOf(st("switch.sprinkler", "off", { zone_1_name: "Lawn", zone_2_name: "Beds" }));
+  assert.equal(model({ entities: ["switch.sprinkler"] }, zones).entries.length, 0, "numbered names alone are no warnings");
 });
 
 test("a warning whose integration keeps its details back shows them once get_details answers", () => {

@@ -1,7 +1,7 @@
 import { css, html, LitElement, nothing } from "lit";
 import { fire } from "./card.js";
 import { ListMotion } from "./motion.js";
-import { rowsTemplate } from "./rows.js";
+import { focusRow, rowsTemplate } from "./rows.js";
 import { iconStyles, rowStyles, variables } from "./styles.js";
 
 // Home Assistant's dialog manager creates this element once and calls showDialog for every open.
@@ -66,11 +66,8 @@ export class OrigamiNotificationsDialog extends LitElement {
     this._motion.play(this.renderRoot.querySelector(".list"), this._animate);
     this._style ||= this.renderRoot.appendChild(document.createElement("style"));
     this._style.textContent = this._card?.css || "";
-    if (this._refocus != null) {
-      const items = [...this.renderRoot.querySelectorAll(".item:not(.leaving)")];
-      items[Math.min(this._refocus, items.length - 1)]?.querySelector(".dismiss, .icon[role=button]")?.focus({ preventScroll: true });
-      this._refocus = null;
-    }
+    if (this._refocus != null) focusRow(this.renderRoot, this._refocus, null);
+    this._refocus = null;
   }
 
   render() {

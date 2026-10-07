@@ -1,7 +1,7 @@
 import { isEntityId, isObject } from "./config.js";
 import { DAY, dayNumber, dayStart, fromServerTime, isoDate, zonedParts } from "./format.js";
 
-// Home Assistant's frontend checks these kinds itself and sends every other kind to the server.
+// Copied from frontend src/panels/lovelace/common/validate-condition.ts. Every other kind goes to the server.
 const CLIENT = new Set(["state", "numeric_state", "screen", "user", "location", "time", "view_columns"]);
 
 const LOGIC = { and: (r) => r.every(Boolean), or: (r) => r.some(Boolean), not: (r) => !r.every(Boolean) };
@@ -24,7 +24,6 @@ const wallTime = (day, seconds, zone) =>
     ? dayStart(day + 1, zone)
     : fromServerTime(`${isoDate(day)}T${pad(Math.floor(seconds / 3600))}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`, zone);
 
-// Both ends count, like in Home Assistant.
 function timeMet(c, env) {
   const p = zonedParts(env.now, env.zone);
   const day = dayNumber(env.now, env.zone);

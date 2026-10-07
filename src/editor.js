@@ -67,9 +67,9 @@ export class OrigamiNotificationsEditor extends LitElement {
     return value;
   }
 
-  _name(id) {
+  _name(id, override) {
     const st = this.hass.states[id];
-    return st ? entityName(this.hass)(st) : id;
+    return st ? entityName(this.hass)(st, override) : (typeof override === "string" && override) || id;
   }
 
   _entries(config = this._config) {
@@ -339,7 +339,7 @@ export class OrigamiNotificationsEditor extends LitElement {
     const forecasts = this._forecastTypes(info);
     const data = forecasts.length ? { ...info, forecast: forecastShow(info) } : info;
     const conditions = Array.isArray(info.visibility) ? info.visibility : [];
-    return html`<ha-expansion-panel outlined .header=${info.name || this._name(info.entity)} .secondary=${forecasts.length && forecastShow(info) !== "show_current" ? t.label(info.forecast_type) : ""}>
+    return html`<ha-expansion-panel outlined .header=${this._name(info.entity, info.name)} .secondary=${forecasts.length && forecastShow(info) !== "show_current" ? t.label(info.forecast_type) : ""}>
       ${st && customElements.get("ha-state-icon")
         ? html`<ha-state-icon slot="leading-icon" .hass=${this.hass} .stateObj=${st} .icon=${info.icon}></ha-state-icon>`
         : html`<ha-icon slot="leading-icon" .icon=${info.icon || KIND_ICONS.generic}></ha-icon>`}

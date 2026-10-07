@@ -2,7 +2,7 @@ import { html, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
 import { repeat } from "lit/directives/repeat.js";
 import { canDismiss } from "./dismissals.js";
-import { zonedParts } from "./format.js";
+import { dayNumber, isoDate } from "./format.js";
 import { stateColor } from "./ha.js";
 import { KIND_ICONS } from "./kinds.js";
 
@@ -50,9 +50,9 @@ export function iconTemplate(entry, hass) {
 
 function timeTemplate(entry, view) {
   if (!Number.isFinite(entry.ts)) return html`<time class="time"></time>`;
-  const p = entry.day && zonedParts(entry.ts, view.clock.server);
-  const datetime = p ? [p.year, p.month, p.day].map((n) => String(n).padStart(2, "0")).join("-") : new Date(entry.ts).toISOString();
-  const title = p ? view.clock.absoluteDate(entry.ts, view.clock.server) : view.clock.absolute(entry.ts);
+  const server = view.clock.server;
+  const datetime = entry.day ? isoDate(dayNumber(entry.ts, server)) : new Date(entry.ts).toISOString();
+  const title = entry.day ? view.clock.absoluteDate(entry.ts, server) : view.clock.absolute(entry.ts);
   return html`<time class="time" datetime=${datetime} title=${title}>${view.clock.entryTime(entry, view.now)}</time>`;
 }
 
@@ -120,6 +120,11 @@ function rowTemplate(entry, view) {
         : nothing}
     </div>
   </div></div>`;
+}
+
+export function focusRow(root, index, fallback) {
+  const items = [...root.querySelectorAll(".item:not(.leaving)")];
+  (items[Math.min(index, items.length - 1)]?.querySelector(".dismiss, .icon[role=button]") || fallback)?.focus({ preventScroll: true });
 }
 
 export const rowsTemplate = (entries, view) => repeat(entries, (entry) => entry.key, (entry) => rowTemplate(entry, view));
