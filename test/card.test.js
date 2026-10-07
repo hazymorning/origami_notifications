@@ -140,7 +140,7 @@ function mount(w, config, hass) {
 }
 
 const rows = (el) =>
-  [...el.shadowRoot.querySelectorAll(".list .row")].map((r) => ({
+  [...el.shadowRoot.querySelectorAll('.list .row:not([data-kind="info"])')].map((r) => ({
     title: r.querySelector(".title").textContent,
     body: r.querySelector(".body").textContent,
     tile: r.querySelector(".rtile").className,
@@ -187,7 +187,7 @@ const alone = (el) => {
 
 const q = (el, selector) => el.shadowRoot.querySelector(selector);
 const rowOf = (el, title) => [...el.shadowRoot.querySelectorAll(".row")].find((r) => r.querySelector(".title").textContent === title);
-const whens = (el) => [...el.shadowRoot.querySelectorAll(".row .when")].map((t) => t.textContent);
+const whens = (el) => [...el.shadowRoot.querySelectorAll('.row:not([data-kind="info"]) .when')].map((t) => t.textContent);
 const titles = (el) => rows(el).map((r) => r.title);
 const dismiss = (el) => q(el, ".row .x").click();
 const picture = (el, where = ".row .rtile") => {
@@ -931,7 +931,7 @@ test("the clock runs on the minute while a time lies ahead or the list is open",
   same([when(), q(el, ".row") === row], ["in 2 min.", true], "on the minute, in place");
   el.hass = hass;
   same(el._clock, null, "it stops once nothing lies ahead");
-  q(el, ".head").click();
+  el._toggle();
   same([when(), Boolean(el._clock)], ["6 min. ago", true], "and runs while the list is open");
   el._io.fire(false);
   mock.timers.tick(120000);
@@ -1105,17 +1105,23 @@ const quietHass = (states, opts = {}) => {
 };
 const shownInfo = (el) => [head(el).title, q(el, ".head .msg .t").textContent];
 
-test("the head is a button only while what it shows does something", () => {
+test("a tap opens the list of all the card has to say, or the one thing on show", () => {
   useClock();
   const w = makeWindow({ clock: true });
-  const el = mount(w, { type: "x", updates: false, infos: ["sun.sun", { entity: "sensor.energy", tap_action: "none" }] }, quietHass(quietStates()));
-  const state = () => [head(el).title, q(el, "ha-card").classList.contains("tappable"), q(el, ".head").getAttribute("aria-disabled")];
-  same(state(), ["Sun", true, "false"], "the sun opens its entity");
-  mock.timers.tick(8000);
-  same(state(), ["Energy", false, "true"], "after a turn the energy info does nothing");
+  const config = (infos) => ({ type: "x", updates: false, infos });
+  const state = (el) => [q(el, "ha-card").classList.contains("tappable"), q(el, ".head").getAttribute("aria-disabled")];
+  const two = mount(w, config(["sun.sun", { entity: "sensor.energy", tap_action: "none" }]), quietHass(quietStates()));
+  q(two, ".head").click();
+  same([state(two), q(two, "ha-card").classList.contains("open"), [...two.shadowRoot.querySelectorAll(".row")].map((r) => [r.dataset.kind, r.querySelector(".title").textContent])], [[true, "false"], true, [["info", "Sun"], ["info", "Energy"]]], "two infos open a list with a row for each");
+  const sun = mount(w, config(["sun.sun"]), quietHass(quietStates()));
+  const got = [];
+  sun.addEventListener("hass-action", (e) => got.push(e.detail.config.entity));
+  q(sun, ".head").click();
+  same([got, q(sun, "ha-card").classList.contains("open")], [["sun.sun"], false], "one info opens its entity");
+  same(state(mount(w, config([{ entity: "sensor.energy", tap_action: "none" }]), quietHass(quietStates()))), [false, "true"], "and one that does nothing is not a button");
 });
 
-test("infos fill a quiet card in their order, and leave it to what needs attention", async () => {
+test("infos turn in their order, after what needs attention", async () => {
   useClock();
   const w = makeWindow({ clock: true });
   const subs = [];
@@ -1128,11 +1134,11 @@ test("infos fill a quiet card in their order, and leave it to what needs attenti
   same([shownInfo(el), color()], [["Sunrise", "below_horizon"], "var(--red-color)"], "an unavailable info is left out, and its color shows");
   mock.timers.tick(8000);
   same([shownInfo(el), q(el, ".badge").hidden], [["Energy", "4.2 kWh"], true], "no count for infos");
-  notes(subs[0], { notification_id: "n1", title: "Backup", message: "done", created_at: "2026-09-21T09:00:00+00:00" });
-  mock.timers.tick(30000);
-  same(shownInfo(el), ["Backup", "done"], "a notification takes the card, and the infos wait");
+  notes(subs[0], { notification_id: "n1", title: "Backup", message: "done", created_at: new Date(Date.now()).toISOString() });
+  same(shownInfo(el), ["Backup", "done"], "a new notification comes forward");
+  same(el._slides.map((s) => s.title), ["Backup", "Weather", "Sunrise", "Energy"], "and the infos turn after it");
   subs[0].cb({ type: "removed", notifications: { n1: {} } });
-  same(shownInfo(el), ["Weather", "14 °C · Rainy"], "and come back once it is gone");
+  same(el._slides.map((s) => s.title), ["Weather", "Sunrise", "Energy"], "until it is gone");
   w.customElements.define("state-display", class extends w.HTMLElement {});
   await Promise.resolve();
   await Promise.resolve();
@@ -1201,8 +1207,9 @@ test("a card that stays while nothing needs attention shows the weather, the hou
   subs.find((s) => s.msg && s.msg.type === "weather/subscribe_forecast").cb({ type: "hourly", forecast: hourly({}, { condition: "sunny" }, {}, {}) });
   same(hidden.hidden, true, "a card that hides when nothing needs attention still hides");
   same(el._slides.map((s) => s.title), ["Home", "1:00 PM", "2:00 PM", "3:00 PM", "Family"], "the weather now, the next three hours and the next event");
+  same(el._listed().map((r) => [r.title, r.message]), [["Home", "cloudy · 12"], ["Family", "Dentist · in 21 hr."]], "the list has one row for each, with a time that reads relative");
   el.hass = { ...hass, states: { ...states, "calendar.family": st("calendar.family", "on", { friendly_name: "Family", message: "Dentist", start_time: "2026-10-02 11:00:00", end_time: "2026-10-02 13:00:00" }) } };
-  same(el._slides.map((s) => s.title), ["Dentist"], "and makes way for what needs attention");
+  same(el._slides.map((s) => s.title), ["Dentist", "Home", "1:00 PM", "2:00 PM", "3:00 PM"], "what needs attention comes first, then the weather");
 });
 
 test("an hourly or twice daily forecast names its hour or its half of the day, in the number format of the profile", () => {
@@ -1333,7 +1340,11 @@ test("a narrow card opens its list in Home Assistant's dialog", () => {
   };
   same([unfolds(el, 400), unfolds(el, 180), dialog], [true, true, null], "a card unfolds in place until Home Assistant has its dialog");
   w.customElements.define("ha-adaptive-dialog", class extends w.HTMLElement {});
-  same(unfolds(mount(w, { type: "x", updates: false, entities: ["binary_sensor.a"] }, makeHass(states)), 180), false, "then a narrow card stays closed");
+  const one = mount(w, { type: "x", updates: false, entities: ["binary_sensor.a"] }, makeHass(states));
+  const opened = [];
+  one.addEventListener("hass-more-info", (e) => opened.push(e.detail.entityId));
+  same([unfolds(one, 180), dialog, opened], [false, null, ["binary_sensor.a"]], "one entry opens its entity, not a list");
+  same(unfolds(mount(w, { type: "x", updates: false, entities: ["binary_sensor.a", "binary_sensor.b"] }, makeHass(states)), 180), false, "then a narrow card stays closed");
   const when = () => q(dialog, ".row .when").textContent;
   same(when(), "1 min. ago", "and the dialog shows its rows");
   mock.timers.tick(10 * 60000);

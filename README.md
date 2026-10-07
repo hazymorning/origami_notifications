@@ -2,11 +2,11 @@
 
 A notification card for Home Assistant that folds away when there is nothing to see.
 
-Closed, the card is one row that turns through whatever needs attention. Tap it and it unfolds into the full list. Where the card is narrow, the list opens in Home Assistant's own dialog, a bottom sheet on a phone.
+Closed, the card is one row that turns through whatever needs attention, then through your infos. A tap unfolds the list of all of it, or opens the one thing on show. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
 
 Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
 
-While nothing needs attention, the card shows your infos instead, like the next sunrise. You set them up like tiles. With `hide_when_empty: false` it also turns through the weather now and in the next hours, and the next event of each calendar it watches.
+Infos, like the next sunrise, are set up like tiles. With `hide_when_empty: false` the weather now and in the next hours, and the next event of each calendar, join them.
 
 **You can style the card with plain CSS.**
 
@@ -73,7 +73,7 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | --- | --- | --- |
 | `entities` | | Entities to watch, see below |
 | `label` | | Also watch every entity with this label. In YAML it's the label ID. |
-| `infos` | | Entities to show in turn while nothing needs attention, see Infos |
+| `infos` | | Entities that turn by after what needs attention, see Infos |
 | `weather` | | A weather entity. While it is dry, rain, snow, hail and thunder show up to 6 hours ahead. Frost shows up to 18 hours ahead. With a window open anywhere in Home Assistant, rain is a warning, and rain that has started shows too. Rain and frost ahead need an hourly or twice daily forecast. |
 | `updates` | `true` | Show available updates |
 | `repairs` | `true` | Show repairs, to admins only |
