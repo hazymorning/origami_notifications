@@ -10,7 +10,7 @@ import { buildModel, finishEntries, formatters, isAhead, nextWake } from "./mode
 import { duration, EASE, ListMotion } from "./motion.js";
 import { entryColor, focusRow, iconTemplate, imageUrl, opener, rowsTemplate } from "./rows.js";
 import { cardTexts, languageOf } from "./strings.js";
-import { cardStyles, iconStyles, rowStyles, variables } from "./styles.js";
+import { adoptCss, cardStyles, iconStyles, rowStyles, variables } from "./styles.js";
 import { Subscriptions } from "./subs.js";
 import { windowIds } from "./weather.js";
 
@@ -564,9 +564,9 @@ export class OrigamiNotificationsCard extends LitElement {
     this._setHidden(this._empty());
     this.classList.toggle("dark", Boolean(this._hass.themes?.darkMode));
     this.classList.toggle("with-backdrop", this._backdrops.some((l) => l.on));
-    if (this._userCss?.textContent !== this._config.css) {
-      this._userCss ||= this.renderRoot.appendChild(document.createElement("style"));
-      this._userCss.textContent = this._config.css || "";
+    if (this._css !== this._config.css) {
+      this._css = this._config.css;
+      adoptCss(this, this._css || "");
     }
     if (this._refocus != null) this._focusRow(this._refocus);
     if (this._intro) this._playIntro();

@@ -1,4 +1,7 @@
-import { css } from "lit";
+import { adoptStyles, css, unsafeCSS } from "lit";
+
+// Browsers rank adopted stylesheets after style elements, so the css option is adopted after the card's own styles.
+export const adoptCss = (el, text) => adoptStyles(el.renderRoot, [...el.constructor.elementStyles, unsafeCSS(text)]);
 
 export const rowStyles = css`
   .list {

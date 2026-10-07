@@ -43,6 +43,8 @@ export function makeWindow({ clock = false, zone, define = [] } = {}) {
     disconnect() {}
   };
   window.matchMedia = () => ({ matches: false, onchange: null });
+  // jsdom has no adoptedStyleSheets, so Lit would fall back to style elements, unlike in a browser.
+  for (const proto of [window.Document.prototype, window.ShadowRoot.prototype]) Object.defineProperty(proto, "adoptedStyleSheets", { value: [], writable: true });
   if (clock) window.Date = Date;
   if (zone) {
     const Format = window.Intl.DateTimeFormat;
