@@ -1,1803 +1,293 @@
-/* Origami Notifications, https://github.com/hazymorning/origami_notifications */
+var He="1.0.0";var wt=globalThis,vt=wt.ShadowRoot&&(wt.ShadyCSS===void 0||wt.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,ee=Symbol(),We=new WeakMap,lt=class{constructor(t,e,s){if(this._$cssResult$=!0,s!==ee)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=e}get styleSheet(){let t=this.o,e=this.t;if(vt&&t===void 0){let s=e!==void 0&&e.length===1;s&&(t=We.get(e)),t===void 0&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),s&&We.set(e,t))}return t}toString(){return this.cssText}},qe=i=>new lt(typeof i=="string"?i:i+"",void 0,ee),M=(i,...t)=>{let e=i.length===1?i[0]:t.reduce((s,n,o)=>s+(r=>{if(r._$cssResult$===!0)return r.cssText;if(typeof r=="number")return r;throw Error("Value passed to 'css' function must be a 'css' function result: "+r+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(n)+i[o+1],i[0]);return new lt(e,i,ee)},Fe=(i,t)=>{if(vt)i.adoptedStyleSheets=t.map(e=>e instanceof CSSStyleSheet?e:e.styleSheet);else for(let e of t){let s=document.createElement("style"),n=wt.litNonce;n!==void 0&&s.setAttribute("nonce",n),s.textContent=e.cssText,i.appendChild(s)}},ie=vt?i=>i:i=>i instanceof CSSStyleSheet?(t=>{let e="";for(let s of t.cssRules)e+=s.cssText;return qe(e)})(i):i;var{is:As,defineProperty:Es,getOwnPropertyDescriptor:Ts,getOwnPropertyNames:Cs,getOwnPropertySymbols:Os,getPrototypeOf:Ns}=Object,kt=globalThis,Ve=kt.trustedTypes,Ms=Ve?Ve.emptyScript:"",Rs=kt.reactiveElementPolyfillSupport,dt=(i,t)=>i,se={toAttribute(i,t){switch(t){case Boolean:i=i?Ms:null;break;case Object:case Array:i=i==null?i:JSON.stringify(i)}return i},fromAttribute(i,t){let e=i;switch(t){case Boolean:e=i!==null;break;case Number:e=i===null?null:Number(i);break;case Object:case Array:try{e=JSON.parse(i)}catch{e=null}}return e}},Ge=(i,t)=>!As(i,t),Ke={attribute:!0,type:String,converter:se,reflect:!1,useDefault:!1,hasChanged:Ge};Symbol.metadata??=Symbol("metadata"),kt.litPropertyMetadata??=new WeakMap;var P=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,e=Ke){if(e.state&&(e.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(t)&&((e=Object.create(e)).wrapped=!0),this.elementProperties.set(t,e),!e.noAccessor){let s=Symbol(),n=this.getPropertyDescriptor(t,s,e);n!==void 0&&Es(this.prototype,t,n)}}static getPropertyDescriptor(t,e,s){let{get:n,set:o}=Ts(this.prototype,t)??{get(){return this[e]},set(r){this[e]=r}};return{get:n,set(r){let a=n?.call(this);o?.call(this,r),this.requestUpdate(t,a,s)},configurable:!0,enumerable:!0}}static getPropertyOptions(t){return this.elementProperties.get(t)??Ke}static _$Ei(){if(this.hasOwnProperty(dt("elementProperties")))return;let t=Ns(this);t.finalize(),t.l!==void 0&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty(dt("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(dt("properties"))){let e=this.properties,s=[...Cs(e),...Os(e)];for(let n of s)this.createProperty(n,e[n])}let t=this[Symbol.metadata];if(t!==null){let e=litPropertyMetadata.get(t);if(e!==void 0)for(let[s,n]of e)this.elementProperties.set(s,n)}this._$Eh=new Map;for(let[e,s]of this.elementProperties){let n=this._$Eu(e,s);n!==void 0&&this._$Eh.set(n,e)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){let e=[];if(Array.isArray(t)){let s=new Set(t.flat(1/0).reverse());for(let n of s)e.unshift(ie(n))}else t!==void 0&&e.push(ie(t));return e}static _$Eu(t,e){let s=e.attribute;return s===!1?void 0:typeof s=="string"?s:typeof t=="string"?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),this.renderRoot!==void 0&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){let t=new Map,e=this.constructor.elementProperties;for(let s of e.keys())this.hasOwnProperty(s)&&(t.set(s,this[s]),delete this[s]);t.size>0&&(this._$Ep=t)}createRenderRoot(){let t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return Fe(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,e,s){this._$AK(t,s)}_$ET(t,e){let s=this.constructor.elementProperties.get(t),n=this.constructor._$Eu(t,s);if(n!==void 0&&s.reflect===!0){let o=(s.converter?.toAttribute!==void 0?s.converter:se).toAttribute(e,s.type);this._$Em=t,o==null?this.removeAttribute(n):this.setAttribute(n,o),this._$Em=null}}_$AK(t,e){let s=this.constructor,n=s._$Eh.get(t);if(n!==void 0&&this._$Em!==n){let o=s.getPropertyOptions(n),r=typeof o.converter=="function"?{fromAttribute:o.converter}:o.converter?.fromAttribute!==void 0?o.converter:se;this._$Em=n;let a=r.fromAttribute(e,o.type);this[n]=a??this._$Ej?.get(n)??a,this._$Em=null}}requestUpdate(t,e,s,n=!1,o){if(t!==void 0){let r=this.constructor;if(n===!1&&(o=this[t]),s??=r.getPropertyOptions(t),!((s.hasChanged??Ge)(o,e)||s.useDefault&&s.reflect&&o===this._$Ej?.get(t)&&!this.hasAttribute(r._$Eu(t,s))))return;this.C(t,e,s)}this.isUpdatePending===!1&&(this._$ES=this._$EP())}C(t,e,{useDefault:s,reflect:n,wrapped:o},r){s&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,r??e??this[t]),o!==!0||r!==void 0)||(this._$AL.has(t)||(this.hasUpdated||s||(e=void 0),this._$AL.set(t,e)),n===!0&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(e){Promise.reject(e)}let t=this.scheduleUpdate();return t!=null&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(let[n,o]of this._$Ep)this[n]=o;this._$Ep=void 0}let s=this.constructor.elementProperties;if(s.size>0)for(let[n,o]of s){let{wrapped:r}=o,a=this[n];r!==!0||this._$AL.has(n)||a===void 0||this.C(n,void 0,o,a)}}let t=!1,e=this._$AL;try{t=this.shouldUpdate(e),t?(this.willUpdate(e),this._$EO?.forEach(s=>s.hostUpdate?.()),this.update(e)):this._$EM()}catch(s){throw t=!1,this._$EM(),s}t&&this._$AE(e)}willUpdate(t){}_$AE(t){this._$EO?.forEach(e=>e.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return!0}update(t){this._$Eq&&=this._$Eq.forEach(e=>this._$ET(e,this[e])),this._$EM()}updated(t){}firstUpdated(t){}};P.elementStyles=[],P.shadowRootOptions={mode:"open"},P[dt("elementProperties")]=new Map,P[dt("finalized")]=new Map,Rs?.({ReactiveElement:P}),(kt.reactiveElementVersions??=[]).push("2.1.2");var oe=globalThis,Ye=i=>i,$t=oe.trustedTypes,Xe=$t?$t.createPolicy("lit-html",{createHTML:i=>i}):void 0,re="$lit$",U=`lit$${Math.random().toFixed(9).slice(2)}$`,ae="?"+U,Ds=`<${ae}>`,Y=document,ut=()=>Y.createComment(""),pt=i=>i===null||typeof i!="object"&&typeof i!="function",ce=Array.isArray,ii=i=>ce(i)||typeof i?.[Symbol.iterator]=="function",ne=`[ 	
+\f\r]`,ht=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,Je=/-->/g,Ze=/>/g,K=RegExp(`>|${ne}(?:([^\\s"'>=/]+)(${ne}*=${ne}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`,"g"),Qe=/'/g,ti=/"/g,si=/^(?:script|style|textarea|title)$/i,le=i=>(t,...e)=>({_$litType$:i,strings:t,values:e}),b=le(1),ro=le(2),ao=le(3),N=Symbol.for("lit-noChange"),_=Symbol.for("lit-nothing"),ei=new WeakMap,G=Y.createTreeWalker(Y,129);function ni(i,t){if(!ce(i)||!i.hasOwnProperty("raw"))throw Error("invalid template strings array");return Xe!==void 0?Xe.createHTML(t):t}var oi=(i,t)=>{let e=i.length-1,s=[],n,o=t===2?"<svg>":t===3?"<math>":"",r=ht;for(let a=0;a<e;a++){let c=i[a],l,h,d=-1,p=0;for(;p<c.length&&(r.lastIndex=p,h=r.exec(c),h!==null);)p=r.lastIndex,r===ht?h[1]==="!--"?r=Je:h[1]!==void 0?r=Ze:h[2]!==void 0?(si.test(h[2])&&(n=RegExp("</"+h[2],"g")),r=K):h[3]!==void 0&&(r=K):r===K?h[0]===">"?(r=n??ht,d=-1):h[1]===void 0?d=-2:(d=r.lastIndex-h[2].length,l=h[1],r=h[3]===void 0?K:h[3]==='"'?ti:Qe):r===ti||r===Qe?r=K:r===Je||r===Ze?r=ht:(r=K,n=void 0);let u=r===K&&i[a+1].startsWith("/>")?" ":"";o+=r===ht?c+Ds:d>=0?(s.push(l),c.slice(0,d)+re+c.slice(d)+U+u):c+U+(d===-2?a:u)}return[ni(i,o+(i[e]||"<?>")+(t===2?"</svg>":t===3?"</math>":"")),s]},mt=class i{constructor({strings:t,_$litType$:e},s){let n;this.parts=[];let o=0,r=0,a=t.length-1,c=this.parts,[l,h]=oi(t,e);if(this.el=i.createElement(l,s),G.currentNode=this.el.content,e===2||e===3){let d=this.el.content.firstChild;d.replaceWith(...d.childNodes)}for(;(n=G.nextNode())!==null&&c.length<a;){if(n.nodeType===1){if(n.hasAttributes())for(let d of n.getAttributeNames())if(d.endsWith(re)){let p=h[r++],u=n.getAttribute(d).split(U),g=/([.?@])?(.*)/.exec(p);c.push({type:1,index:o,name:g[2],strings:u,ctor:g[1]==="."?St:g[1]==="?"?At:g[1]==="@"?Et:J}),n.removeAttribute(d)}else d.startsWith(U)&&(c.push({type:6,index:o}),n.removeAttribute(d));if(si.test(n.tagName)){let d=n.textContent.split(U),p=d.length-1;if(p>0){n.textContent=$t?$t.emptyScript:"";for(let u=0;u<p;u++)n.append(d[u],ut()),G.nextNode(),c.push({type:2,index:++o});n.append(d[p],ut())}}}else if(n.nodeType===8)if(n.data===ae)c.push({type:2,index:o});else{let d=-1;for(;(d=n.data.indexOf(U,d+1))!==-1;)c.push({type:7,index:o}),d+=U.length-1}o++}}static createElement(t,e){let s=Y.createElement("template");return s.innerHTML=t,s}};function X(i,t,e=i,s){if(t===N)return t;let n=s!==void 0?e._$Co?.[s]:e._$Cl,o=pt(t)?void 0:t._$litDirective$;return n?.constructor!==o&&(n?._$AO?.(!1),o===void 0?n=void 0:(n=new o(i),n._$AT(i,e,s)),s!==void 0?(e._$Co??=[])[s]=n:e._$Cl=n),n!==void 0&&(t=X(i,n._$AS(i,t.values),n,s)),t}var xt=class{constructor(t,e){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=e}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){let{el:{content:e},parts:s}=this._$AD,n=(t?.creationScope??Y).importNode(e,!0);G.currentNode=n;let o=G.nextNode(),r=0,a=0,c=s[0];for(;c!==void 0;){if(r===c.index){let l;c.type===2?l=new it(o,o.nextSibling,this,t):c.type===1?l=new c.ctor(o,c.name,c.strings,this,t):c.type===6&&(l=new Tt(o,this,t)),this._$AV.push(l),c=s[++a]}r!==c?.index&&(o=G.nextNode(),r++)}return G.currentNode=Y,n}p(t){let e=0;for(let s of this._$AV)s!==void 0&&(s.strings!==void 0?(s._$AI(t,s,e),e+=s.strings.length-2):s._$AI(t[e])),e++}},it=class i{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,e,s,n){this.type=2,this._$AH=_,this._$AN=void 0,this._$AA=t,this._$AB=e,this._$AM=s,this.options=n,this._$Cv=n?.isConnected??!0}get parentNode(){let t=this._$AA.parentNode,e=this._$AM;return e!==void 0&&t?.nodeType===11&&(t=e.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,e=this){t=X(this,t,e),pt(t)?t===_||t==null||t===""?(this._$AH!==_&&this._$AR(),this._$AH=_):t!==this._$AH&&t!==N&&this._(t):t._$litType$!==void 0?this.$(t):t.nodeType!==void 0?this.T(t):ii(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==_&&pt(this._$AH)?this._$AA.nextSibling.data=t:this.T(Y.createTextNode(t)),this._$AH=t}$(t){let{values:e,_$litType$:s}=t,n=typeof s=="number"?this._$AC(t):(s.el===void 0&&(s.el=mt.createElement(ni(s.h,s.h[0]),this.options)),s);if(this._$AH?._$AD===n)this._$AH.p(e);else{let o=new xt(n,this),r=o.u(this.options);o.p(e),this.T(r),this._$AH=o}}_$AC(t){let e=ei.get(t.strings);return e===void 0&&ei.set(t.strings,e=new mt(t)),e}k(t){ce(this._$AH)||(this._$AH=[],this._$AR());let e=this._$AH,s,n=0;for(let o of t)n===e.length?e.push(s=new i(this.O(ut()),this.O(ut()),this,this.options)):s=e[n],s._$AI(o),n++;n<e.length&&(this._$AR(s&&s._$AB.nextSibling,n),e.length=n)}_$AR(t=this._$AA.nextSibling,e){for(this._$AP?.(!1,!0,e);t!==this._$AB;){let s=Ye(t).nextSibling;Ye(t).remove(),t=s}}setConnected(t){this._$AM===void 0&&(this._$Cv=t,this._$AP?.(t))}},J=class{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,e,s,n,o){this.type=1,this._$AH=_,this._$AN=void 0,this.element=t,this.name=e,this._$AM=n,this.options=o,s.length>2||s[0]!==""||s[1]!==""?(this._$AH=Array(s.length-1).fill(new String),this.strings=s):this._$AH=_}_$AI(t,e=this,s,n){let o=this.strings,r=!1;if(o===void 0)t=X(this,t,e,0),r=!pt(t)||t!==this._$AH&&t!==N,r&&(this._$AH=t);else{let a=t,c,l;for(t=o[0],c=0;c<o.length-1;c++)l=X(this,a[s+c],e,c),l===N&&(l=this._$AH[c]),r||=!pt(l)||l!==this._$AH[c],l===_?t=_:t!==_&&(t+=(l??"")+o[c+1]),this._$AH[c]=l}r&&!n&&this.j(t)}j(t){t===_?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}},St=class extends J{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===_?void 0:t}},At=class extends J{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==_)}},Et=class extends J{constructor(t,e,s,n,o){super(t,e,s,n,o),this.type=5}_$AI(t,e=this){if((t=X(this,t,e,0)??_)===N)return;let s=this._$AH,n=t===_&&s!==_||t.capture!==s.capture||t.once!==s.once||t.passive!==s.passive,o=t!==_&&(s===_||n);n&&this.element.removeEventListener(this.name,this,s),o&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){typeof this._$AH=="function"?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}},Tt=class{constructor(t,e,s){this.element=t,this.type=6,this._$AN=void 0,this._$AM=e,this.options=s}get _$AU(){return this._$AM._$AU}_$AI(t){X(this,t)}},ri={M:re,P:U,A:ae,C:1,L:oi,R:xt,D:ii,V:X,I:it,H:J,N:At,U:Et,B:St,F:Tt},Is=oe.litHtmlPolyfillSupport;Is?.(mt,it),(oe.litHtmlVersions??=[]).push("3.3.3");var ai=(i,t,e)=>{let s=e?.renderBefore??t,n=s._$litPart$;if(n===void 0){let o=e?.renderBefore??null;s._$litPart$=n=new it(t.insertBefore(ut(),o),o,void 0,e??{})}return n._$AI(i),n};var de=globalThis,T=class extends P{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){let t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){let e=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=ai(e,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return N}};T._$litElement$=!0,T.finalized=!0,de.litElementHydrateSupport?.({LitElement:T});var Ps=de.litElementPolyfillSupport;Ps?.({LitElement:T});(de.litElementVersions??=[]).push("4.2.2");var Ct={ATTRIBUTE:1,CHILD:2,PROPERTY:3,BOOLEAN_ATTRIBUTE:4,EVENT:5,ELEMENT:6},Ot=i=>(...t)=>({_$litDirective$:i,values:t}),st=class{constructor(t){}get _$AU(){return this._$AM._$AU}_$AT(t,e,s){this._$Ct=t,this._$AM=e,this._$Ci=s}_$AS(t,e){return this.update(t,e)}update(t,e){return this.render(...e)}};var Z=Ot(class extends st{constructor(i){if(super(i),i.type!==Ct.ATTRIBUTE||i.name!=="class"||i.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(i){return" "+Object.keys(i).filter(t=>i[t]).join(" ")+" "}update(i,[t]){if(this.st===void 0){this.st=new Set,i.strings!==void 0&&(this.nt=new Set(i.strings.join(" ").split(/\s/).filter(s=>s!=="")));for(let s in t)t[s]&&!this.nt?.has(s)&&this.st.add(s);return this.render(t)}let e=i.element.classList;for(let s of this.st)s in t||(e.remove(s),this.st.delete(s));for(let s in t){let n=!!t[s];n===this.st.has(s)||this.nt?.has(s)||(n?(e.add(s),this.st.add(s)):(e.remove(s),this.st.delete(s)))}return N}});var he=new Map;function H(i,t){let e=i+JSON.stringify(t);if(!he.has(e)){let s;try{s=new Intl.DateTimeFormat(i,t)}catch{s=new Intl.DateTimeFormat(void 0,{...t,timeZone:void 0})}he.set(e,s)}return he.get(e)}function ci(i,t){try{return new Intl.NumberFormat(i,t)}catch{return new Intl.NumberFormat(void 0,t)}}var v=(i,t)=>i.replace(/\{(\w+)\}/g,(e,s)=>t[s]??"");function nt(i,t){let e=H("en-US",{hourCycle:"h23",year:"numeric",month:"numeric",day:"numeric",hour:"numeric",minute:"numeric",second:"numeric",timeZone:t}).formatToParts(i);return Object.fromEntries(e.map(({type:s,value:n})=>[s,Number(n)]))}var Us=/^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d)(?::(\d\d)(\.\d+)?)?)?$/;function ft(i,t){let e=Us.exec(i);if(!e)return Date.parse(i);let s=Date.UTC(+e[1],e[2]-1,+e[3],+(e[4]||0),+(e[5]||0),+(e[6]||0)),n=o=>{let r=nt(o,t);return Date.UTC(r.year,r.month-1,r.day,r.hour,r.minute,r.second)-o};return s-n(s-n(s))+(e[7]?Math.round(parseFloat(e[7])*1e3):0)}var R=(i,t)=>typeof i=="string"&&/^\d{4}-\d\d-\d\d/.test(i)?ft(i,t):NaN,k=(i,t=NaN)=>{let e=i?Date.parse(i):NaN;return Number.isNaN(e)?t:e};function L(i,t){let e=nt(i,t);return Date.UTC(e.year,e.month-1,e.day)/864e5}var ue=i=>new Date(i*864e5).toISOString().slice(0,10),_t=(i,t)=>ft(ue(i),t);function pe(i){let t=i>0?Math.ceil(i/1e3):0,e=Math.floor(t/3600),s=Math.floor(t%3600/60),n=String(t%60).padStart(2,"0");return e?`${e}:${String(s).padStart(2,"0")}:${n}`:`${s}:${n}`}function li(i){let t=/^(\d+):(\d\d):(\d\d)$/.exec(String(i??"").trim());return t?(+t[1]*3600+ +t[2]*60+ +t[3])*1e3:NaN}var Ls={comma_decimal:"en-US",decimal_comma:"de",space_comma:"fr",quote_decimal:"de-CH",none:"en-US"};function js(){return H(void 0,{hour:"numeric"}).resolvedOptions().hour12}var Nt=class{constructor(t,e,s){let n=t?.locale||{};this.lang=e,this.t=s,this.server=t?.config?.time_zone||void 0,this.zone=n.time_zone==="server"?this.server:void 0;let o={12:!0,24:!1,system:js()}[n.time_format];this.time={timeZone:this.zone,...o===void 0?{}:{hour12:o}},this.numbers=ci(n.number_format==="system"?void 0:Ls[n.number_format]||e,{maximumFractionDigits:1,useGrouping:n.number_format!=="none"}),this.percents=ci(e,{style:"percent",maximumFractionDigits:0});try{this.rel=new Intl.RelativeTimeFormat(e,{numeric:"auto",style:"short"})}catch{this.rel=new Intl.RelativeTimeFormat("en",{numeric:"auto",style:"short"})}}relative(t,e){let s=Math.round((t-e)/1e3),n=Math.round(s/60),o=Math.round(s/3600);return Math.abs(s)<60?(s>0?this.t.soon:this.t.just_now)||this.rel.format(0,"second"):Math.abs(n)<60?this.rel.format(n,"minute"):Math.abs(o)<24?this.rel.format(o,"hour"):this.rel.format(Math.round(s/86400),"day")}entryTime(t,e){if(!Number.isFinite(t.ts))return"";if(t.clock)return pe(t.ts-e);if(t.day){let{near:s,text:n}=this.day(t.ts,this.server,e);return s?n:v(this.t.on_date,{d:n})}return this.relative(t.past?Math.min(t.ts,e):t.ts,e)}absolute(t){return H(this.lang,{dateStyle:"medium",timeStyle:"short",...this.time}).format(t)}absoluteDate(t,e){return H(this.lang,{dateStyle:"medium",timeZone:e}).format(t)}clockTime(t){return H(this.lang,{hour:"numeric",minute:"2-digit",...this.time}).format(t)}hour(t){return H(this.lang,{hour:"numeric",...this.time}).format(t).replace(/^0(?=\d\D)/,"")}day(t,e,s){let n=L(t,e)-L(s,this.zone);return Math.abs(n)<=1?{near:!0,text:this.rel.format(n,"day")}:{near:!1,text:H(this.lang,{day:"2-digit",month:"2-digit",timeZone:e}).format(t)}}calendar(t,e,s){let n=t?ft(t,this.server):NaN;if(Number.isNaN(n))return this.t.event;let{near:o,text:r}=this.day(n,e?this.server:this.zone,s);return e?o?r:v(this.t.on_date,{d:r}):v(o?this.t.day_at:this.t.date_at,{d:r,t:this.clockTime(n)})}slotLabel(t,e,s){let n=L(t,this.zone)-L(s,this.zone),o=Math.abs(n)<=1?this.rel.format(n,"day"):H(this.lang,{weekday:"long",timeZone:this.zone}).format(t),r=e!=="hourly"?o:n===0?this.clockTime(t):v(this.t.day_at,{d:o,t:this.clockTime(t)});return r.charAt(0).toLocaleUpperCase(this.lang)+r.slice(1)}number(t){return this.numbers.format(t)}percent(t){return this.percents.format(t/100)}};var j="origami-notifications",me=["calendar","update","alarm","alert","timer","countdown","event","todo","device","warning","attribute","picture","generic"],fe=["daily","hourly","twice_daily"],gt={updates:!0,repairs:!0,hide_when_empty:!0,vertical:!1,rotate:8,slide:"up"},x=i=>i!=null&&typeof i=="object"&&!Array.isArray(i),Mt=i=>typeof i=="string"&&/^\w+\.\w+$/.test(i),di={days:864e5,hours:36e5,minutes:6e4,seconds:1e3};function Q(i){let t=NaN;if(typeof i=="number")t=i*6e4;else if(typeof i=="string"){let e=/^(\d+):(\d+)(?::(\d+(?:\.\d+)?))?$/.exec(i.trim());e&&(t=e[1]*36e5+e[2]*6e4+(e[3]||0)*1e3)}else x(i)&&Object.keys(i).length&&Object.keys(i).every(e=>e in di)&&(t=Object.entries(i).reduce((e,[s,n])=>e+Number(n)*di[s],0));return t>=0&&Number.isFinite(t)?t:NaN}var zs=i=>{throw new Error(`${j}: ${i}`)},w=(i,t)=>i||zs(t),$=(i,t)=>i==null||t(i),hi=i=>$(i,x);function Bs(i){let t=typeof i=="string"?{entity:i}:x(i)?{...i}:null;return w(t&&Mt(t.entity),"entities must contain entity ids, got "+JSON.stringify(i)),w($(t.type,e=>me.includes(e)),`unknown type '${t.type}'`),w($(t.attribute,e=>typeof e=="string"),"attribute must be the name of an attribute"),w($(t.image,e=>typeof e=="string"),"image must be an attribute path or URL"),w($(t.background,e=>typeof e=="boolean"),"background must be true or false"),w($(t.before,e=>Q(e)>=0),"before must be minutes or a duration like 1:30:00"),w(hi(t.tap_action),"tap_action must be an action"),w($(t.actions,e=>Array.isArray(e)&&e.every(s=>x(s)&&typeof s.label=="string"&&x(s.tap_action))),"actions must be a list of buttons with a label and a tap_action"),{...t,lead:t.before==null?void 0:Q(t.before)}}function Hs(i){let t=typeof i=="string"?{entity:i}:x(i)?{...i}:null;w(t&&Mt(t.entity),"infos must contain entity ids, got "+JSON.stringify(i)),w($(t.visibility,Array.isArray),`visibility of ${t.entity} must be a list of conditions`),w($(t.forecast_type,e=>fe.includes(e)),"forecast_type must be daily, hourly or twice_daily");for(let e of["show_current","show_forecast","show_entity_picture"])w($(t[e],s=>typeof s=="boolean"),e+" must be true or false");w($(t.forecast_slots,e=>Number.isInteger(e)&&e>0),"forecast_slots must be a whole number above 0");for(let e of["tap_action","hold_action","double_tap_action"])w(hi(t[e]),e+" must be an action");return t}function Ws(i){w($(i,x),"audience must map sources to only or except");for(let[t,e]of Object.entries(i||{})){let s=x(e)?["only","except"].filter(o=>o in e):[];w(s.length===1,`audience.${t} needs either only or except`);let n=e[s[0]];w(Array.isArray(n)&&n.every(o=>typeof o=="string"&&o.startsWith("person.")),`audience.${t}.${s[0]} must list person entities, e.g. person.anna`)}return i||{}}function Rt(i){w($(i.entities,Array.isArray),"entities must be a list"),w($(i.infos,Array.isArray),"infos must be a list"),w($(i.weather,e=>typeof e=="string"&&e.startsWith("weather.")),"weather must be a weather entity, e.g. weather.home"),w($(i.label,e=>typeof e=="string"),"label must be a label ID"),w($(i.css,e=>typeof e=="string"),"css must be a string"),w($(i.rotate,e=>typeof e=="number"&&e>=0),"rotate must be the seconds between turns, or 0 to turn them off"),w($(i.slide,e=>e==="up"||e==="side"),"slide must be up or side");for(let e of["updates","repairs","hide_when_empty","vertical"])w($(i[e],s=>typeof s=="boolean"),e+" must be true or false");let t=[];for(let e of i.entities||[]){let s=Bs(e);t.some(n=>n.entity===s.entity)||t.push(s)}return{...gt,...i,entities:t,infos:(i.infos||[]).map(Hs),audience:Ws(i.audience)}}var W=i=>i.split(".")[0],mi=new Set(["ai_task","button","conversation","event","image","infrared","input_button","notify","radio_frequency","scene","stt","tag","tts","wake_word","datetime"]),qs={alarm_control_panel:["disarmed"],alert:["idle"],cover:["closed"],device_tracker:["not_home"],lawn_mower:["docked","paused","idle"],lock:["locked"],media_player:["standby"],person:["not_home"],vacuum:["idle","docked","paused"],valve:["closed"]},ui={camera:["streaming","recording"],group:["on","home","open","locked","problem"],plant:["problem"],timer:["active"]},fi=i=>mi.has(i);function tt(i,t=i.state){let e=W(i.entity_id);return mi.has(e)?t!=="unavailable":t==="unavailable"||t==="unknown"||t==="off"&&e!=="alert"?!1:ui[e]?ui[e].includes(t):!(qs[e]||[]).includes(t)}var Fs=new Set(["alarm_control_panel","alert","automation","binary_sensor","calendar","camera","climate","cover","device_tracker","fan","group","humidifier","input_boolean","lawn_mower","light","lock","media_player","person","plant","remote","schedule","script","siren","sun","switch","timer","update","vacuum","valve","water_heater","weather"]),Vs=i=>i.reduceRight((t,e)=>`var(${e}${t?", "+t:""})`,""),pi=i=>String(i).toLowerCase().replace(/[^a-z0-9]+/g,"_");function _e(i,t,e,s){let n=s?"active":"inactive";return Vs([...t?[`--state-${i}-${t}-${pi(e)}-color`]:[],`--state-${i}-${pi(e)}-color`,`--state-${i}-${n}-color`,`--state-${n}-color`])}var Ks=i=>{let t=new Set((i.attributes.entity_id||[]).map(e=>W(String(e))));return t.size===1?[...t][0]:void 0};function Dt(i){let{state:t,attributes:e}=i;if(t==="unavailable")return"var(--state-unavailable-color)";let s=W(i.entity_id),n=tt(i);if(s==="sensor"&&e.device_class==="battery"&&t!==""&&!isNaN(Number(t))){let r=Number(t);return`var(--state-sensor-battery-${r>=70?"high":r>=30?"medium":"low"}-color)`}let o=s==="group"?Ks(i):s;return Fs.has(o)&&s!=="person"&&s!=="device_tracker"?_e(o,e.device_class,t,n):n?"var(--state-icon-color)":"var(--state-inactive-color)"}var Gs=new Set(["primary","accent","red","pink","purple","deep-purple","indigo","blue","light-blue","cyan","teal","green","light-green","lime","yellow","amber","orange","deep-orange","brown","light-grey","grey","dark-grey","blue-grey","black","white","primary-text","secondary-text","disabled"]),_i=i=>Gs.has(i)?`var(--${i}-color)`:i,q={updateInstall:1,todoUpdate:4,coverClose:2,valveClose:2,vacuumReturn:16,mowerDock:4,sirenOff:2},It=(i,t)=>(Number(i.attributes.supported_features)&t)===t;var ot=i=>String(i??"").replace(/<br\s*\/?>/gi,`
+`).replace(/!\[[^\]]*\]\([^)]*\)/g,"").replace(/\[([^\]]*)\]\([^)]*\)/g,"$1").replace(/<\/?[a-z][^>]*>/gi,"").replace(/(\*\*|__|~~|`)(.+?)\1/g,"$2").replace(/^ {0,3}(#{1,6} +|> ?|[-*+] +)/gm,"").replace(/\n{3,}/g,`
 
-const CARD = "origami-notifications";
-const EDITOR = CARD + "-editor";
-const REPO = "https://github.com/hazymorning/origami_notifications";
-const VERSION = "0.8.0";
-
-const DEFAULTS = {
-  hide_when_empty: true,
-  updates: true,
-  repairs: true,
-  vertical: false,
-  rotate: 8,
-  slide: "up",
-};
-
-const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "vertical", "rotate", "slide", "audience", "css"];
-const INFO_KEY_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
-const OPTION_KEYS = ["type", "attribute", "name", "icon", "image", "background", "before", "tap_action"];
-const ENTITY_KEY_ORDER = ["entity", ...OPTION_KEYS, "actions"];
-
-const ICONS = {
-  system: "mdi:bell",
-  update: "mdi:rocket-launch",
-  repair: "mdi:wrench",
-  alarm: "mdi:shield-alert",
-  alert: "mdi:alert",
-  calendar: "mdi:calendar-month",
-  timer: "mdi:timer-outline",
-  countdown: "mdi:timer-sand",
-  event: "mdi:eye-check",
-  todo: "mdi:clipboard-check-outline",
-  device: "mdi:devices",
-  warning: "mdi:alert-circle",
-  group: "mdi:google-circles-communities",
-  weather: "mdi:weather-partly-rainy",
-  attribute: "mdi:card-text-outline",
-  picture: "mdi:image-outline",
-  generic: "mdi:information-outline",
-};
-
-const typeIcon = (type) => ICONS[type] || ICONS.generic;
-
-const langOf = (hass) => (hass && ((hass.locale && hass.locale.language) || hass.language)) || "en";
-
-/* Other languages get English, plus what Home Assistant translates (HA_STRINGS). */
-const STRINGS = {
-  en: {
-    idle_title: "All quiet",
-    idle_msg: "No notifications",
-    clear: "Clear all",
-    dismiss: "Dismiss",
-    install: "Install",
-    installing: "Installing…",
-    installing_pct: "Installing {p}%",
-    just_now: "just now",
-    soon: "in a moment",
-    count_one: "1 notification",
-    count_other: "{n} notifications",
-    event: "Event",
-    notification: "Notification",
-    update: "Update",
-    update_msg: "Update {v} available",
-    update_msg_plain: "Update available",
-    level: "Level {l}",
-    breaks_in: "Stops working in {v}",
-    day_at: "{d} at {t}",
-    date_at: "on {d} at {t}",
-    on_date: "on {d}",
-    paused_left: "Paused, {t} left",
-    act_pause: "Pause",
-    act_resume: "Resume",
-    act_cancel: "Cancel",
-    act_lock: "Lock",
-    act_close: "Close",
-    act_close_valve: "Close",
-    act_dock: "Dock",
-    act_dock_mower: "Dock",
-    act_off: "Turn off",
-    act_done: "Done",
-    wx_rain_from: "Rain from {t}",
-    wx_snow_from: "Snow from {t}",
-    wx_thunder_from: "Thunderstorms from {t}",
-    wx_hail_from: "Hail from {t}",
-    wx_rain_now: "It is raining",
-    wx_snow_now: "It is snowing",
-    wx_thunder_now: "Thunderstorm",
-    wx_hail_now: "Hail",
-    wx_chance: "{p} chance",
-    wx_frost_from: "Frost from {t}",
-    wx_low: "Low of {v}",
-    wx_day: "Day",
-    wx_night: "Night",
-  },
-  de: {
-    idle_title: "Alles ruhig",
-    idle_msg: "Keine Benachrichtigungen",
-    clear: "Alle löschen",
-    dismiss: "Löschen",
-    install: "Installieren",
-    installing: "Wird installiert…",
-    installing_pct: "Wird installiert ({p} %)",
-    just_now: "gerade eben",
-    soon: "gleich",
-    count_one: "1 Benachrichtigung",
-    count_other: "{n} Benachrichtigungen",
-    event: "Termin",
-    notification: "Benachrichtigung",
-    update: "Update",
-    update_msg: "Update {v} verfügbar",
-    update_msg_plain: "Update verfügbar",
-    level: "Stufe {l}",
-    breaks_in: "Funktioniert ab {v} nicht mehr",
-    day_at: "{d} um {t}",
-    date_at: "am {d} um {t}",
-    on_date: "am {d}",
-    paused_left: "Pausiert, noch {t}",
-    act_pause: "Pause",
-    act_resume: "Fortsetzen",
-    act_cancel: "Abbrechen",
-    act_lock: "Abschließen",
-    act_close: "Schließen",
-    act_close_valve: "Schließen",
-    act_dock: "Zur Station",
-    act_dock_mower: "Zur Station",
-    act_off: "Ausschalten",
-    act_done: "Erledigt",
-    wx_rain_from: "Regen ab {t}",
-    wx_snow_from: "Schnee ab {t}",
-    wx_thunder_from: "Gewitter ab {t}",
-    wx_hail_from: "Hagel ab {t}",
-    wx_rain_now: "Es regnet",
-    wx_snow_now: "Es schneit",
-    wx_thunder_now: "Gewitter",
-    wx_hail_now: "Hagel",
-    wx_chance: "{p} Wahrscheinlichkeit",
-    wx_frost_from: "Frost ab {t}",
-    wx_low: "Tiefstwert {v}",
-    wx_day: "Tag",
-    wx_night: "Nacht",
-  },
-};
-
-/* Home Assistant translates these into every language it supports. */
-const HA_STRINGS = {
-  idle_title: ["ui.notification_drawer.title"],
-  idle_msg: ["ui.notification_drawer.empty"],
-  clear: ["ui.notification_drawer.dismiss_all"],
-  dismiss: ["ui.card.persistent_notification.dismiss"],
-  install: ["ui.dialogs.more_info_control.update.install"],
-  installing: ["ui.card.update.installing"],
-  installing_pct: ["ui.card.update.installing_with_progress", { progress: "{p}" }],
-  update: ["ui.dialogs.more_info_control.update.update"],
-  act_pause: ["ui.card.timer.actions.pause"],
-  act_resume: ["ui.card.timer.actions.start"],
-  act_cancel: ["ui.card.timer.actions.cancel"],
-  act_lock: ["ui.card.lock.lock"],
-  act_close: ["ui.card.cover.close_cover"],
-  act_close_valve: ["ui.card.valve.close_valve"],
-  act_dock: ["ui.card.vacuum.actions.return_to_base"],
-  act_dock_mower: ["ui.card.lawn_mower.actions.dock"],
-  act_off: ["ui.card.common.turn_off"],
-  wx_day: ["ui.card.weather.day"],
-  wx_night: ["ui.card.weather.night"],
-};
-
-const borrowedStrings = (localize) => {
-  const t = { ...STRINGS.en, just_now: null, soon: null, day_at: "{d}, {t}", date_at: "{d}, {t}", on_date: "{d}", paused_left: "{s}, {t}" };
-  if (typeof localize === "function") {
-    for (const [key, [id, vars]] of Object.entries(HA_STRINGS)) {
-      const text = localize(id, vars);
-      if (text) t[key] = text;
+`).trim(),gi=/^(https?:\/\/|\/(?!\/))/i;function yi(i){let t=/\[[^\]]*\]\(([^)\s]+)[^)]*\)/.exec(String(i??"").replace(/!\[[^\]]*\]\([^)]*\)/g,""));return t&&gi.test(t[1])?t[1]:null}function bi(i){let t=/!\[[^\]]*\]\(\s*([^)\s]*)[^)]*\)/.exec(String(i??""));return t&&gi.test(t[1])?t[1]:null}var yt=i=>({tap_action:i.startsWith("/")?{action:"navigate",navigation_path:i}:{action:"url",url_path:i}});var z=(...i)=>i.join("\0"),et=(i,t,e,s={})=>({label:t,action:{entity:i,tap_action:{action:"perform-action",perform_action:e,target:{entity_id:i},...s}}}),I=(i,t)=>{for(let e of t){let s=i?.[e];if(typeof s=="string"&&s||typeof s=="number")return String(s)}return""},ye=i=>i==null||i===""||i===!1||typeof i=="object"&&Object.keys(i).length===0,$i=(i,t)=>t.split(".").reduce((e,s)=>e?.[s],i),be=["image","image_url","picture","thumbnail"];function Pt(i){return typeof i.entity_picture=="string"&&i.entity_picture?i.entity_picture:be.map(t=>i[t]).find(t=>typeof t=="string"&&/^(https?:\/\/|\/|data:image\/)/i.test(t))||null}var xi=["description","summary"],Si=i=>x(i)&&I(i,["name","title"])!=="",Ai=i=>Object.keys(i).find(t=>Si(i[t])&&[...xi,...be].some(e=>!ye(i[t][e]))),Ei=i=>{let t=String(i).trim().toLowerCase();return["off","unavailable","unknown","idle","none",""].includes(t)||Number(t)===0},Ys=i=>{let t=String(i).toLowerCase();return t==="on"||t==="active"||Number(i)>0};function wi(i,t,e,s){let n=i.attributes,o=t.attribute||Ai(n),r=o?$i(n,o):void 0,a={kind:s,ts:k(i.last_changed,e.now),past:!0,once:!0};if(Si(r)){let c=I(r,["name","title"]),l=I(r,xi);return[{...a,title:c,message:l||e.name(i,t.name),image:I(r,be),ack:z(c,l)}]}return s==="attribute"?!t.attribute||ye(r)||typeof r=="object"?[]:[{...a,title:e.attr(i,o,r),message:e.name(i,t.name),ack:String(r)}]:Ei(i.state)?[]:[{...a,title:e.state(i),message:e.name(i,t.name),ack:String(i.state)}]}function Xs(i,t,e){let s=i.attributes;if(!s.message)return[];let n={kind:"calendar",title:s.message,message:e.clock.calendar(s.start_time,s.all_day,e.now)};if(i.state==="on")return[{...n,ts:k(i.last_changed,e.now),past:!0,ack:z(s.message,s.start_time)}];let o=R(s.start_time,e.clock.server);return i.state!=="off"||!(t.lead>=0)||!(o>e.now)?[]:o-e.now>t.lead?(e.wake(o-t.lead),[]):[{...n,ts:o,day:!!s.all_day,ack:z(s.message,s.start_time,"ahead")}]}function Js(i,t,e){if(i.state!=="on")return[];let{attributes:s,entity_id:n}=i,o=e.t,r=typeof s.update_percentage=="number"?Math.round(s.update_percentage):null,a=s.in_progress?[{label:r===null?o.installing:v(o.installing_pct,{p:r}),disabled:!0}]:null,c=e.admin&&It(i,q.updateInstall)?[et(n,o.install,"update.install")]:[];return[{kind:"update",title:(t.name?e.name(i,t.name):s.title||e.name(i).replace(/\s*update\s*$/i,"").trim())||o.update,message:s.latest_version?v(o.update_msg,{v:s.latest_version}):o.update_msg_plain,ts:k(i.last_changed,e.now),past:!0,actions:a||c,...e.admin&&!s.auto_update?{dismiss:{service:["update","skip",{entity_id:n}]}}:{ack:String(s.latest_version)}}]}var vi={triggered:"crit",pending:"warn",arming:"warn"};function Zs(i,t,e){return vi[i.state]?[{kind:"alarm",sev:vi[i.state],title:e.name(i,t.name),message:e.state(i),ts:k(i.last_changed,e.now),past:!0}]:[]}function Qs(i,t,e){return i.state!=="on"?[]:[{kind:"alert",sev:"warn",title:e.name(i,t.name),message:"",ts:k(i.last_changed,e.now),past:!0,ack:"on"}]}function tn(i,t,e){let{attributes:s,entity_id:n}=i,o=e.t,r={kind:"timer",title:e.name(i,t.name)};return i.state==="active"?[{...r,message:e.state(i),ts:k(s.finishes_at),live:!0,clock:!0,ack:String(s.finishes_at),actions:[et(n,o.act_pause,"timer.pause"),et(n,o.act_cancel,"timer.cancel")]}]:i.state!=="paused"?[]:[{...r,message:v(o.paused_left,{t:pe(li(s.remaining)),s:e.state(i)}),ts:k(i.last_changed,e.now),past:!0,ack:z("paused",s.remaining),actions:[et(n,o.act_resume,"timer.start"),et(n,o.act_cancel,"timer.cancel")]}]}var en={d:864e5,h:36e5,min:6e4,s:1e3,ms:1},sn=i=>i.device_class==="timestamp"?void 0:en[i.unit_of_measurement];function nn(i,t,e){let s=sn(i.attributes),n=s?k(i.last_changed)+Number(i.state)*s:R(i.state,e.clock.server),o=Math.round(n/6e4)*6e4;return o>e.now?[{kind:"countdown",title:e.name(i,t.name),message:s?e.clock.absolute(o):e.state(i),ts:o,live:!0,ack:""}]:[]}function on(i,t){for(let e of t){let s=i.states[e],n=s?.attributes||{};if(e.startsWith("image.")&&n.access_token)return`/api/image_proxy/${e}?token=${encodeURIComponent(n.access_token)}&state=${encodeURIComponent(s.state)}`;if(n.entity_picture)return n.entity_picture}return null}function rn(i,t,e){let s=R(i.state,e.clock.server);if(!Number.isFinite(s))return[];let n=i.attributes.event_type,o=e.devicePictures(i.entity_id);return o.forEach(e.watch),[{kind:"event",title:e.name(i,t.name),message:n==null||n===""?"":e.attr(i,"event_type",n),ts:s,past:!0,expires:s+864e5,image:Pt(i.attributes)||on(e.hass,o),ack:String(i.state)}]}function an(i,t,e){let s=i.entity_id,n=t.lead>=0?t.lead:0,o=e.dayOf(e.now),r=It(i,q.todoUpdate),a=l=>r?[et(s,e.t.act_done,"todo.update_item",{data:{item:l.uid,status:"completed"}})]:[],c=[];for(let l of e.todos(s)||[]){if(l?.status!=="needs_action"||!l.uid||typeof l.due!="string")continue;let h=!l.due.includes("T"),d=R(l.due,e.clock.server);if(Number.isFinite(d)){if(e.dayOf(d,h?e.clock.server:e.clock.zone)>o&&d-e.now>n){e.wake(d-n),e.wake(e.midnight);continue}c.push({key:`t:${s}:${l.uid}`,kind:"todo",title:String(l.summary||""),message:e.name(i,t.name),ts:d,day:h,ack:z(l.uid,l.due),tap:yt("/todo?entity_id="+s),actions:a(l)})}}return c}var Ti={lock:{sev:{jammed:"warn"},label:"act_lock",action:"lock.lock",when:["unlocked","open","jammed"],assumed:!0},cover:{label:"act_close_cover",action:"cover.close_cover",feature:q.coverClose,when:["open","opening"],assumed:!0,confirm:!0},valve:{label:"act_close_valve",action:"valve.close_valve",feature:q.valveClose,when:["open","opening"],assumed:!0,confirm:!0},vacuum:{sev:{error:"warn"},label:"act_dock_vacuum",action:"vacuum.return_to_base",feature:q.vacuumReturn,when:["cleaning","error"]},lawn_mower:{sev:{error:"warn"},label:"act_dock_mower",action:"lawn_mower.dock",feature:q.mowerDock,when:["mowing","returning","error"]},siren:{sev:{on:"crit"},label:"act_off",action:"siren.turn_off",feature:q.sirenOff,when:["on"]}};function cn(i,t,e){if(i.state==="unknown"||!tt(i))return[];let{attributes:s,entity_id:n}=i,o=Ti[W(n)],r=o&&(o.when.includes(i.state)||o.assumed&&s.assumed_state===!0)&&(!o.feature||It(i,o.feature))&&!(W(n)==="lock"&&s.code_format);return[{kind:"device",sev:o?.sev?.[i.state],title:e.name(i,t.name),message:e.members(i)||e.state(i),ts:k(i.last_changed,e.now),past:!0,ack:String(i.state),actions:r?[et(n,e.t[o.label],o.action,o.confirm?{confirmation:!0}:{})]:[]}]}var Ci={extreme:"crit",severe:"crit",moderate:"warn"},Oi=i=>!!(I(i,["severity"])&&I(i,["headline","event"])),ln=/^([a-z][a-z0-9]*)_(\d+)_(headline|name|title|event)$/,Ni=i=>{let t=new Map;for(let e of Object.keys(i)){let s=ln.exec(e);s&&!ye(i[e])&&t.set(s[1]+s[2],{prefix:s[1],n:Number(s[2])})}return[...t.values()].sort((e,s)=>e.n-s.n)},ge=(i,t,e)=>i.map(s=>R(t(s),e)).find(Number.isFinite);function dn(i,t,e){let s=i.entity_id,n=new Set;return t.map(({prefix:o,n:r})=>{let a=f=>i.attributes[`${o}_${r}_${f}`],c={headline:a("headline"),name:a("name"),title:a("title"),event:a("event")},l=I(c,["headline","name","title","event"]),h=Number(a("level"))||0,d=ot(I({d:a("description")},["d"])),p=ge(["start","onset"],a,e.clock.server),u=ge(["end","expires"],a,e.clock.server),g=`w:${s}:${a("name")||l}:${a("start")||a("onset")||""}`;for(;n.has(g);)g+="+";return n.add(g),{key:g,kind:"warning",sev:h>=3||Ci[String(a("severity")).toLowerCase()]==="crit"?"crit":"warn",title:l,message:d||(h?v(e.t.level,{l:h}):e.name(i)),ts:p??k(i.last_changed,e.now),past:p===void 0,expires:u,ack:z(l,h,d)}})}function hn(i,t,e){let s=Ni(i.attributes);if(s.length)return dn(i,s,e);if(i.state!=="on")return[];let n=Oi(i.attributes)?i.attributes:e.details(i),o=n||{},r=u=>o[u],a=e.clock.server,c=ge(["start","onset","effective"],r,a),l=R(o.sent,a),h=R(o.expires,a),d=I(o,["headline","event"]),p=ot(I(o,["description"]));return[{kind:"warning",sev:Ci[String(o.severity).toLowerCase()],title:d||e.name(i,t.name),message:p,ts:c??(Number.isFinite(l)?l:k(i.last_changed,e.now)),past:c===void 0,expires:Number.isFinite(h)?h:void 0,waiting:n===void 0,ack:d?z(d,o.severity,p):String(i.attributes.id||"")}]}var un={smoke:"crit",gas:"crit",carbon_monoxide:"crit",moisture:"crit",safety:"crit",heat:"crit",problem:"warn",tamper:"warn",battery:"warn",sound:"warn"};function pn(i,t,e){if(t.type?Ei(i.state):!Ys(i.state))return[];let s=i.attributes,n=W(i.entity_id)==="binary_sensor";return[{kind:"generic",sev:n&&i.state==="on"?un[s.device_class]:void 0,deviceClass:n&&typeof s.device_class=="string"&&!Array.isArray(s.entity_id)?s.device_class:void 0,title:e.name(i,t.name),message:e.members(i)||e.state(i),ts:k(i.last_changed,e.now),past:!0,ack:String(i.state)}]}var mn={calendar:Xs,update:Js,alarm:Zs,alert:Qs,timer:tn,countdown:nn,event:rn,todo:an,device:cn,warning:hn,attribute:(i,t,e)=>wi(i,t,e,"attribute"),picture:(i,t,e)=>wi(i,t,e,"picture"),generic:pn},ki={calendar:"calendar",update:"update",alarm_control_panel:"alarm",alert:"alert",timer:"timer"};function we(i,t,e){if(i.type)return i.type;if(i.attribute)return"attribute";if(!t)return"generic";let s=W(t.entity_id),n=t.attributes;return Ni(n).length?"warning":ki[s]?ki[s]:Ai(n)?"attribute":s==="event"?"event":Ti[s]?"device":s==="binary_sensor"&&(Oi(n)||ke(e,t.entity_id))?"warning":s==="sensor"&&n.device_class==="timestamp"?"countdown":"generic"}var ve=(i,t)=>i?.entities?.[t]?.platform||"",ke=(i,t)=>!!i?.services?.[ve(i,t)]?.get_details,O={system:"mdi:bell",update:"mdi:rocket-launch",repair:"mdi:wrench",alarm:"mdi:shield-alert",alert:"mdi:alert",calendar:"mdi:calendar-month",timer:"mdi:timer-outline",countdown:"mdi:timer-sand",event:"mdi:eye-check",todo:"mdi:clipboard-check-outline",device:"mdi:devices",warning:"mdi:alert-circle",group:"mdi:google-circles-communities",weather:"mdi:weather-partly-rainy",attribute:"mdi:card-text-outline",picture:"mdi:image-outline",generic:"mdi:information-outline"};function Mi(i,t,e){if(!t)return[];let s=we(i,t,e.hass),n;try{n=mn[s](t,i,e)}catch(l){return console.warn(`origami-notifications: ${t.entity_id} could not be shown`,l),[]}let o=t.entity_id,r=i.image&&(i.image.includes("/")?i.image:$i(t.attributes,i.image)),a=i.tap_action&&i.tap_action.action!=="none"?{entity:o,tap_action:i.tap_action}:void 0,c=(i.actions||[]).map(l=>({label:l.label,action:{entity:o,tap_action:l.tap_action}}));return n.map(l=>{let h=i.image?r:l.image||Pt(t.attributes);return{key:`${s}:${o}`,entity:o,...l,icon:i.icon||l.icon,image:typeof h=="string"&&h?h:null,backdrop:!!i.background,tap:i.tap_action?a:l.tap,inert:i.tap_action?.action==="none",actions:[...l.actions||[],...c],stateObj:l.kind==="todo"?void 0:t}})}var Ri=new Map;function Di(i,t,e){let s=t.entity_id,n=`${s}|${t.attributes.id||t.last_changed}`,o=Ri.get(n);if(!o){if(!ke(i,s))return Object.keys(i.services||{}).length?null:void 0;o={data:void 0,waiting:new Set},Ri.set(n,o);let r=a=>{o.data=x(a)?a:null,o.waiting.forEach(c=>c()),o.waiting.clear()};Promise.resolve().then(()=>i.callService(ve(i,s),"get_details",{},{entity_id:s},!1,!0)).then(a=>r(a?.response?.[s]),()=>r(null))}return o.data===void 0&&o.waiting.add(e),o.data}var Se="origami-notifications-ack",fn=64,_n=1e4,F=null,$e=new Map;function Ii(){if(!F)try{let i=JSON.parse(localStorage.getItem(Se)||"{}");F=i&&typeof i=="object"&&!Array.isArray(i)?i:{}}catch{F={}}return F}function Pi(){let i=new Set([...$e.values()].flatMap(s=>[...s])),t=Object.keys(F),e=[...t.filter(s=>!i.has(s)),...t.filter(s=>i.has(s))];for(let s of e.slice(0,Math.max(t.length-fn,0)))delete F[s];try{localStorage.setItem(Se,JSON.stringify(F))}catch{}}var xe=new Set,Ui=i=>xe.forEach(t=>t!==i&&t());window.addEventListener("storage",i=>{i.key===Se&&(F=null,Ui())});var Ut=class{constructor(t){this.onChange=t,this.pending=new Map}connect(){xe.add(this.onChange)}disconnect(){xe.delete(this.onChange),$e.delete(this)}apply(t,e,s,n){let o=Ii(),r=new Set(t.map(h=>h.key)),a=!1,c=h=>{o[h]!==void 0&&(delete o[h],a=!0)};for(let[h,d]of this.pending)!r.has(h)||d<=s?this.pending.delete(h):Number.isFinite(d)&&n(d);let l=[];for(let h of t){if(this.pending.has(h.key))continue;if(h.waiting){o[h.key]===void 0&&l.push({...h,ack:void 0});continue}if(h.dismiss||h.ack===void 0){l.push(h);continue}let d=h.once?h.ack:z(h.ack,h.ts);o[h.key]!==d&&(c(h.key),l.push({...h,signature:d}))}for(let h of e)r.has(h)||c(h);return $e.set(this,r),a&&Pi(),l}dismiss(t,e){let s=Ii(),n=!1;for(let o of t.flatMap(r=>r.members||[r]))if(o.signature)s[o.key]=o.signature,n=!0;else if(o.dismiss){let{key:r}=o;this.pending.set(r,1/0),e(o.dismiss).then(()=>{this.pending.get(r)===1/0&&(this.pending.set(r,Date.now()+_n),this.onChange())},a=>{console.warn(`origami-notifications: Home Assistant kept ${r}`,a),this.pending.delete(r)&&this.onChange()})}n&&(Pi(),Ui(this.onChange)),this.onChange()}},Lt=i=>!!(i.dismiss||i.signature||i.members?.every(t=>t.signature));var jt=class{constructor(t,e){this.head=t,this.on=e,this.press=null,this.suppress=!1,this.tapWait=null,t.addEventListener("pointerdown",s=>this.down(s)),t.addEventListener("pointermove",s=>this.move(s)),t.addEventListener("pointerup",s=>this.up(s,!1)),t.addEventListener("pointercancel",s=>s!==this.ownCancel&&this.up(s,!0)),t.addEventListener("pointerleave",s=>!this.press?.drag&&this.up(s,!0)),t.parentElement.addEventListener("click",s=>this.click(s),!0),t.addEventListener("keydown",s=>this.key(s))}down(t){if(t.button>0||!t.isPrimary)return;this.suppress=!1,this.on.pressed(!0);let e={id:t.pointerId,x:t.clientX,y:t.clientY,t:t.timeStamp,dx:0,drag:!1},s=this.on.holdAction();s&&(e.timer=setTimeout(()=>{this.suppress=!0,s()},500)),this.press=e}move(t){let e=this.press;if(!e||t.pointerId!==e.id)return;let s=t.clientX-e.x,n=t.clientY-e.y;if(!e.drag){if(Math.hypot(s,n)>10&&clearTimeout(e.timer),!this.on.canDrag()||Math.abs(s)<10||Math.abs(s)<Math.abs(n)*1.5)return;e.drag=!0,this.suppress=!0,this.head.setPointerCapture?.(e.id),this.ownCancel=new PointerEvent("pointercancel",{pointerId:t.pointerId,pointerType:t.pointerType,isPrimary:!0}),this.head.dispatchEvent(this.ownCancel)}e.dx=s,this.on.drag(s)}up(t,e){let s=this.press;if(!s||t.pointerId!==s.id||(this.press=null,clearTimeout(s.timer),this.on.pressed(!1),!s.drag))return;let n=Math.abs(s.dx)/Math.max(t.timeStamp-s.t,1)>.5,o=!e&&(Math.abs(s.dx)>48||n);this.on.dragEnd(o?Math.sign(-s.dx)*(this.on.rtl()?-1:1):0)}click(t){if(this.head.contains(t.target)){if(this.suppress){this.suppress=!1,t.stopPropagation();return}this.activate()}}activate(){let t=this.on.doubleTapAction();if(!t)return this.on.tap();if(this.tapWait)return clearTimeout(this.tapWait),this.tapWait=null,t();this.tapWait=setTimeout(()=>{this.tapWait=null,this.on.tap()},250)}key(t){let e={ArrowRight:1,ArrowDown:1,ArrowLeft:-1,ArrowUp:-1}[t.key];e&&this.on.canDrag()?(t.preventDefault(),this.on.step(t.key.startsWith("ArrowL")||t.key.startsWith("ArrowR")?e*(this.on.rtl()?-1:1):e)):(t.key==="Enter"||t.key===" ")&&(t.preventDefault(),this.activate())}reset(){this.press&&clearTimeout(this.press.timer),this.press&&this.on.pressed(!1),this.press=null,clearTimeout(this.tapWait),this.tapWait=null}};var Li={daily:1,hourly:2,twice_daily:4},zt={hourly:36e5,twice_daily:12*36e5,daily:24*36e5},bt=(i,t)=>!!(Li[t]&&Number(i?.attributes.supported_features)&Li[t]),Bt=i=>["hourly","twice_daily","daily"].find(t=>bt(i,t))||null,Hi=new Set(["rainy","pouring","lightning","lightning-rainy","snowy","snowy-rainy","hail"]),gn=(i,t)=>Hi.has(i.condition)||Number(i.precipitation)>=(t==="in"?.01:.2)||Number(i.precipitation_probability)>=60;function ji(i,t,e){let s=String(i||"");return s.startsWith("lightning")?"thunder":s==="hail"?"hail":s.startsWith("snowy")||t!=null&&t!==""&&Number(t)<=e?"snow":"rain"}var zi={rain:"mdi:weather-rainy",snow:"mdi:weather-snowy",thunder:"mdi:weather-lightning",hail:"mdi:weather-hail",frost:"mdi:snowflake-thermometer"},yn={rain:"rainy",snow:"snowy",thunder:"lightning",hail:"hail",frost:"snowy"},Bi=i=>_e("weather",null,yn[i],!0);function Wi(i,t,e,s){let n=i.entity_id,o=i.attributes,r=s.t,a=o.temperature_unit==="\xB0F",c=e==="hourly"||e==="twice_daily"?t.filter(u=>Date.parse(u.datetime)+zt[e]>s.now):[],l=s.openWindows(),h=[],d=(u,g,f,m,y)=>h.push({key:`wx:${n}:wet`,kind:"weather",entity:n,icon:zi[u],color:Bi(u),sev:l?"warn":void 0,title:g,message:f,ts:m,past:y,once:!y,ack:u+(l?" open":"")});if(Hi.has(i.state)){let u=ji(i.state,o.temperature,a?34:1);l&&d(u,r[`wx_${u}_now`],s.alikeTitle("window",l),k(i.last_changed,s.now),!0)}else{let u=c.find(g=>Date.parse(g.datetime)<s.now+6*36e5&&gn(g,o.precipitation_unit));if(u){let g=Math.max(Date.parse(u.datetime),s.now),f=ji(u.condition,u.temperature,a?34:1),m=u.precipitation_probability==null?NaN:Number(u.precipitation_probability),y=l?s.alikeTitle("window",l):Number.isFinite(m)?v(r.wx_chance,{p:s.clock.percent(m)}):"";d(f,v(r[`wx_${f}_from`],{t:s.clock.hour(g)}),y,g,!1)}}let p=a?32:0;if(c.length&&o.temperature!=null&&Number(o.temperature)>p){let u=c.filter(f=>Date.parse(f.datetime)<s.now+18*36e5&&f.temperature!=null&&Number.isFinite(Number(f.temperature))),g=u.find(f=>Number(f.temperature)<p);if(g){let f=Math.max(Date.parse(g.datetime),s.now),m=Math.min(...u.map(y=>Number(y.temperature)));h.push({key:`wx:${n}:frost`,kind:"weather",entity:n,icon:zi.frost,color:Bi("frost"),title:v(r.wx_frost_from,{t:s.clock.hour(f)}),message:v(r.wx_low,{v:s.attr(i,"temperature",m)}),ts:f,once:!0,ack:"frost"})}}return c.length&&s.wake(Math.floor(s.now/36e5)*36e5+36e5),h}var qi=i=>Object.keys(i).filter(t=>{let e=i[t]?.attributes;return e?.device_class==="window"&&!Array.isArray(e.entity_id)&&/^(binary_sensor|cover)\./.test(t)}),Fi=i=>i&&(i.entity_id.startsWith("binary_sensor.")?i.state==="on":!["closed","unavailable","unknown"].includes(i.state));var bn={sunny:"mdi:weather-night",partlycloudy:"mdi:weather-night-partly-cloudy"},Vi=i=>i==null||i==="",wn=(i,t)=>i.entity.startsWith("weather.")&&i.show_forecast!==!1&&bt(t,i.forecast_type);function Ki(i,t,e,s){if(i.hide_when_empty!==!1)return i.infos;let n=new Set(i.infos.map(a=>a.entity)),o=[],r=i.weather&&e.states[i.weather];if(r&&!n.has(i.weather)&&s(i.weather)){let a=Bt(r);o.push({entity:i.weather,state_content:["state","temperature"],...a?{forecast_type:a,forecast_slots:3,ahead:!0}:{}})}for(let a of t){let c=e.states[a.entity];!a.entity.startsWith("calendar.")||n.has(a.entity)||!s(a.entity)||c?.state==="off"&&!Vi(c.attributes.message)&&o.push({entity:a.entity,name:a.name,state_content:["message","start_time"]})}return[...i.infos,...o]}function Ae(i,t,e,s){return[].concat(t??"state").map(o=>{if(o==="state")return s.state(i);if(o==="name")return e;if(/^last[_-](changed|updated)$/.test(o))return s.clock.relative(k(i[o.replace("-","_")],s.now),s.now);let r=i.attributes[o];if(r==null)return"";let a=R(r,s.clock.server);return Number.isFinite(a)?s.clock.relative(a,s.now):s.attr(i,o,r)}).filter(Boolean).join(" \xB7 ")||s.state(i)}function vn(i,t,e,s){let n=[i.temperature,i.templow].filter(r=>r!=null&&r!==""&&Number.isFinite(Number(r))).map(r=>s.clock.number(Number(r))+"\xB0").join(" / ");return[e==="twice_daily"?i.is_daytime===!1?s.t.wx_night:s.t.wx_day:"",n,i.condition?s.state(t):""].filter(Boolean).join(" \xB7 ")}function kn(i,t,e){if(!wn(i,t))return null;let s=i.forecast_type,n=e.forecast(i.entity,s);if(!n)return[];let o=e.dayOf(e.now),r=n.filter(a=>Number.isFinite(Date.parse(a?.datetime))).filter(a=>s==="daily"?e.dayOf(Date.parse(a.datetime))>=o+(i.ahead?1:0):Date.parse(a.datetime)+(i.ahead?0:zt[s])>e.now).slice(0,i.forecast_slots||1);return r.length?(e.wake(e.midnight),s!=="daily"&&e.wake(Date.parse(r[0].datetime)+zt[s]),r):null}function Gi(i,t){let e=[],s=new Set;for(let n of i){t.watch(n.entity);let o=t.hass.states[n.entity];if(!o||o.state==="unavailable"||o.state==="unknown"||!t.conditionsMet(n.visibility,n.entity))continue;let r="info:"+n.entity;for(;s.has(r);)r+="+";s.add(r);let a=n.color&&n.color!=="state",c=u=>a?tt(u)?_i(n.color):"var(--state-inactive-color)":Dt(u),l=t.name(o,n.name),h={kind:"info",info:n,entity:n.entity,row:r,name:l,icon:n.icon,image:n.show_entity_picture?Pt(o.attributes):null},d=kn(n,o,t);(!d||n.show_current!==!1)&&e.push({...h,key:r,stateObj:o,title:l,color:c(o)});let p=x(n.name)||!Vi(n.name)?l:"";(d||[]).forEach((u,g)=>{let f={...o,state:u.condition||"unknown"},m=t.clock.slotLabel(Date.parse(u.datetime),n.forecast_type,t.now);e.push({...h,key:`${r}#${g}`,stateObj:f,title:p||m,text:[p?m:"",vn(u,f,n.forecast_type,t)].filter(Boolean).join(" \xB7 "),icon:n.icon||u.is_daytime===!1&&bn[u.condition]||void 0,color:c(f)})})}return e}var $n=new Set(["state","numeric_state","screen","user","location","time","view_columns"]),Yi={and:i=>i.every(Boolean),or:i=>i.some(Boolean),not:i=>!i.every(Boolean)},xn=["sun","mon","tue","wed","thu","fri","sat"],Ee=i=>i==null?[]:Array.isArray(i)?i:[i],Xi=i=>!(x(i)&&i.enabled===!1),Ji=i=>{let[t,e,s]=String(i).split(":").map(n=>parseInt(n,10));return t*3600+e*60+(s||0)},Te=i=>String(i).padStart(2,"0"),Sn=(i,t,e)=>t>=864e5/1e3?_t(i+1,e):ft(`${ue(i)}T${Te(Math.floor(t/3600))}:${Te(Math.floor(t/60)%60)}:${Te(t%60)}`,e);function An(i,t){let e=nt(t.now,t.zone),s=L(t.now,t.zone),n=e.hour*3600+e.minute*60+e.second,o=i.after?Ji(i.after):null,r=i.before?Ji(i.before):null;for(let a of[o,r==null?null:r+1])a!=null&&[s,s+1].forEach(c=>t.wake(Sn(c,a,t.zone)));return t.wake(_t(s+1,t.zone)),i.weekdays?.length&&!i.weekdays.includes(xn[new Date(s*864e5).getUTCDay()])?!1:o!=null&&r!=null?r<o?n>=o||n<=r:n>=o&&n<=r:o!=null?n>=o:r==null||n<=r}function Zi(i,t,e){let{hass:s}=e,n=!1,o=l=>(e.watch(l),s.states[l]),r=l=>Mt(l)&&s.states[l]?o(l).state:void 0,a=l=>{if(!x(l)||"enabled"in l&&typeof l.enabled!="boolean")return!1;let h=l.condition??"state";if(Yi[h])return l.conditions==null||Yi[h](Ee(l.conditions).filter(Xi).map(a));if("entity_id"in l||!$n.has(h)){let f=e.server(l);return n||=f.failed,f.result}if(h==="screen")return!!l.media_query&&e.media(l.media_query);if(h==="user")return!!(s.user?.id&&l.users?.includes(s.user.id));if(h==="view_columns")return!0;if(h==="time")return An(l,e);if(h==="location"){let f=Object.values(s.states).find(m=>m.entity_id.startsWith("person.")&&m.attributes.user_id===s.user?.id);return f&&e.watch(f.entity_id),!!(f&&l.locations?.includes(f.state))}let d=o(l.entity||t),p=d&&l.attribute?d.attributes[l.attribute]:d?.state;if(h==="numeric_state"){let f=Number(p),m=y=>Number(typeof y=="string"?r(y)??y:y);return!Number.isNaN(f)&&(l.above==null||!(m(l.above)>=f))&&(l.below==null||!(m(l.below)<=f))}let u=l.state??l.state_not;return u===void 0?!1:Ee(u).flatMap(f=>r(f)!==void 0?[f,r(f)]:[f]).includes(String(p??"unknown"))===(l.state!=null)};return Ee(i).filter(Xi).map(a).every(Boolean)&&!n}var Ce=i=>i.length>4?`${i.slice(0,4).join(", ")} +${i.length-4}`:i.join(", "),Qi=i=>i.kind==="generic"&&i.deviceClass&&!i.image&&!i.tap&&!i.actions.length;function En(i,t){let e=i.entities?.[t],s=e?.device_id&&i.devices?.[e.device_id];return i.areas?.[e?.area_id||s?.area_id]?.name||""}function ts(i,t){let e=new Map;for(let n of i.filter(Qi))e.has(n.deviceClass)||e.set(n.deviceClass,[]),e.get(n.deviceClass).push(n);let s=[];for(let n of i){let o=Qi(n)?e.get(n.deviceClass):null;!o||o.length<2?s.push(n):o[0]===n&&s.push(Tn(n.deviceClass,o,t))}return s}function Tn(i,t,e){let s=[...t].sort((o,r)=>r.ts-o.ts),n=[...new Set(s.map(o=>En(e.hass,o.entity)||o.title))];return{key:"group:"+i,kind:"group",sev:s[0].sev,title:e.alikeTitle(i,t.length),message:Ce(n),ts:s[0].ts,past:!0,icon:s[0].icon,stateObj:s[0].stateObj,members:s,actions:[]}}var es={en:{idle_title:"All quiet",idle_msg:"No notifications",clear:"Clear all",dismiss:"Dismiss",install:"Install",installing:"Installing",installing_pct:"Installing ({p}%)",just_now:"just now",soon:"in a moment",count_one:"1 notification",count_other:"{n} notifications",event:"Event",notification:"Notification",update:"Update",update_msg:"Update {v} available",update_msg_plain:"Update available",level:"Level {l}",breaks_in:"Stops working in {v}",day_at:"{d} at {t}",date_at:"on {d} at {t}",on_date:"on {d}",paused_left:"Paused, {t} left",act_pause:"Pause",act_resume:"Resume",act_cancel:"Cancel",act_lock:"Lock",act_close_cover:"Close",act_close_valve:"Close",act_dock_vacuum:"Dock",act_dock_mower:"Dock",act_off:"Turn off",act_done:"Done",wx_rain_from:"Rain from {t}",wx_snow_from:"Snow from {t}",wx_thunder_from:"Thunderstorms from {t}",wx_hail_from:"Hail from {t}",wx_rain_now:"It is raining",wx_snow_now:"It is snowing",wx_thunder_now:"Thunderstorm",wx_hail_now:"Hail",wx_chance:"{p} chance",wx_frost_from:"Frost from {t}",wx_low:"Low of {v}",wx_day:"Day",wx_night:"Night"},de:{idle_title:"Alles ruhig",just_now:"gerade eben",soon:"gleich",count_one:"1 Benachrichtigung",count_other:"{n} Benachrichtigungen",event:"Termin",notification:"Benachrichtigung",update_msg:"Update {v} verf\xFCgbar",update_msg_plain:"Update verf\xFCgbar",level:"Stufe {l}",breaks_in:"Funktioniert ab {v} nicht mehr",day_at:"{d} um {t}",date_at:"am {d} um {t}",on_date:"am {d}",paused_left:"Pausiert, noch {t}",act_done:"Erledigt",wx_rain_from:"Regen ab {t}",wx_snow_from:"Schnee ab {t}",wx_thunder_from:"Gewitter ab {t}",wx_hail_from:"Hagel ab {t}",wx_rain_now:"Es regnet",wx_snow_now:"Es schneit",wx_thunder_now:"Gewitter",wx_hail_now:"Hagel",wx_chance:"{p} Wahrscheinlichkeit",wx_frost_from:"Frost ab {t}",wx_low:"Tiefstwert {v}"}},Cn={just_now:null,soon:null,day_at:"{d}, {t}",date_at:"{d}, {t}",on_date:"{d}",paused_left:"{s}, {t}"},On={idle_msg:["ui.notification_drawer.empty"],clear:["ui.notification_drawer.dismiss_all"],dismiss:["ui.card.persistent_notification.dismiss"],install:["ui.dialogs.more_info_control.update.install"],installing:["ui.card.update.installing"],installing_pct:["ui.card.update.installing_with_progress",{progress:"{p}"}],update:["ui.dialogs.more_info_control.update.update"],act_pause:["ui.card.timer.actions.pause"],act_resume:["ui.card.timer.actions.start"],act_cancel:["ui.card.timer.actions.cancel"],act_lock:["ui.card.lock.lock"],act_close_cover:["ui.card.cover.close_cover"],act_close_valve:["ui.card.valve.close_valve"],act_dock_vacuum:["ui.card.vacuum.actions.return_to_base"],act_dock_mower:["ui.card.lawn_mower.actions.dock"],act_off:["ui.card.common.turn_off"],wx_day:["ui.card.weather.day"],wx_night:["ui.card.weather.night"]},Nn={rain:"rainy",snow:"snowy",thunder:"lightning",hail:"hail"},Oe=i=>String(i).split("-")[0],Ht=i=>i?.locale?.language||i?.language||"en";function os(i,t){let e=es[Oe(i)],s={...es.en,...e||Cn},n=(o,r)=>typeof t=="function"&&t(o,r)||"";for(let[o,[r,a]]of Object.entries(On))s[o]=n(r,a)||s[o];if(!e){let o=n("ui.notification_drawer.title");o&&(s.count_one=s.count_other=o+" ({n})");for(let[r,a]of Object.entries(Nn)){let c=n("component.weather.entity_component._.state."+a);c&&Object.assign(s,{[`wx_${r}_now`]:c,[`wx_${r}_from`]:c+", {t}"})}}return s}var Mn={en:{window:{one:"1 window open",other:"{n} windows open"},door:{other:"{n} doors open"},garage_door:{other:"{n} garage doors open"},opening:{other:"{n} sensors open"},battery:{other:"{n} batteries low"},moisture:{other:"{n} water alarms"},smoke:{other:"{n} smoke alarms"},gas:{other:"{n} gas alarms"},carbon_monoxide:{other:"{n} CO alarms"},heat:{other:"{n} heat alarms"},problem:{other:"{n} problems"},tamper:{other:"{n} tamper alerts"},safety:{other:"{n} safety alerts"},sound:{other:"{n} sounds detected"}},de:{window:{one:"1 Fenster offen",other:"{n} Fenster offen"},door:{other:"{n} T\xFCren offen"},garage_door:{other:"{n} Garagentore offen"},opening:{other:"{n} Sensoren offen"},battery:{other:"{n} Batterien schwach"},moisture:{other:"{n} Wassermelder ausgel\xF6st"},smoke:{other:"{n} Rauchmelder ausgel\xF6st"},gas:{other:"{n} Gasmelder ausgel\xF6st"},carbon_monoxide:{other:"{n} CO-Melder ausgel\xF6st"},heat:{other:"{n} Hitzemelder ausgel\xF6st"},problem:{other:"{n} Probleme"},tamper:{other:"{n} Sabotagealarme"},safety:{other:"{n} Sicherheitswarnungen"},sound:{other:"{n} Ger\xE4usche erkannt"}}};function rs(i,t,e,s){let n=Mn[Oe(i)]?.[t];return n?v(e===1&&n.one?n.one:n.other,{n:e}):`${typeof s=="function"&&s(`component.binary_sensor.entity_component.${t}.name`)||Ne(t)} (${e})`}function Ne(i){let t=String(i).replace(/[_-]+/g," ").trim();return t.charAt(0).toUpperCase()+t.slice(1)}var is={en:{label:"Include entities by label",weather:"Weather",updates:"Pending updates",repairs:"Repairs",hide_when_empty:"Hide when there is nothing to show",infos:"Infos",info_options:"Info options",rotate:"Seconds between turns",slide:"Turn",slide_up:"Upwards",slide_side:"Sideways",options:"Entity options",type:"Kind",image:"Picture",background:"Picture as card background",before:"Show ahead of time",audience:"Who sees what",styling:"Styling",css:"CSS",visible:"Visible to",people:"People",system:"System notifications",everyone:"Everyone",only:"Only these people",except:"Everyone except these people",nobody:"Nobody",only_x:"Only {x}",except_x:"Everyone except {x}",type_auto:"Detect automatically",type_calendar:"Calendar event",type_update:"Update",type_alarm:"Alarm panel",type_alert:"Alert",type_timer:"Timer",type_countdown:"Countdown",type_event:"Event",type_todo:"To-do list",type_device:"Device",type_warning:"Warnings",type_attribute:"Details from an attribute",type_picture:"State as title",type_generic:"Plain entity",entities:"Entities",name:"Name",icon:"Icon",attribute:"Attribute",tap_action:"Tap behavior",hold_action:"Hold behavior",double_tap_action:"Double tap behavior",color:"Color",state_content:"State content",time_format:"Time format",show_entity_picture:"Show entity picture",visibility:"Visibility",content_layout:"Content layout",horizontal:"Horizontal",vertical:"Vertical",forecast:"Weather to show",show_both:"Current weather and forecast",show_current:"Only the current weather",show_forecast:"Only the forecast",forecast_type:"Forecast",forecast_slots:"Forecasts to show",daily:"Daily",hourly:"Hourly",twice_daily:"Twice daily"},de:{label:"Entit\xE4ten mit diesem Label einbeziehen",weather:"Wetter",updates:"Ausstehende Updates",repairs:"Reparaturen",hide_when_empty:"Ausblenden, wenn nichts anliegt",infos:"Infos",info_options:"Optionen je Info",rotate:"Sekunden bis zum Wechsel",slide:"Wechsel",slide_up:"Nach oben",slide_side:"Seitlich",options:"Optionen je Entit\xE4t",type:"Art",image:"Bild",background:"Bild als Kartenhintergrund",before:"Im Voraus zeigen",audience:"Wer sieht was",styling:"Gestaltung",css:"CSS",visible:"Sichtbar f\xFCr",people:"Personen",system:"Systembenachrichtigungen",everyone:"Alle",only:"Nur diese Personen",except:"Alle au\xDFer diesen Personen",nobody:"Niemand",only_x:"Nur {x}",except_x:"Alle au\xDFer {x}",type_auto:"Automatisch erkennen",type_calendar:"Kalendertermin",type_update:"Update",type_alarm:"Alarmanlage",type_alert:"Alarm (alert)",type_timer:"Timer",type_countdown:"Countdown",type_event:"Ereignis",type_todo:"To-do-Liste",type_device:"Ger\xE4t",type_warning:"Warnungen",type_attribute:"Details aus einem Attribut",type_picture:"Zustand als Titel",type_generic:"Einfache Entit\xE4t"}},ss={entities:"ui.panel.lovelace.editor.card.generic.entities",name:"ui.panel.lovelace.editor.card.generic.name",icon:"ui.panel.lovelace.editor.card.generic.icon",attribute:"ui.panel.lovelace.editor.card.generic.attribute",tap_action:"ui.panel.lovelace.editor.card.generic.tap_action",hold_action:"ui.panel.lovelace.editor.card.generic.hold_action",double_tap_action:"ui.panel.lovelace.editor.card.generic.double_tap_action",color:"ui.panel.lovelace.editor.card.tile.color",state_content:"ui.panel.lovelace.editor.card.tile.state_content",time_format:"ui.panel.lovelace.editor.card.generic.time_format",show_entity_picture:"ui.panel.lovelace.editor.card.tile.show_entity_picture",visibility:"ui.panel.lovelace.editor.card.heading.entity_config.visibility",visibility_intro:"ui.panel.lovelace.editor.card.heading.entity_config.visibility_explanation",content_layout:"ui.panel.lovelace.editor.card.tile.content_layout",horizontal:"ui.panel.lovelace.editor.card.tile.content_layout_options.horizontal",vertical:"ui.panel.lovelace.editor.card.tile.content_layout_options.vertical",forecast:"ui.panel.lovelace.editor.card.weather-forecast.weather_to_show",show_both:"ui.panel.lovelace.editor.card.weather-forecast.show_both",show_current:"ui.panel.lovelace.editor.card.weather-forecast.show_only_current",show_forecast:"ui.panel.lovelace.editor.card.weather-forecast.show_only_forecast",forecast_type:"ui.panel.lovelace.editor.card.weather-forecast.forecast_type",forecast_slots:"ui.panel.lovelace.editor.card.weather-forecast.forecast_slots",daily:"ui.panel.lovelace.editor.card.weather-forecast.daily",hourly:"ui.panel.lovelace.editor.card.weather-forecast.hourly",twice_daily:"ui.panel.lovelace.editor.card.weather-forecast.twice_daily"},ns={en:{label:"Every entity with this label is added and detected automatically.",weather:"Shows rain, snow and frost ahead.",visible:"Applies outside edit mode, like Home Assistant's own card visibility.",people:"Matches the user account linked to each person in Settings \u2192 People.",attribute:"An attribute that holds an object with a name or title, or a plain value. If empty, the card looks for an object with a description or a picture.",attribute_picture:"An attribute that holds an object with a name or title. The object is shown instead of the state.",image:"An attribute, a path into one like book.cover, or a URL. If empty, the card uses the picture of the shown object or of the entity.",background:"Blurred behind the card while this entity is on top.",before:"How long before it starts or is due.",infos:"Shown in turn after what needs attention.",rotate:"At 0 the card holds still.",css:"Goes into the card after its own styles, so you can change any part of it.",visibility_intro:"The info shows while all of these conditions hold."},de:{label:"Jede Entit\xE4t mit diesem Label kommt dazu und wird automatisch erkannt.",weather:"Zeigt Regen, Schnee und Frost im Voraus.",visible:"Gilt au\xDFerhalb des Bearbeitungsmodus, wie die Sichtbarkeit von Home Assistant selbst.",people:"Verglichen wird das Benutzerkonto, das unter Einstellungen \u2192 Personen verkn\xFCpft ist.",attribute:"Ein Attribut, das ein Objekt mit name oder title enth\xE4lt, oder ein einfacher Wert. Bleibt es leer, sucht die Karte ein Objekt mit description oder Bild.",attribute_picture:"Ein Attribut, das ein Objekt mit name oder title enth\xE4lt. Das Objekt erscheint statt des Zustands.",image:"Ein Attribut, ein Pfad darin wie book.cover, oder eine URL. Bleibt es leer, nimmt die Karte das Bild des gezeigten Objekts oder der Entit\xE4t.",background:"Unscharf hinter der Karte, solange diese Entit\xE4t oben steht.",before:"Wie lange vor dem Beginn oder der F\xE4lligkeit.",infos:"Erscheinen im Wechsel nach dem, was anliegt.",rotate:"Bei 0 bleibt die Karte stehen.",css:"Kommt nach den Styles der Karte, so l\xE4sst sich jeder Teil \xE4ndern.",visibility_intro:"Die Info erscheint, solange alle diese Bedingungen erf\xFCllt sind."}};function as(i,t){let e=Oe(i),s=n=>n&&typeof t=="function"&&t(n)||"";return{label:n=>s(ss[n])||is[e]?.[n]||is.en[n]||n,helper:n=>n==="visibility_intro"&&s(ss[n])||ns[e]?.[n]||ns.en[n]}}function cs(i,t){return[...i.values()].map(e=>{let s=yi(e.message);return{key:"s:"+e.notification_id,kind:"system",title:ot(e.title)||t.t.notification,message:ot(e.message),image:bi(e.message),ts:k(e.created_at,t.now),past:!0,seq:e.seq,tap:s?yt(s):void 0,dismiss:{service:["persistent_notification","dismiss",{notification_id:e.notification_id}]}}})}var Rn={critical:"crit",error:"crit",warning:"warn"};function ls(i,t){let e=(s,n)=>t.issueLocalize?.(s,n)||t.hass.localize?.(s,n)||"";return i.map(s=>{let n=s.translation_key||s.issue_id;return{key:`i:${s.domain}/${s.issue_id}`,kind:"repair",sev:Rn[s.severity]||"warn",title:e(`component.${s.domain}.issues.${n}.title`,s.translation_placeholders||{})||Ne(n),message:s.breaks_in_ha_version?v(t.t.breaks_in,{v:s.breaks_in_ha_version}):e(`component.${s.issue_domain||s.domain}.title`),ts:k(s.created,t.now),past:!0,tap:yt("/config/repairs"),dismiss:{ws:{type:"repairs/ignore_issue",domain:s.domain,issue_id:s.issue_id,ignore:!0}}}})}var Dn=(i,t)=>!i||(i.only?i.only.includes(t):!i.except.includes(t)),Me=(i,t)=>!i.past&&i.ts>t,Re=i=>(t,e)=>typeof e=="string"&&e||i.formatEntityName?.(t,e||void 0)||t.attributes.friendly_name||t.entity_id,In=i=>Array.isArray(i.attributes.entity_id)&&!i.entity_id.startsWith("sensor.")?i.attributes.entity_id.filter(t=>typeof t=="string"):[];function hs(i){let{hass:t,config:e,now:s,data:n}=i,o=new Set,r=[],a=new Set,c=new Set,l=m=>i.preview||Dn(e.audience[m],i.viewer),h={...i,t:i.texts,watch:m=>o.add(m),wake:m=>Number.isFinite(m)&&m>s&&r.push(m),midnight:_t(L(s,i.clock.zone)+1,i.clock.zone),dayOf:(m,y=i.clock.zone)=>L(m,y),name:Re(t),state:m=>t.formatEntityState?t.formatEntityState(m):String(m.state),attr:(m,y,S)=>!y.includes(".")&&t.formatEntityAttributeValue?.(m,y,S)||String(S),alikeTitle:(m,y)=>rs(i.clock.lang,m,y,t.localize),members:m=>{let y=In(m);return y.forEach(S=>o.add(S)),Ce(y.map(S=>t.states[S]).filter(S=>S&&tt(S)).map(S=>h.name(S)))},conditionsMet:(m,y)=>Zi(m,y,{hass:t,now:s,zone:i.clock.zone,watch:h.watch,wake:h.wake,media:i.media,server:i.serverCondition})},d=[];l("system")&&d.push(...cs(n.notifications,h)),e.repairs&&i.admin&&l("repairs")&&d.push(...ls(n.repairs,h));let p=[...i.sources];for(let m of i.updates)p.some(y=>y.entity===m)||p.push({entity:m});for(let m of p){let y=m.entity;if(o.add(y),!l(y)||y.startsWith("update.")&&!l("updates"))continue;let S=t.states[y];d.push(...Mi(m,S,h)),S&&S.state!=="unavailable"&&S.state!=="unknown"&&c.add(y)}let u=e.weather&&t.states[e.weather];if(u&&l(e.weather)){o.add(e.weather);let m=Bt(u),y=m&&n.forecast(e.weather,m);if(y){let S=()=>(i.windows.forEach(te=>o.add(te)),i.windows.filter(te=>Fi(t.states[te])).length);d.push(...Wi(u,y,m,{...h,openWindows:S})),a.add(`wx:${e.weather}:wet`).add(`wx:${e.weather}:frost`)}}let g=d.filter(m=>m.expires<=s?!1:(h.wake(m.expires),m.live&&h.wake(m.ts),!0));g.some(m=>m.day||m.kind==="calendar")&&h.wake(h.midnight);let f=Gi(Ki(e,i.sources,t,l),{...h,forecast:n.forecast});return{entries:g,slides:f,watched:o,wakes:r,known:a,available:c,ctx:h}}var ds=(i,t)=>Number.isFinite(i.ts)?i.past?t-i.ts:Math.abs(i.ts-t):1/0;function Pn(i,t){return i.sort((e,s)=>(s.sev==="crit")-(e.sev==="crit")||ds(e,t)-ds(s,t)||(s.seq||0)-(e.seq||0)||(e.key<s.key?-1:e.key>s.key?1:0))}function Un(i,t){let e=1/0;for(let s=1;s<i.length;s++){let[n,o]=[i[s-1],i[s]];n.sev==="crit"!=(o.sev==="crit")||!Me(o,t)||!(o.ts>n.ts)||(e=Math.min(e,Math.max((n.ts+o.ts)/2,t+1)))}return e}function us(i,t){let e=Pn(ts(i,t),t.now);return t.wake(Un(e,t.now)),e}var ps=(i,t)=>i.length?Math.min(Math.max(Math.min(...i)-t,0),864e5)+50:null;var Ln={fast:150,normal:250,slow:350};function B(i,t){let e=getComputedStyle(i).getPropertyValue(`--ha-animation-duration-${t}`).trim(),s=parseFloat(e);return Number.isFinite(s)?e.endsWith("ms")?s:s*1e3:Ln[t]}var E={standard:"cubic-bezier(0.4, 0, 0.2, 1)",out:"cubic-bezier(0.4, 0, 1, 1)",in:"cubic-bezier(0, 0, 0.2, 1)"},rt=class{constructor(t){this.onGone=t,this.rendered=[],this.ghosts=new Map,this.before=new Map}withLeaving(t,e){e||this.ghosts.clear();let s=new Set(t.map(o=>o.key));for(let o of this.ghosts.keys())s.has(o)&&this.ghosts.delete(o);let n=[...t];return this.rendered.forEach((o,r)=>{if(s.has(o.key))return;e&&!o.leaving&&!this.ghosts.has(o.key)&&this.ghosts.set(o.key,{...o,leaving:!0});let a=this.ghosts.get(o.key);if(!a)return;let c=n.findIndex(l=>l.key===this.rendered[r-1]?.key);n.splice(c<0?Math.min(r,n.length):c+1,0,a)}),this.rendered=n,n}measure(t){this.before=new Map([...t?.children||[]].map(e=>[e.dataset.key,e.offsetTop]))}play(t,e){if(!t||!e)return;let s=B(t,"fast"),n=B(t,"normal"),o=getComputedStyle(t).direction==="rtl"?"-16px":"16px";for(let r of t.children){let a=r.dataset.key;if(r.dataset.leaving&&!this.ghosts.has(a)&&(r.getAnimations().forEach(c=>c.cancel()),delete r.dataset.leaving),this.ghosts.has(a)){if(r.dataset.leaving)continue;r.dataset.leaving="1",this.run(r,[{opacity:1,gridTemplateRows:"1fr",transform:"none",easing:E.out},{opacity:0,gridTemplateRows:"1fr",transform:`translateX(${o})`,offset:s/(s+n),easing:E.standard},{opacity:0,gridTemplateRows:"0fr",transform:`translateX(${o})`}],s+n,()=>{this.ghosts.delete(a),this.onGone()})}else if(!this.before.has(a))this.run(r,[{opacity:0,gridTemplateRows:"0fr",easing:E.standard},{opacity:0,gridTemplateRows:"1fr",offset:n/(s+n),easing:E.in},{opacity:1,gridTemplateRows:"1fr"}],s+n);else{let c=this.before.get(a)-r.offsetTop;Math.abs(c)>1&&r.animate([{transform:`translateY(${c}px)`},{transform:"none"}],{duration:n,easing:E.standard})}}}run(t,e,s,n){t.classList.add("moving"),t.animate(e,{duration:s,fill:n?"forwards":"none"}).finished.then(()=>{t.classList.remove("moving"),n?.()},()=>{})}};var{I:jn}=ri,ms=i=>i;var fs=()=>document.createComment(""),at=(i,t,e)=>{let s=i._$AA.parentNode,n=t===void 0?i._$AB:t._$AA;if(e===void 0){let o=s.insertBefore(fs(),n),r=s.insertBefore(fs(),n);e=new jn(o,r,i,i.options)}else{let o=e._$AB.nextSibling,r=e._$AM,a=r!==i;if(a){let c;e._$AQ?.(i),e._$AM=i,e._$AP!==void 0&&(c=i._$AU)!==r._$AU&&e._$AP(c)}if(o!==n||a){let c=e._$AA;for(;c!==o;){let l=ms(c).nextSibling;ms(s).insertBefore(c,n),c=l}}}return e},V=(i,t,e=i)=>(i._$AI(t,e),i),zn={},_s=(i,t=zn)=>i._$AH=t,gs=i=>i._$AH,Wt=i=>{i._$AR(),i._$AA.remove()};var ys=(i,t,e)=>{let s=new Map;for(let n=t;n<=e;n++)s.set(i[n],n);return s},bs=Ot(class extends st{constructor(i){if(super(i),i.type!==Ct.CHILD)throw Error("repeat() can only be used in text expressions")}dt(i,t,e){let s;e===void 0?e=t:t!==void 0&&(s=t);let n=[],o=[],r=0;for(let a of i)n[r]=s?s(a,r):r,o[r]=e(a,r),r++;return{values:o,keys:n}}render(i,t,e){return this.dt(i,t,e).values}update(i,[t,e,s]){let n=gs(i),{values:o,keys:r}=this.dt(t,e,s);if(!Array.isArray(n))return this.ut=r,o;let a=this.ut??=[],c=[],l,h,d=0,p=n.length-1,u=0,g=o.length-1;for(;d<=p&&u<=g;)if(n[d]===null)d++;else if(n[p]===null)p--;else if(a[d]===r[u])c[u]=V(n[d],o[u]),d++,u++;else if(a[p]===r[g])c[g]=V(n[p],o[g]),p--,g--;else if(a[d]===r[g])c[g]=V(n[d],o[g]),at(i,c[g+1],n[d]),d++,g--;else if(a[p]===r[u])c[u]=V(n[p],o[u]),at(i,n[d],n[p]),p--,u++;else if(l===void 0&&(l=ys(r,u,g),h=ys(a,d,p)),l.has(a[d]))if(l.has(a[p])){let f=h.get(r[u]),m=f!==void 0?n[f]:null;if(m===null){let y=at(i,n[d]);V(y,o[u]),c[u]=y}else c[u]=V(m,o[u]),at(i,n[d],m),n[f]=null;u++}else Wt(n[p]),p--;else Wt(n[d]),d++;for(;u<=g;){let f=at(i,c[g+1]);V(f,o[u]),c[u++]=f}for(;d<=p;){let f=n[d++];f!==null&&Wt(f)}return this.ut=r,_s(i,c),N}});var Bn={system:"var(--info-color)",repair:"var(--warning-color)"};function De(i){return i.sev==="crit"?"var(--error-color)":i.sev==="warn"?"var(--warning-color)":i.color||(i.stateObj?Dt(i.stateObj):Bn[i.kind]||"var(--state-icon-color)")}function qt(i){return i.inert?null:i.tap||(i.entity?{entity:i.entity,tap_action:{action:"more-info"}}:null)}function Ie(i,t){if(!t)return null;try{return i.hassUrl(t)}catch{return null}}var Hn=(i,t)=>i.icon||t.entities?.[i.stateObj?.entity_id]?.icon||i.stateObj?.attributes.icon||O[i.kind]||O.generic;function Pe(i,t){let e=Ie(t,i.image);return b`${e?b`<img
+        src=${e}
+        alt=""
+        decoding="async"
+        draggable="false"
+        referrerpolicy="no-referrer"
+        @load=${s=>s.target.classList.add("ready")}
+        @error=${s=>s.target.classList.remove("ready")}
+      />`:_}${i.stateObj&&customElements.get("ha-state-icon")?b`<ha-state-icon .hass=${t} .stateObj=${i.stateObj} .icon=${i.icon}></ha-state-icon>`:b`<ha-icon .icon=${Hn(i,t)}></ha-icon>`}`}function ws(i,t){if(!Number.isFinite(i.ts))return b`<time class="time"></time>`;let e=i.day&&nt(i.ts,t.clock.server),s=e?[e.year,e.month,e.day].map(o=>String(o).padStart(2,"0")).join("-"):new Date(i.ts).toISOString(),n=e?t.clock.absoluteDate(i.ts,t.clock.server):t.clock.absolute(i.ts);return b`<time class="time" datetime=${s} title=${n}>${t.clock.entryTime(i,t.now)}</time>`}var vs=i=>[".message",".title"].some(t=>{let e=i.querySelector(t);return e.scrollHeight>e.clientHeight+1||e.scrollWidth>e.clientWidth+1}),Wn=i=>{let t=i.getSelection?.()||document.getSelection();return!!(t&&!t.isCollapsed&&String(t).trim())},qn=i=>t=>{t.key!=="Enter"&&t.key!==" "||(t.preventDefault(),t.stopPropagation(),i())};function Fn(i,t){let e=qt(i),s=()=>e&&t.run(e),n=r=>{let a=r.currentTarget;Wn(a.getRootNode())||(a.classList.contains("open")||vs(a)?t.toggle(i.key):s())},o=!!i.message||!Number.isFinite(i.ts);return b`<div class=${Z({item:!0,leaving:!!i.leaving})} role="listitem" data-key=${i.key}><div class="clip">
+    <div
+      class="row ${Z({warn:i.sev==="warn",crit:i.sev==="crit",link:!!e,open:t.opened.has(i.key)})}"
+      data-kind=${i.kind}
+      style="--tile-color: ${De(i)}"
+      @click=${n}
+      @pointerenter=${r=>r.currentTarget.classList.toggle("expandable",vs(r.currentTarget))}
+    >
+      <div
+        class="icon"
+        role=${e?"button":_}
+        tabindex=${e?"0":_}
+        aria-label=${e?i.title:_}
+        @click=${r=>e&&(r.stopPropagation(),s())}
+        @keydown=${e?qn(s):_}
+      >
+        ${Pe(i,t.hass)}
+      </div>
+      <div class="title">${i.title}</div>
+      <div class="meta">
+        ${o?ws(i,t):_}
+        ${Lt(i)?b`<button class="dismiss" type="button" aria-label=${t.texts.dismiss} title=${t.texts.dismiss} @click=${r=>(r.stopPropagation(),t.dismiss(i,r.detail===0))}>
+              <ha-icon icon="mdi:close"></ha-icon>
+            </button>`:_}
+      </div>
+      <div class="message">${i.message||(o?"":ws(i,t))}</div>
+      ${i.actions?.length?b`<div class="actions">
+            ${i.actions.map(r=>b`<button class="action" type="button" ?disabled=${r.disabled} @click=${a=>(a.stopPropagation(),t.run(r.action))}>${r.label}</button>`)}
+          </div>`:_}
+    </div>
+  </div></div>`}var Ft=(i,t)=>bs(i,e=>e.key,e=>Fn(e,t));var Vt=M`
+  .list {
+    display: flex;
+    flex-direction: column;
+  }
+  .item {
+    display: grid;
+    grid-template-rows: 1fr;
+  }
+  .clip {
+    min-height: 0;
+  }
+  .item.moving > .clip {
+    overflow: hidden;
+  }
+  .item + .item .row {
+    margin-top: 2px;
+  }
+  .row {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--origami-tile) minmax(0, 1fr) auto;
+    grid-template-areas: "icon title meta" "icon message message" ". actions actions";
+    align-items: center;
+    column-gap: var(--origami-gap);
+    padding: 6px 4px;
+    background: var(--origami-row-bg);
+    border-radius: var(--origami-radius);
+    transition: background-color var(--ha-animation-duration-normal, 250ms) ease-in-out;
+  }
+  .row.crit {
+    background: color-mix(in srgb, var(--error-color) 12%, var(--origami-row-bg));
+  }
+  .row.link,
+  .row.expandable,
+  .row.open {
+    cursor: pointer;
+  }
+  .item.leaving {
+    pointer-events: none;
+  }
+  .row .icon {
+    grid-area: icon;
+    align-self: start;
+  }
+  .row .icon[role="button"] {
+    cursor: pointer;
+  }
+  .row .title {
+    grid-area: title;
+    min-width: 0;
+    color: var(--primary-text-color);
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    line-height: var(--ha-line-height-normal, 1.6);
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .meta {
+    grid-area: meta;
+    align-self: start;
+    min-height: calc(var(--ha-font-size-m, 14px) * var(--ha-line-height-normal, 1.6));
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .time {
+    color: var(--secondary-text-color);
+    font-size: var(--ha-font-size-s, 12px);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .message {
+    grid-area: message;
+    color: var(--secondary-text-color);
+    font-size: var(--ha-font-size-s, 12px);
+    line-height: 1.4;
+    letter-spacing: 0.2px;
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    max-height: 2.8em;
+    overflow: hidden;
+  }
+  .message:empty {
+    display: none;
+  }
+  .message .time {
+    font-size: inherit;
+    line-height: inherit;
+  }
+  .row:is(.open, :has(:focus-visible)) .title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+  }
+  .row:is(.open, :has(:focus-visible)) .message {
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: none;
+    max-height: none;
+    white-space: pre-line;
+    user-select: text;
+    cursor: text;
+  }
+  button {
+    appearance: none;
+    font: inherit;
+    touch-action: manipulation;
+    border: none;
+    cursor: pointer;
+  }
+  .dismiss {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    margin: -5px -4px -5px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: transparent;
+    color: var(--secondary-text-color);
+    border-radius: 50%;
+    --mdc-icon-size: 20px;
+  }
+  .dismiss::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity var(--ha-animation-duration-fast, 150ms) ease;
+  }
+  .dismiss::before {
+    content: "";
+    position: absolute;
+    inset: -6px -4px;
+  }
+  .dismiss:active::after {
+    opacity: 0.16;
+  }
+  .dismiss ha-icon {
+    display: flex;
+  }
+  .actions {
+    grid-area: actions;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ha-space-2, 8px);
+    margin: var(--ha-space-2, 8px) 0 2px;
+  }
+  .action {
+    height: 32px;
+    padding: 0 12px;
+    background: var(--ha-color-fill-primary-normal-resting, color-mix(in srgb, var(--primary-color) 14%, transparent));
+    color: var(--ha-color-on-primary-normal, var(--primary-color));
+    border-radius: var(--ha-border-radius-pill, 9999px);
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    white-space: nowrap;
+    transition: background-color var(--ha-animation-duration-fast, 150ms) ease-out;
+  }
+  .action:active {
+    background: var(--ha-color-fill-primary-normal-active, color-mix(in srgb, var(--primary-color) 24%, transparent));
+  }
+  .action[disabled] {
+    background: var(--ha-color-fill-disabled-normal-resting, color-mix(in srgb, var(--primary-text-color) 8%, transparent));
+    color: var(--ha-color-on-disabled-normal, var(--disabled-text-color));
+    pointer-events: none;
+  }
+  .row .icon:focus-visible,
+  .dismiss:focus-visible,
+  .action:focus-visible {
+    outline: 2px solid var(--origami-focus);
+    outline-offset: -2px;
+  }
+  @media (hover: hover) {
+    .row:is(.link, .expandable, .open):hover {
+      background-color: var(--origami-hover);
     }
-    const title = localize("ui.notification_drawer.title");
-    if (title) t.count_one = t.count_other = title + " ({n})";
-    /* Home Assistant names the weather in every language, so rain ahead reads like "Pluie, 19 h". */
-    for (const [kind, condition] of [["rain", "rainy"], ["snow", "snowy"], ["thunder", "lightning"], ["hail", "hail"]]) {
-      const name = localize("component.weather.entity_component._.state." + condition);
-      if (!name) continue;
-      t["wx_" + kind + "_now"] = name;
-      t["wx_" + kind + "_from"] = name + ", {t}";
+    .row.crit.link:hover {
+      background-color: color-mix(in srgb, var(--error-color) 16%, var(--origami-hover));
     }
-  }
-  return t;
-};
-
-/* How many binary sensors of one device class are on, in the languages the card ships. */
-const ALIKE_TITLES = {
-  en: {
-    window: { one: "1 window open", other: "{n} windows open" },
-    door: { other: "{n} doors open" },
-    garage_door: { other: "{n} garage doors open" },
-    opening: { other: "{n} sensors open" },
-    battery: { other: "{n} batteries low" },
-    moisture: { other: "{n} water alarms" },
-    smoke: { other: "{n} smoke alarms" },
-    gas: { other: "{n} gas alarms" },
-    carbon_monoxide: { other: "{n} CO alarms" },
-    heat: { other: "{n} heat alarms" },
-    problem: { other: "{n} problems" },
-    tamper: { other: "{n} tamper alerts" },
-    safety: { other: "{n} safety alerts" },
-    sound: { other: "{n} sounds detected" },
-  },
-  de: {
-    window: { one: "1 Fenster offen", other: "{n} Fenster offen" },
-    door: { other: "{n} Türen offen" },
-    garage_door: { other: "{n} Garagentore offen" },
-    opening: { other: "{n} Sensoren offen" },
-    battery: { other: "{n} Batterien schwach" },
-    moisture: { other: "{n} Wassermelder ausgelöst" },
-    smoke: { other: "{n} Rauchmelder ausgelöst" },
-    gas: { other: "{n} Gasmelder ausgelöst" },
-    carbon_monoxide: { other: "{n} CO-Melder ausgelöst" },
-    heat: { other: "{n} Hitzemelder ausgelöst" },
-    problem: { other: "{n} Probleme" },
-    tamper: { other: "{n} Sabotagealarme" },
-    safety: { other: "{n} Sicherheitswarnungen" },
-    sound: { other: "{n} Geräusche erkannt" },
-  },
-};
-
-/* Home Assistant's notice about a failed login is never shown. */
-const MUTED_NOTIFICATIONS = new Set(["http-login"]);
-
-const INACTIVE = new Set(["off", "unavailable", "unknown", "idle", "none", ""]);
-
-const isInactive = (state) => {
-  const s = String(state).trim().toLowerCase();
-  return INACTIVE.has(s) || Number(s) === 0;
-};
-
-/* Home Assistant's rule for an active state, from its frontend. A domain whose state is a time is
- * active while it is available, and an alert that was acknowledged is still on. */
-const TIME_STATE_DOMAINS = new Set([
-  "ai_task",
-  "button",
-  "conversation",
-  "event",
-  "image",
-  "infrared",
-  "input_button",
-  "notify",
-  "radio_frequency",
-  "scene",
-  "stt",
-  "tag",
-  "tts",
-  "wake_word",
-  "datetime",
-]);
-const IDLE_STATES = {
-  alarm_control_panel: ["disarmed"],
-  alert: ["idle"],
-  cover: ["closed"],
-  device_tracker: ["not_home"],
-  lawn_mower: ["docked", "paused", "idle"],
-  lock: ["locked"],
-  media_player: ["standby"],
-  person: ["not_home"],
-  vacuum: ["idle", "docked", "paused"],
-  valve: ["closed"],
-};
-const ACTIVE_STATES = {
-  camera: ["streaming", "recording"],
-  group: ["on", "home", "open", "locked", "problem"],
-  plant: ["problem"],
-  timer: ["active"],
-};
-
-const stateActive = (st) => {
-  const domain = st.entity_id.split(".")[0];
-  const s = st.state;
-  if (TIME_STATE_DOMAINS.has(domain)) return s !== "unavailable";
-  if (s === "unavailable" || s === "unknown" || (s === "off" && domain !== "alert")) return false;
-  if (ACTIVE_STATES[domain]) return ACTIVE_STATES[domain].includes(s);
-  return !(IDLE_STATES[domain] || []).includes(s);
-};
-
-/* The domains Home Assistant colors by their state, and how its tile card builds that color from theme variables. */
-const STATE_COLORED = new Set([
-  "alarm_control_panel",
-  "alert",
-  "automation",
-  "binary_sensor",
-  "calendar",
-  "camera",
-  "climate",
-  "cover",
-  "device_tracker",
-  "fan",
-  "group",
-  "humidifier",
-  "input_boolean",
-  "lawn_mower",
-  "light",
-  "lock",
-  "media_player",
-  "person",
-  "plant",
-  "remote",
-  "schedule",
-  "script",
-  "siren",
-  "sun",
-  "switch",
-  "timer",
-  "update",
-  "vacuum",
-  "valve",
-  "water_heater",
-  "weather",
-]);
-
-const cssChain = (names) => names.reduceRight((rest, name) => "var(" + name + (rest ? ", " + rest : "") + ")", "");
-
-const stateKey = (state) => String(state).toLowerCase().replace(/[^a-z0-9]+/g, "_");
-
-const stateColorChain = (domain, deviceClass, state, active) => {
-  const level = active ? "active" : "inactive";
-  return cssChain([
-    ...(deviceClass ? ["--state-" + domain + "-" + deviceClass + "-" + stateKey(state) + "-color"] : []),
-    "--state-" + domain + "-" + stateKey(state) + "-color",
-    "--state-" + domain + "-" + level + "-color",
-    "--state-" + level + "-color",
-  ]);
-};
-
-/* A person or tracker has its color on a badge, so its icon stays plain, as on a tile. */
-const stateColor = (st) => {
-  if (st.state === "unavailable") return "var(--state-unavailable-color)";
-  const domain = st.entity_id.split(".")[0];
-  const a = st.attributes || {};
-  if (domain === "sensor" && a.device_class === "battery" && st.state !== "" && !isNaN(Number(st.state))) {
-    const n = Number(st.state);
-    return "var(--state-sensor-battery-" + (n >= 70 ? "high" : n >= 30 ? "medium" : "low") + "-color)";
-  }
-  const members = domain === "group" && Array.isArray(a.entity_id) ? [...new Set(a.entity_id.map((id) => String(id).split(".")[0]))] : [];
-  const colored = domain === "group" ? (members.length === 1 ? members[0] : null) : domain;
-  const active = stateActive(st);
-  if (!STATE_COLORED.has(colored) || domain === "person" || domain === "device_tracker") {
-    return active ? "var(--state-icon-color)" : "var(--state-inactive-color)";
-  }
-  return stateColorChain(colored, a.device_class, st.state, active);
-};
-
-/* Theme color names, as the color option of a tile takes them. */
-const THEME_COLORS = new Set([
-  "primary",
-  "accent",
-  "red",
-  "pink",
-  "purple",
-  "deep-purple",
-  "indigo",
-  "blue",
-  "light-blue",
-  "cyan",
-  "teal",
-  "green",
-  "light-green",
-  "lime",
-  "yellow",
-  "amber",
-  "orange",
-  "deep-orange",
-  "brown",
-  "light-grey",
-  "grey",
-  "dark-grey",
-  "blue-grey",
-  "black",
-  "white",
-  "primary-text",
-  "secondary-text",
-  "disabled",
-]);
-
-const themeColor = (color) => (THEME_COLORS.has(color) ? "var(--" + color + "-color)" : color);
-
-/* Urgency colors an entry first, then its own color, then its entity's state, like a tile. */
-const KIND_COLORS = { system: "var(--info-color)", repair: "var(--warning-color)" };
-
-const itemColor = (it) => {
-  if (it.sev === "crit") return "var(--error-color)";
-  if (it.sev === "warn") return "var(--warning-color)";
-  if (it.color) return it.color;
-  if (it.stateObj) return stateColor(it.stateObj);
-  return KIND_COLORS[it.kind] || "var(--state-icon-color)";
-};
-
-/* UpdateEntityFeature.INSTALL */
-const UPDATE_INSTALL = 1;
-
-/* TodoListEntityFeature.UPDATE_TODO_ITEM */
-const TODO_UPDATE_ITEM = 4;
-
-/* CoverEntityFeature.CLOSE, ValveEntityFeature.CLOSE, VacuumEntityFeature.RETURN_HOME,
- * LawnMowerEntityFeature.DOCK and SirenEntityFeature.TURN_OFF */
-const COVER_CLOSE = 2;
-const VALVE_CLOSE = 2;
-const VACUUM_RETURN_HOME = 16;
-const MOWER_DOCK = 4;
-const SIREN_TURN_OFF = 2;
-
-/* What is urgent, and the one button with its label, its action, the feature it needs and the states it
- * shows in. Like Home Assistant's own controls, Lock and Close also show whenever a state is only assumed. */
-const DEVICES = {
-  lock: {
-    sev: { jammed: "warn" },
-    label: "act_lock",
-    action: "lock.lock",
-    when: ["unlocked", "open", "jammed"],
-    assumed: true,
-  },
-  cover: {
-    label: "act_close",
-    action: "cover.close_cover",
-    feature: COVER_CLOSE,
-    when: ["open", "opening"],
-    assumed: true,
-    confirm: true,
-  },
-  valve: {
-    label: "act_close_valve",
-    action: "valve.close_valve",
-    feature: VALVE_CLOSE,
-    when: ["open", "opening"],
-    assumed: true,
-    confirm: true,
-  },
-  vacuum: {
-    sev: { error: "warn" },
-    label: "act_dock",
-    action: "vacuum.return_to_base",
-    feature: VACUUM_RETURN_HOME,
-    when: ["cleaning", "error"],
-  },
-  lawn_mower: {
-    sev: { error: "warn" },
-    label: "act_dock_mower",
-    action: "lawn_mower.dock",
-    feature: MOWER_DOCK,
-    when: ["mowing", "returning", "error"],
-  },
-  siren: {
-    sev: { on: "crit" },
-    label: "act_off",
-    action: "siren.turn_off",
-    feature: SIREN_TURN_OFF,
-    when: ["on"],
-  },
-};
-
-const parseTs = (value, fallback) => {
-  const t = value ? Date.parse(value) : NaN;
-  return isNaN(t) ? fallback : t;
-};
-
-const badgeText = (n) => (n > 9 ? "9+" : String(n));
-
-const REDUCED_MOTION = window.matchMedia
-  ? window.matchMedia("(prefers-reduced-motion: reduce)")
-  : null;
-
-const motionOK = () => !(REDUCED_MOTION && REDUCED_MOTION.matches);
-
-/* A leaving box fades, then closes its space. An arriving box opens its space, then fades in. */
-const FADE_MS = 150;
-const SIZE_MS = 250;
-
-/* Material's standard, accelerate and decelerate curves. */
-const EASE_STANDARD = "cubic-bezier(0.4, 0, 0.2, 1)";
-const EASE_FADE_OUT = "cubic-bezier(0.4, 0, 1, 1)";
-const EASE_FADE_IN = "cubic-bezier(0, 0, 0.2, 1)";
-
-/* A hold and a double tap take as long as on Home Assistant's own cards. */
-const HOLD_MS = 500;
-const DOUBLE_TAP_MS = 250;
-
-/* How recent an entry must be to count as news. */
-const NEWS_MS = 2 * 60000;
-
-/* Home Assistant's tokens set the pace, and drop to 1 ms where motion is reduced. */
-const tokenMs = (el, name, fallback) => {
-  const v = getComputedStyle(el).getPropertyValue(name).trim();
-  const n = parseFloat(v);
-  return Number.isFinite(n) ? (/ms$/.test(v) ? n : n * 1000) : fallback;
-};
-
-const hasAction = (a) => Boolean(a && a.action && a.action !== "none");
-
-/* Below this width the list opens in Home Assistant's dialog instead of unfolding in the card. */
-const NARROW_PX = 300;
-
-/* Home Assistant drops the gap after a hidden card in one jump. Closing ends at a speed of
- * about one gap per frame, so the jump looks like the last frame. In the view footer the gap
- * is the footer's padding, so it is measured. */
-const FRAME_MS = 1000 / 60;
-
-const gapPace = (host, height) => {
-  const footer = host.classList.contains("docked") && host.getRootNode().host;
-  const gap = footer
-    ? Math.max(footer.getBoundingClientRect().height - host.getBoundingClientRect().height, 0) || 8
-    : parseFloat(getComputedStyle(host).getPropertyValue("--row-gap")) || 8;
-  return Math.min(4, (gap * SIZE_MS) / (FRAME_MS * Math.max(height || 0, 1)));
-};
-
-/* Closing ends and opening starts at a slope of pace. Above 2.5 the first form would overshoot. */
-const easeClose = (pace) =>
-  pace <= 2.5
-    ? "cubic-bezier(0.4, 0, 0.6, " + (1 - 0.4 * pace).toFixed(3) + ")"
-    : "cubic-bezier(0.4, 0, " + (1 - 1 / pace).toFixed(3) + ", 0)";
-const easeOpen = (pace) =>
-  pace <= 2.5
-    ? "cubic-bezier(0.4, " + (0.4 * pace).toFixed(3) + ", 0.6, 1)"
-    : "cubic-bezier(" + (1 / pace).toFixed(3) + ", 1, 0.6, 1)";
-
-const FLOW = ["height", "paddingTop", "paddingBottom", "marginTop", "marginBottom", "borderTopWidth", "borderBottomWidth"];
-
-const flowBox = (el) => {
-  const cs = getComputedStyle(el);
-  const box = {};
-  for (const k of FLOW) box[k] = cs[k];
-  if (!/px$/.test(box.height)) box.height = el.offsetHeight + "px";
-  return box;
-};
-
-/* A row also gives back the list gap, with a negative margin towards a neighbour. */
-const noBox = (gapSide, gap) => {
-  const box = {};
-  for (const k of FLOW) box[k] = "0px";
-  if (gapSide) box[gapSide] = -gap + "px";
-  return box;
-};
-
-const gapSide = (el) =>
-  el.previousElementSibling ? "marginTop" : el.nextElementSibling ? "marginBottom" : null;
-
-const stopMotion = (el) => {
-  if (el._motion) {
-    el._motion.onfinish = null;
-    el._motion.cancel();
-    el._motion = null;
-  }
-  el.classList.remove("moving", "leaving");
-};
-
-/* Borders snap to whole pixels, so they go while the box is invisible, not while it shrinks. */
-const NO_BORDER = { borderTopWidth: "0px", borderBottomWidth: "0px" };
-
-/* Holds the closed state until the caller removes the box. */
-const playLeave = (el, gap, slide) => {
-  const full = flowBox(el);
-  const opacity = getComputedStyle(el).opacity;
-  stopMotion(el);
-  const out = slide ? "translateX(" + slide + "px)" : "none";
-  el.classList.add("moving", "leaving");
-  el._motion = el.animate(
-    [
-      { ...full, opacity, transform: "none", easing: EASE_FADE_OUT },
-      { ...full, ...NO_BORDER, opacity: 0, transform: out, offset: FADE_MS / (FADE_MS + SIZE_MS), easing: EASE_STANDARD },
-      { ...noBox(gap ? gapSide(el) : null, gap), opacity: 0, transform: out },
-    ],
-    { duration: FADE_MS + SIZE_MS, fill: "forwards" }
-  );
-  return el._motion;
-};
-
-const playEnter = (el, gap) => {
-  stopMotion(el);
-  const full = flowBox(el);
-  el.classList.add("moving");
-  el._motion = el.animate(
-    [
-      { ...noBox(gap ? gapSide(el) : null, gap), opacity: 0, easing: EASE_STANDARD },
-      { ...full, ...NO_BORDER, opacity: 0, offset: SIZE_MS / (SIZE_MS + FADE_MS), easing: EASE_FADE_IN },
-      { ...full, opacity: 1 },
-    ],
-    { duration: SIZE_MS + FADE_MS }
-  );
-  el._motion.onfinish = () => stopMotion(el);
-  return el._motion;
-};
-
-/* A dismissed item comes back if Home Assistant refuses, or still has it after this long. */
-const PENDING_MS = 10000;
-
-const sevClass = (sev) => (sev ? " " + sev : "");
-
-const fill = (template, vars) =>
-  template.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? vars[k] : ""));
-
-const attrPath = (attrs, path) =>
-  path.split(".").reduce((v, k) => (v == null ? v : v[k]), attrs);
-
-/* The conditions Home Assistant's frontend checks itself. It sends every other kind to the server. */
-const CLIENT_CONDITIONS = new Set(["state", "numeric_state", "screen", "user", "location", "time", "view_columns", "and", "or", "not"]);
-const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-
-const listOf = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]);
-
-const isEntityId = (v) => typeof v === "string" && /^\w+\.\w+$/.test(v);
-
-const userPerson = (hass) => {
-  const uid = hass.user && hass.user.id;
-  if (!uid) return null;
-  for (const id in hass.states) {
-    if (id.startsWith("person.") && hass.states[id].attributes.user_id === uid) return hass.states[id];
-  }
-  return null;
-};
-
-/* Read as leniently as Home Assistant reads it, so 8:00 AM counts as 8:00. */
-const daySeconds = (t) => {
-  const [h, m, s] = String(t).split(":").map((part) => parseInt(part, 10));
-  return h * 3600 + m * 60 + (s || 0);
-};
-
-/* Home Assistant skips a condition that is switched off. */
-const switchedOn = (c) => !(isObject(c) && c.enabled === false);
-
-const labelled = (hass, label) => {
-  const reg = hass && hass.entities;
-  if (!label || !reg) return [];
-  return Object.keys(reg).filter((id) => ((reg[id] && reg[id].labels) || []).includes(label));
-};
-
-/* Building a date format takes far longer than using one, and a countdown asks every second. */
-const FORMATS = new Map();
-
-const dateFormat = (lang, opts) => {
-  const key = lang + JSON.stringify(opts);
-  if (!FORMATS.has(key)) FORMATS.set(key, new Intl.DateTimeFormat(lang, opts));
-  return FORMATS.get(key);
-};
-
-const serverZone = (hass) => (hass && hass.config && hass.config.time_zone) || undefined;
-
-/* The date and time of ts in timeZone, or in the browser's zone. */
-const zonedParts = (ts, timeZone) => {
-  const opts = { hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" };
-  let parts;
-  try {
-    parts = dateFormat("en-US", { ...opts, timeZone }).formatToParts(ts);
-  } catch (e) {
-    parts = dateFormat("en-US", opts).formatToParts(ts);
-  }
-  const p = {};
-  for (const { type, value } of parts) p[type] = Number(value);
-  return p;
-};
-
-/* Calendars give start_time as the server's wall clock time, without an offset. Other times without
- * one may carry fractions of a second. */
-const fromServerTime = (text, timeZone) => {
-  const m = /^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d)(?::(\d\d)(?:\.(\d+))?)?)?$/.exec(String(text));
-  if (!m) return Date.parse(text);
-  const wall = Date.UTC(m[1], m[2] - 1, m[3], m[4] || 0, m[5] || 0, m[6] || 0);
-  const offset = (ts) => {
-    const p = zonedParts(ts, timeZone);
-    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - ts;
-  };
-  let ts = wall - offset(wall - offset(wall));
-  /* Where the clock skips midnight, as in Santiago, the day begins at the end of the gap. */
-  if (zonedParts(ts, timeZone).day !== Number(m[3])) ts = wall - offset(wall);
-  return ts + (m[7] ? Number(m[7].slice(0, 3).padEnd(3, "0")) : 0);
-};
-
-/* The moment the clock in timeZone shows the given seconds of a day. On the days the clock changes, that is not
- * midnight plus the seconds. */
-const wallTime = (day, seconds, timeZone) => {
-  if (!(seconds < DAY_MS / 1000)) return seconds >= DAY_MS / 1000 ? dayStart(day + 1, timeZone) : NaN;
-  const time = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map((n) => String(n).padStart(2, "0"));
-  return fromServerTime(new Date(day * DAY_MS).toISOString().slice(0, 10) + "T" + time.join(":"), timeZone);
-};
-
-/* Home Assistant writes times as ISO text. Date.parse would also read a bare number like 5 as a year. */
-const isoTime = (value, zone) =>
-  typeof value === "string" && /^\d{4}-\d\d-\d\d/.test(value) ? fromServerTime(value, zone) : NaN;
-
-/* Timers write their duration and the time left as H:MM:SS. */
-const parseDuration = (text) => {
-  const m = /^(\d+):(\d\d):(\d\d)$/.exec(String(text == null ? "" : text).trim());
-  return m ? (Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])) * 1000 : NaN;
-};
-
-const TIME_UNITS = { d: 86400000, h: 3600000, min: 60000, s: 1000, ms: 1, "μs": 0.001 };
-
-/* A state with a time unit holds the time left, unless its device class says it is a timestamp. */
-const durationUnit = (a) => (a.device_class === "timestamp" ? undefined : TIME_UNITS[a.unit_of_measurement]);
-
-/* The moment a state points to. A duration counts down from the state's last change and has ended at 0. */
-const endOf = (st, zone) => {
-  const unit = durationUnit(st.attributes || {});
-  if (!unit) return isoTime(st.state, zone);
-  const rest = Number(st.state) * unit;
-  return rest > 0 ? parseTs(st.last_changed, NaN) + rest : NaN;
-};
-
-const MINUTE_MS = 60000;
-const DAY_MS = 86400000;
-
-const toMinute = (ts) => Math.round(ts / MINUTE_MS) * MINUTE_MS;
-
-/* Moments on the same date in timeZone share a number. */
-const dayNumber = (ts, timeZone) => {
-  const p = zonedParts(ts, timeZone);
-  return Date.UTC(p.year, p.month - 1, p.day) / DAY_MS;
-};
-
-/* The moment the day with that number begins in timeZone. */
-const dayStart = (day, timeZone) => fromServerTime(new Date(day * DAY_MS).toISOString().slice(0, 10), timeZone);
-
-const numberOf = (value) =>
-  typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
-
-const BEFORE_UNITS = { days: DAY_MS, hours: 3600000, minutes: MINUTE_MS, seconds: 1000 };
-
-/* How long ahead a calendar or a to-do list shows, in the formats of Home Assistant's durations. A bare
- * number counts as minutes, where Home Assistant reads seconds. */
-const parseBefore = (value) => {
-  let ms = NaN;
-  if (typeof value === "number") ms = value * MINUTE_MS;
-  else if (typeof value === "string") {
-    const m = /^\+?(\d+):(\d+)(?::(\d+(?:\.\d+)?))?$/.exec(value.trim());
-    if (m) ms = m[1] * 3600000 + m[2] * MINUTE_MS + (m[3] || 0) * 1000;
-  } else if (isObject(value)) {
-    const keys = Object.keys(value);
-    if (keys.length && keys.every((k) => k in BEFORE_UNITS)) {
-      ms = keys.reduce((sum, k) => sum + numberOf(value[k]) * BEFORE_UNITS[k], 0);
+    .dismiss:hover::after {
+      opacity: 0.1;
+    }
+    .action:hover {
+      background: var(--ha-color-fill-primary-normal-hover, color-mix(in srgb, var(--primary-color) 20%, transparent));
     }
   }
-  return ms >= 0 && Number.isFinite(ms) ? ms : NaN;
-};
-
-/* The first of keys that holds a text or a number. */
-const textOf = (obj, keys) => {
-  for (const k of keys) {
-    const v = obj[k];
-    if ((typeof v === "string" && v) || typeof v === "number") return String(v);
+`,Kt=M`
+  .icon {
+    position: relative;
+    flex: none;
+    width: var(--origami-tile);
+    height: var(--origami-tile);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--ha-tile-icon-border-radius, var(--ha-border-radius-pill, 9999px));
+    color: var(--tile-color);
+    --mdc-icon-size: var(--origami-icon);
+    transition: color var(--ha-animation-duration-normal, 250ms) ease-in-out;
+    outline: none;
   }
-  return "";
-};
-
-const isEmpty = (v) =>
-  v == null || v === "" || v === false || (Array.isArray(v) && v.length === 0) ||
-  (typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0);
-
-/* Common on template and REST sensors. Unlike entity_picture, only URLs count. */
-const PICTURE_ATTRS = ["image", "image_url", "picture", "thumbnail"];
-const URL_LIKE = /^(https?:\/\/|\/|data:image\/)/i;
-
-const findPicture = (attrs) => {
-  if (typeof attrs.entity_picture === "string" && attrs.entity_picture) return attrs.entity_picture;
-  for (const k of PICTURE_ATTRS) {
-    if (typeof attrs[k] === "string" && URL_LIKE.test(attrs[k])) return attrs[k];
+  .glyph {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: inherit;
   }
-  return null;
-};
-
-const usesDevicePicture = (src) =>
-  !src.image && (src.type === "event" || (src.type === "auto" && !src.attribute && src.entity.startsWith("event.")));
-
-/* For each id, the image and camera entities on its device, images first. */
-const devicePictures = (reg, ids) => {
-  const pictures = new Map();
-  if (!reg || !ids.length) return pictures;
-  const byDevice = new Map();
-  for (const [id, entry] of Object.entries(reg)) {
-    if (!entry || !entry.device_id || !/^(image|camera)\./.test(id)) continue;
-    if (!byDevice.has(entry.device_id)) byDevice.set(entry.device_id, []);
-    byDevice.get(entry.device_id).push(id);
+  .icon :is(ha-icon, ha-state-icon) {
+    display: flex;
   }
-  for (const id of ids) {
-    const found = byDevice.get(reg[id] && reg[id].device_id) || [];
-    pictures.set(id, [...found.filter((p) => p.startsWith("image.")), ...found.filter((p) => p.startsWith("camera."))]);
+  .icon img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity var(--ha-animation-duration-normal, 250ms) ease-in-out;
+    -webkit-user-drag: none;
   }
-  return pictures;
-};
-
-/* An image keeps its address for a new picture until its token changes, so Home Assistant's own cards
- * add its state. */
-const devicePicture = (hass, ids) => {
-  for (const id of ids) {
-    const s = hass.states[id];
-    const a = (s && s.attributes) || {};
-    if (id.startsWith("image.") && typeof a.access_token === "string" && a.access_token) {
-      return "/api/image_proxy/" + id + "?token=" + encodeURIComponent(a.access_token) + "&state=" + encodeURIComponent(s.state);
-    }
-    if (typeof a.entity_picture === "string" && a.entity_picture) return a.entity_picture;
+  .icon img.ready {
+    opacity: 1;
   }
-  return null;
-};
-
-/* Persistent notifications are Markdown. The card shows them as plain text with their first picture,
- * and a tap follows the first link. */
-const plainText = (md) =>
-  String(md == null ? "" : md)
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/<\/?[a-z][^>]*>/gi, "")
-    .replace(/(\*\*|__|~~|`)(.+?)\1/g, "$2")
-    .replace(/^ {0,3}(#{1,6} +|> ?|[-*+] +)/gm, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-const SAFE_LINK = /^(https?:\/\/|\/(?!\/))/i;
-
-const firstLink = (md) => {
-  const text = String(md || "").replace(/!\[[^\]]*\]\([^)]*\)/g, "");
-  const m = /\[[^\]]*\]\(([^)\s]+)[^)]*\)/.exec(text);
-  return m && SAFE_LINK.test(m[1]) ? m[1] : null;
-};
-
-/* As in Home Assistant, the address may follow spaces and ends where a title begins. */
-const firstPicture = (md) => {
-  const m = /!\[[^\]]*\]\(\s*([^)\s]*)[^)]*\)/.exec(String(md || ""));
-  return m && SAFE_LINK.test(m[1]) ? m[1] : null;
-};
-
-const prettySlug = (slug) => {
-  const s = String(slug).replace(/[_-]+/g, " ").trim();
-  return s.charAt(0).toUpperCase() + s.slice(1);
-};
-
-const ruleMode = (rule) => (!rule ? "everyone" : "only" in rule ? "only" : "except");
-
-const visibleTo = (rule, viewer) => {
-  const mode = ruleMode(rule);
-  if (mode === "everyone") return true;
-  const listed = rule[mode].includes(viewer);
-  return mode === "only" ? listed : !listed;
-};
-
-const checkAudience = (audience) => {
-  if (audience == null) return {};
-  if (typeof audience !== "object" || Array.isArray(audience)) {
-    throw new Error(CARD + ": audience must map sources to only or except");
+  .icon img.ready ~ :is(ha-icon, ha-state-icon) {
+    visibility: hidden;
   }
-  for (const [key, rule] of Object.entries(audience)) {
-    const modes = rule && typeof rule === "object" ? ["only", "except"].filter((m) => m in rule) : [];
-    if (modes.length !== 1) {
-      throw new Error(CARD + ": audience." + key + " needs either only or except");
-    }
-    const people = rule[modes[0]];
-    if (!Array.isArray(people) || !people.every((id) => typeof id === "string" && id.startsWith("person."))) {
-      throw new Error(CARD + ": audience." + key + "." + modes[0] + " must list person entities, e.g. person.anna");
-    }
-  }
-  return audience;
-};
-
-/* Text states can mean anything, so detected entities need on, active or a number above 0. */
-const isUnambiguouslyActive = (state) => {
-  const s = String(state).toLowerCase();
-  if (s === "on" || s === "active") return true;
-  const n = Number(state);
-  return !isNaN(n) && n > 0;
-};
-
-/* An attribute object that describes one thing, like a dish or a parcel. */
-const THING_TEXT = ["description", "summary"];
-
-const isThing = (v) => v != null && typeof v === "object" && !Array.isArray(v) && textOf(v, ["name", "title"]) !== "";
-
-/* A thing needs a text or picture besides its name. */
-const findThing = (attrs) =>
-  Object.keys(attrs).find(
-    (k) => isThing(attrs[k]) && [...THING_TEXT, ...PICTURE_ATTRS].some((f) => !isEmpty(attrs[k][f]))
-  );
-
-/* `type: attribute` shows the thing, or a plain value as the title. `type: picture` shows the
- * state as the title, for sensors like the dish of the day. */
-const renderThing = (id, st, items, ctx) => {
-  const a = st.attributes;
-  const ts = parseTs(st.last_changed, ctx.now);
-  const path = ctx.attribute || findThing(a);
-  const value = path ? attrPath(a, path) : undefined;
-  const item = { key: "r:" + id, kind: ctx.kind, entity: id, ts, past: true };
-  if (isThing(value)) {
-    const title = textOf(value, ["name", "title"]);
-    const text = textOf(value, THING_TEXT);
-    const image = textOf(value, PICTURE_ATTRS);
-    items.push({ ...item, title, message: text || ctx.name(st), image, ack: title + "\u0000" + text });
-    return;
-  }
-  if (ctx.kind === "attribute") {
-    if (!ctx.attribute || ctx.objectOnly || isEmpty(value) || typeof value === "object") return;
-    const title = ctx.formatAttribute(st, path, value);
-    items.push({ ...item, title, titles: [title, String(value)], message: ctx.name(st), ack: String(value) });
-    return;
-  }
-  if (isInactive(st.state)) return;
-  items.push({ ...item, title: ctx.format(st), message: ctx.name(st), ack: String(st.state) });
-};
-
-/* While a calendar is off, its attributes describe the next event. With before, it shows that long ahead. */
-const renderCalendar = (id, st, items, ctx) => {
-  const a = st.attributes;
-  if (!a.message) return;
-  const push = (fields) =>
-    items.push({ key: "c:" + id, kind: "calendar", entity: id, title: a.message, message: ctx.calWhen(a.start_time, a.all_day), ...fields });
-  if (st.state === "on") {
-    push({ ts: parseTs(st.last_changed, ctx.now), past: true, ack: a.message + "\u0000" + a.start_time });
-    return;
-  }
-  if (st.state !== "off" || !(ctx.lead >= 0)) return;
-  const start = isoTime(a.start_time, serverZone(ctx.hass));
-  if (!(start > ctx.now)) return;
-  if (start - ctx.now > ctx.lead) {
-    ctx.wake(start - ctx.lead);
-    return;
-  }
-  /* Once the event runs, its last change may equal its start to the millisecond. The ahead mark keeps a
-   * dismissed reminder from hiding the running event. */
-  push({ ts: start, day: Boolean(a.all_day), ack: [a.message, a.start_time, "ahead"].join("\u0000") });
-};
-
-/* Installing and skipping need an admin, and Home Assistant refuses to skip an update with
- * auto_update on. Everything else is dismissed locally. */
-const renderUpdate = (id, st, items, ctx) => {
-  if (st.state !== "on") return;
-  const a = st.attributes;
-  const t = ctx.t;
-  const name = ctx.named ? ctx.name(st) : a.title || ctx.name(st).replace(/\s*update\s*$/i, "").trim();
-  const version = a.latest_version;
-  const busy = Boolean(a.in_progress);
-  const pct = busy && typeof a.update_percentage === "number" ? a.update_percentage : null;
-  const canInstall = ctx.admin && (Number(a.supported_features) & UPDATE_INSTALL) === UPDATE_INSTALL;
-  items.push({
-    key: "u:" + id,
-    kind: "update",
-    entity: id,
-    title: name || t.update,
-    message: version ? fill(t.update_msg, { v: version }) : t.update_msg_plain,
-    ts: parseTs(st.last_changed, ctx.now),
-    past: true,
-    dismiss: a.auto_update || !ctx.admin ? undefined : () => ctx.hass.callService("update", "skip", { entity_id: id }),
-    actions: busy
-      ? [{ label: pct === null ? t.installing : fill(t.installing_pct, { p: Math.round(pct) }), disabled: true }]
-      : canInstall
-        ? [{ label: t.install, run: () => ctx.hass.callService("update", "install", { entity_id: id }) }]
-        : [],
-    ack: String(version),
-  });
-};
-
-/* Alarms can't be dismissed. They stay until the panel moves on. */
-const ALARM_SEV = { triggered: "crit", pending: "warn", arming: "warn" };
-
-const renderAlarm = (id, st, items, ctx) => {
-  const sev = ALARM_SEV[st.state];
-  if (!sev) return;
-  items.push({
-    key: "a:" + id,
-    kind: "alarm",
-    sev,
-    sticky: true,
-    entity: id,
-    title: ctx.name(st),
-    message: ctx.format(st),
-    ts: parseTs(st.last_changed, ctx.now),
-    past: true,
-  });
-};
-
-/* Dismissed locally, because alert.turn_off would silence the alert for everyone. */
-const renderAlert = (id, st, items, ctx) => {
-  if (st.state !== "on") return;
-  items.push({
-    key: "al:" + id,
-    kind: "alert",
-    sev: "warn",
-    entity: id,
-    title: ctx.name(st),
-    message: "",
-    ts: parseTs(st.last_changed, ctx.now),
-    past: true,
-    ack: "",
-  });
-};
-
-/* A running timer has a fixed end in finishes_at. Its remaining keeps the value from the start, so
- * the time left is read from remaining only while the timer is paused. */
-const renderTimer = (id, st, items, ctx) => {
-  const a = st.attributes;
-  const t = ctx.t;
-  const button = (label, service) => serviceAction(ctx.host, id, label, "timer." + service);
-  const item = { key: "tm:" + id, kind: "timer", entity: id, title: ctx.name(st) };
-  if (st.state === "active") {
-    const end = parseTs(a.finishes_at, NaN);
-    items.push({
-      ...item,
-      oldKey: "g:" + id,
-      oldRow: { ack: "active", ts: parseTs(st.last_changed, ctx.now) },
-      message: ctx.format(st),
-      ts: end,
-      live: true,
-      clock: true,
-      ack: String(a.finishes_at),
-      actions: [button(t.act_pause, "pause"), button(t.act_cancel, "cancel")],
-    });
-  } else if (st.state === "paused") {
-    const rest = parseDuration(a.remaining);
-    items.push({
-      ...item,
-      message: fill(t.paused_left, { t: clockText(rest), s: ctx.format(st) }),
-      ts: parseTs(st.last_changed, ctx.now),
-      past: true,
-      ack: "paused\u0000" + a.remaining,
-      actions: [button(t.act_resume, "start"), button(t.act_cancel, "cancel")],
-    });
-  }
-};
-
-/* A timestamp sensor holds its end, a duration sensor the time left. Either shows while the end lies ahead.
- * The time left goes stale until the sensor changes again, so a duration names its end instead. */
-const renderCountdown = (id, st, items, ctx) => {
-  const ts = toMinute(endOf(st, serverZone(ctx.hass)));
-  if (!(ts > ctx.now)) return;
-  items.push({
-    key: "cd:" + id,
-    kind: "countdown",
-    entity: id,
-    title: ctx.name(st),
-    message: durationUnit(st.attributes) ? ctx.absTime(ts) : ctx.format(st),
-    ts,
-    live: true,
-    ack: "",
-  });
-};
-
-/* The state is the time of the last event and survives a restart, so the entry ends a day after the event. */
-const renderEvent = (id, st, items, ctx) => {
-  const ts = isoTime(st.state, serverZone(ctx.hass));
-  if (!Number.isFinite(ts)) return;
-  const type = st.attributes.event_type;
-  items.push({
-    key: "ev:" + id,
-    kind: "event",
-    entity: id,
-    title: ctx.name(st),
-    message: type == null || type === "" ? "" : ctx.formatAttribute(st, "event_type", type),
-    ts,
-    past: true,
-    expires: ts + DAY_MS,
-    image: findPicture(st.attributes) || devicePicture(ctx.hass, ctx.devicePictures(id)),
-    ack: String(st.state),
-  });
-};
-
-/* With type todo, the items of a list come from a subscription. Without it, a list shows how many are open, as in 0.4.
- * A due date without a time is a day on the server, like an all-day event. What is due by the end of today shows,
- * and with before what is due within that time. */
-const renderTodo = (id, st, items, ctx) => {
-  const list = ctx.todos(id);
-  if (!list) return;
-  const server = serverZone(ctx.hass);
-  const today = dayNumber(ctx.now, ctx.zone);
-  const canFinish = (Number(st.attributes.supported_features) & TODO_UPDATE_ITEM) === TODO_UPDATE_ITEM;
-  for (const todo of list) {
-    if (!todo || todo.status !== "needs_action" || !todo.uid || typeof todo.due !== "string") continue;
-    const day = !todo.due.includes("T");
-    const ts = isoTime(todo.due, server);
-    if (!Number.isFinite(ts)) continue;
-    if (dayNumber(ts, day ? server : ctx.zone) > today && !(ts - ctx.now <= ctx.lead)) {
-      ctx.wake(dayStart(today + 1, ctx.zone));
-      ctx.wake(ts - ctx.lead);
-      continue;
-    }
-    const done = { item: todo.uid, status: "completed" };
-    items.push({
-      key: "t:" + id + ":" + todo.uid,
-      kind: "todo",
-      entity: id,
-      title: String(todo.summary || ""),
-      message: ctx.name(st),
-      ts,
-      day,
-      ack: todo.uid + "\u0000" + todo.due,
-      open: linkAction(ctx.host, "/todo?entity_id=" + id),
-      actions: canFinish ? [serviceAction(ctx.host, id, ctx.t.act_done, "todo.update_item", done)] : [],
-    });
-  }
-};
-
-/* A device shows while Home Assistant counts it as active. A lock that asks for a code gets no button, since
- * the card can't ask for one. 0.4 showed a sounding siren as a plain entity, and its dismissal carries over. */
-const renderDevice = (id, st, items, ctx) => {
-  if (st.state === "unknown" || !stateActive(st)) return;
-  const a = st.attributes;
-  const d = DEVICES[id.split(".")[0]];
-  const offered =
-    d &&
-    (d.when.includes(st.state) || (d.assumed && a.assumed_state === true)) &&
-    (!d.feature || (Number(a.supported_features) & d.feature) === d.feature) &&
-    !(id.startsWith("lock.") && a.code_format);
-  items.push({
-    key: "dv:" + id,
-    oldKey: "g:" + id,
-    kind: "device",
-    sev: d && d.sev && d.sev[st.state],
-    entity: id,
-    title: ctx.name(st),
-    message: ctx.memberText(st) || ctx.format(st),
-    ts: parseTs(st.last_changed, ctx.now),
-    past: true,
-    ack: String(st.state),
-    actions: offered ? [serviceAction(ctx.host, id, ctx.t[d.label], d.action, null, d.confirm)] : [],
-  });
-};
-
-const CAP_SEV = { extreme: "crit", severe: "crit", moderate: "warn" };
-
-const isCap = (a) => Boolean(textOf(a, ["severity"]) && textOf(a, ["headline", "event"]));
-
-const platformOf = (reg, id) => (reg && reg[id] && reg[id].platform) || "";
-
-/* Some integrations keep a warning out of its attributes and answer a get_details action instead, like NINA from
- * Home Assistant 2026.11. An entity can switch warnings while it stays on, so answers are kept per warning. */
-const DETAILS = new Map();
-
-const detailsAction = (hass, id) => {
-  const platform = platformOf(hass.entities, id);
-  return Boolean(platform && hass.services && hass.services[platform] && hass.services[platform].get_details);
-};
-
-/* The details of a warning, null without them, or undefined while they are not known yet. That includes the time
- * before Home Assistant lists its actions, which may come after the states. */
-const askDetails = (hass, st, card) => {
-  const id = st.entity_id;
-  const warning = st.attributes.id || st.last_updated || st.last_changed;
-  const known = DETAILS.get(id) || new Map();
-  let entry = known.get(warning);
-  if (!entry) {
-    if (!detailsAction(hass, id)) return hass.services && Object.keys(hass.services).length ? null : undefined;
-    /* A slot keeps the answer before this one, which a card away from the page may still show. */
-    for (const [old, e] of [...known].slice(0, -1)) if (e.data !== undefined) known.delete(old);
-    entry = { data: undefined, cards: new Set() };
-    known.set(warning, entry);
-    DETAILS.set(id, known);
-    const answer = (data) => {
-      entry.data = isObject(data) ? data : null;
-      for (const c of entry.cards) c._recompute();
-      entry.cards.clear();
-    };
-    const platform = platformOf(hass.entities, id);
-    new Promise((resolve) => resolve(hass.callService(platform, "get_details", {}, { entity_id: id }, false, true))).then(
-      (res) => answer(res && res.response && res.response[id]),
-      () => answer(null)
-    );
-  }
-  if (entry.data === undefined) entry.cards.add(card);
-  return entry.data;
-};
-
-/* Warnings numbered in the attributes, like warning_1_headline and warning_2_headline. */
-const WARNING_KEY = /^([a-z][a-z0-9]*)_(\d+)_(headline|name|title|event)$/;
-
-const numberedWarnings = (a) => {
-  const found = new Map();
-  for (const key of Object.keys(a)) {
-    const m = WARNING_KEY.exec(key);
-    if (m && !isEmpty(a[key])) found.set(m[1] + "_" + m[2], { prefix: m[1], n: Number(m[2]) });
-  }
-  return [...found.values()].sort((x, y) => x.n - y.n);
-};
-
-/* One row per numbered warning. A level of 3 and up, or a severe severity, is critical. An integration may
- * renumber its warnings when one ends, so the key is the warning, not its number. */
-const renderNumbered = (id, st, warnings, items, ctx) => {
-  const a = st.attributes;
-  const zone = serverZone(ctx.hass);
-  const keys = new Set();
-  for (const { prefix, n } of warnings) {
-    const w = (field) => a[prefix + "_" + n + "_" + field];
-    const title = textOf({ headline: w("headline"), name: w("name"), title: w("title"), event: w("event") }, ["headline", "name", "title", "event"]);
-    const name = w("name") || title;
-    const level = Number(w("level")) || 0;
-    const text = textOf({ description: w("description") }, ["description"]);
-    const start = ["start", "onset"].map((k) => isoTime(w(k), zone)).find(Number.isFinite);
-    const end = ["end", "expires"].map((k) => isoTime(w(k), zone)).find(Number.isFinite);
-    let key = "w:" + id + ":" + name + ":" + (w("start") || w("onset") || "");
-    while (keys.has(key)) key += "+";
-    keys.add(key);
-    const item = {
-      key,
-      oldKey: "w:" + id + ":" + n,
-      kind: "warning",
-      sev: level >= 3 || CAP_SEV[String(w("severity")).toLowerCase()] === "crit" ? "crit" : "warn",
-      entity: id,
-      title,
-      message: plainText(text) || (level ? fill(ctx.t.level, { l: level }) : ctx.name(st)),
-      ts: start !== undefined ? start : parseTs(st.last_changed, ctx.now),
-      past: start === undefined,
-      ack: [title, level, text].join("\u0000"),
-    };
-    if (end !== undefined) item.expires = end;
-    items.push(item);
-  }
-};
-
-/* A warning sends its details in its attributes, often in the Common Alerting Protocol, where severity sets the
- * urgency and effective counts as a start too. Where an integration keeps them back, its get_details action
- * answers. Several warnings in one entity are numbered. */
-const renderWarning = (id, st, items, ctx) => {
-  const numbered = numberedWarnings(st.attributes);
-  if (numbered.length) return renderNumbered(id, st, numbered, items, ctx);
-  if (st.state !== "on") return;
-  const a = st.attributes;
-  const cap = isCap(a);
-  const details = cap ? null : ctx.details(st);
-  const w = cap ? a : details || {};
-  const zone = serverZone(ctx.hass);
-  const start = ["start", "onset", "effective"].map((k) => isoTime(w[k], zone)).find(Number.isFinite);
-  const sent = isoTime(w.sent, zone);
-  const expires = isoTime(w.expires, zone);
-  const title = textOf(w, ["headline", "event"]);
-  const text = textOf(w, ["description"]);
-  const changed = parseTs(st.last_changed, ctx.now);
-  const item = {
-    key: "wn:" + id,
-    oldKey: "g:" + id,
-    oldRow: { ack: "on", ts: changed },
-    kind: "warning",
-    sev: CAP_SEV[String(w.severity).toLowerCase()],
-    entity: id,
-    title: title || ctx.name(st),
-    message: plainText(text),
-    ts: start !== undefined ? start : Number.isFinite(sent) ? sent : changed,
-    past: start === undefined,
-    ack: title ? [title, w.severity, text].join("\u0000") : String(a.id || ""),
-  };
-  if (details === undefined) item.waiting = true;
-  if (Number.isFinite(expires)) item.expires = expires;
-  items.push(item);
-};
-
-/* Home Assistant's default theme shows these classes in red while they are on. The worst are critical. */
-const DEVICE_CLASS_SEV = {
-  smoke: "crit",
-  gas: "crit",
-  carbon_monoxide: "crit",
-  moisture: "crit",
-  safety: "crit",
-  heat: "crit",
-  problem: "warn",
-  tamper: "warn",
-  battery: "warn",
-  sound: "warn",
-};
-
-const nameList = (names) => (names.length > 4 ? names.slice(0, 4).join(", ") + " +" + (names.length - 4) : names.join(", "));
-
-/* The members a group entity names. A sensor group keeps its state, a value like a mean, so it names none. */
-const groupMembers = (st) =>
-  Array.isArray(st.attributes.entity_id) && !st.entity_id.startsWith("sensor.")
-    ? st.attributes.entity_id.filter((id) => typeof id === "string")
-    : [];
-
-const memberText = (hass, ids, name) => {
-  const active = ids.map((id) => hass.states[id]).filter((m) => m && stateActive(m));
-  return nameList(active.map((m) => name(m)));
-};
-
-/* The room of an entity, its own or else its device's. */
-const areaOf = (hass, id) => {
-  const entry = hass.entities && hass.entities[id];
-  const device = entry && entry.device_id && hass.devices && hass.devices[entry.device_id];
-  const area = hass.areas && hass.areas[(entry && entry.area_id) || (device && device.area_id)];
-  return (area && area.name) || "";
-};
-
-const renderGeneric = (id, st, items, ctx) => {
-  const active = ctx.forced ? !isInactive(st.state) : isUnambiguouslyActive(st.state);
-  if (!active) return;
-  const a = st.attributes;
-  const binary = id.startsWith("binary_sensor.");
-  items.push({
-    key: "g:" + id,
-    kind: "generic",
-    sev: binary && st.state === "on" ? DEVICE_CLASS_SEV[a.device_class] : undefined,
-    /* A group entity is a group already, so it never joins one. */
-    deviceClass: binary && typeof a.device_class === "string" && !Array.isArray(a.entity_id) ? a.device_class : undefined,
-    entity: id,
-    title: ctx.name(st),
-    message: ctx.memberText(st) || ctx.format(st),
-    ts: parseTs(st.last_changed, ctx.now),
-    past: true,
-    ack: String(st.state),
-  });
-};
-
-/* What an entity shows as, found from its domain and attributes. */
-const detectType = (id, st, hass) => {
-  const a = st.attributes;
-  if (numberedWarnings(a).length) return "warning";
-  if (id.startsWith("calendar.")) return "calendar";
-  if (id.startsWith("update.")) return "update";
-  if (id.startsWith("alarm_control_panel.")) return "alarm";
-  if (id.startsWith("alert.")) return "alert";
-  if (id.startsWith("timer.")) return "timer";
-  if (findThing(a)) return "attribute";
-  /* Home Assistant merges what an integration sends into an event's attributes, and any integration can add
-   * attributes to a device. An event or a device with a thing there keeps the row it had in 0.4. */
-  if (id.startsWith("event.")) return "event";
-  if (DEVICES[id.split(".")[0]]) return "device";
-  if (id.startsWith("binary_sensor.") && (isCap(a) || detailsAction(hass, id))) return "warning";
-  /* A duration may count up as well, so it stays a plain number unless its kind is set, as in 0.4. */
-  if (id.startsWith("sensor.") && a.device_class === "timestamp") return "countdown";
-  return "generic";
-};
-
-/* The kind an entity shows as. checkConfig has already turned `type: recipe` into an attribute. */
-const kindOf = (src, st, hass) => {
-  if (src.type && src.type !== "auto") return src.type;
-  if (src.attribute) return "attribute";
-  return st ? detectType(st.entity_id, st, hass || {}) : "generic";
-};
-
-/* In the order the editor offers them. */
-const RENDERERS = {
-  calendar: renderCalendar,
-  update: renderUpdate,
-  alarm: renderAlarm,
-  alert: renderAlert,
-  timer: renderTimer,
-  countdown: renderCountdown,
-  event: renderEvent,
-  todo: renderTodo,
-  device: renderDevice,
-  warning: renderWarning,
-  attribute: renderThing,
-  picture: renderThing,
-  generic: renderGeneric,
-};
-
-/* Titles and integration names come from the translations _refreshRepairs loads. */
-const REPAIR_SEV = { critical: "crit", error: "crit", warning: "warn" };
-
-const renderRepair = (issue, items, ctx) => {
-  const h = ctx.hass;
-  const slug = issue.translation_key || issue.issue_id;
-  const key = "component." + issue.domain + ".issues." + slug + ".title";
-  const vars = issue.translation_placeholders || {};
-  const localize = (k, v) => (ctx.issueLocalize && ctx.issueLocalize(k, v)) || (h.localize && h.localize(k, v)) || "";
-  const title = localize(key, vars) || prettySlug(slug);
-  items.push({
-    key: "i:" + issue.domain + "/" + issue.issue_id,
-    kind: "repair",
-    sev: REPAIR_SEV[issue.severity] || "warn",
-    title,
-    message: issue.breaks_in_ha_version
-      ? fill(ctx.t.breaks_in, { v: issue.breaks_in_ha_version })
-      : localize("component." + (issue.issue_domain || issue.domain) + ".title"),
-    ts: parseTs(issue.created, ctx.now),
-    past: true,
-    dismiss: () =>
-      h.callWS({
-        type: "repairs/ignore_issue",
-        domain: issue.domain,
-        issue_id: issue.issue_id,
-        ignore: true,
-      }),
-    open: () => fireAction(ctx.host, { tap_action: { action: "navigate", navigation_path: "/config/repairs" } }),
-  });
-};
-
-const fire = (node, type, detail) =>
-  node.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true, detail }));
-
-const fireMoreInfo = (host, entityId) => fire(host, "hass-more-info", { entityId });
-
-/* Home Assistant runs the action as for its own cards, with confirmation, haptics and so on. */
-const fireAction = (host, config) => fire(host, "hass-action", { config, action: "tap" });
-
-const buildTapAction = (tap, host, entity) =>
-  tap && tap.action && tap.action !== "none" ? () => fireAction(host, { entity, tap_action: tap }) : null;
-
-/* A button the card offers on its own, run like an action from the config. With confirmation, Home Assistant
- * asks first in its own words. */
-const serviceAction = (host, entity, label, action, data, confirmation) => ({
-  label,
-  run: () =>
-    fireAction(host, {
-      entity,
-      tap_action: {
-        action: "perform-action",
-        perform_action: action,
-        target: { entity_id: entity },
-        ...(data ? { data } : {}),
-        ...(confirmation ? { confirmation } : {}),
-      },
-    }),
-});
-
-const linkAction = (host, url) => () =>
-  fireAction(host, {
-    tap_action: url.startsWith("/")
-      ? { action: "navigate", navigation_path: url }
-      : { action: "url", url_path: url },
-  });
-
-/* A renderer that throws only loses its own entity. Overrides apply to every item it made. */
-const renderEntity = (id, st, items, ctx, src) => {
-  if (!st) return;
-  const forced = Boolean(src.type && src.type !== "auto");
-  const attribute = src.attribute || null;
-  const objectOnly = Boolean(src.objectOnly);
-  const kind = kindOf(src, st, ctx.hass);
-  const renderer = RENDERERS[kind];
-  if (!renderer) return;
-  const named = Boolean(src.name);
-  const name = named ? (s) => ctx.name(s, src.name) : ctx.name;
-  const before = items.length;
-  try {
-    renderer(id, st, items, { ...ctx, forced, kind, attribute, objectOnly, named, name, lead: parseBefore(src.before) });
-  } catch (e) {
-    console.warn(CARD + ": renderer failed for " + id, e);
-    items.length = before;
-    return;
-  }
-  const ref = src.image;
-  const configured = ref && (ref.includes("/") ? ref : attrPath(st.attributes, ref));
-  const backdrop = Boolean(src.background);
-  for (let i = before; i < items.length; i++) {
-    items[i].image = ctx.url(ref ? configured : items[i].image || findPicture(st.attributes));
-    items[i].backdrop = backdrop && Boolean(items[i].image);
-    /* Up to 0.3 the name replaced the title of every row. */
-    if (named) items[i].titles = [...(items[i].titles || [items[i].title]), name(st)];
-  }
-  if (src.tap_action) {
-    const openFn = buildTapAction(src.tap_action, ctx.host, id);
-    for (let i = before; i < items.length; i++) {
-      items[i].open = openFn;
-      if (!openFn) items[i].inert = true;
-    }
-  }
-  const extra = (src.actions || [])
-    .map((ac) => ({ label: ac.label, run: buildTapAction(ac.tap_action, ctx.host, id) }))
-    .filter((ac) => ac.label && ac.run);
-  for (let i = before; i < items.length; i++) {
-    if (src.icon) items[i].icon = src.icon;
-    if (extra.length) items[i].actions = [...(items[i].actions || []), ...extra];
-    /* A to-do is a task on a list, so it keeps the icon of its kind. */
-    if (items[i].kind !== "todo") items[i].stateObj = st;
-  }
-};
-
-/* A time that says when something happened lies behind, even when Home Assistant's clock runs ahead
- * of the browser's. */
-const isAhead = (it, now) => !it.past && it.ts > now;
-
-/* Critical first, then what lies closest to now, ahead or behind. What happened keeps the newest
- * first, even from a clock that runs ahead. Then the latest arrival, and the key keeps the order
- * stable. */
-const sortItems = (items, now) => {
-  const near = (it) => (!Number.isFinite(it.ts) ? Infinity : it.past ? now - it.ts : Math.abs(it.ts - now));
-  return items.sort((a, b) => {
-    const ra = a.sev === "crit" ? 0 : 1;
-    const rb = b.sev === "crit" ? 0 : 1;
-    if (ra !== rb) return ra - rb;
-    const da = near(a);
-    const db = near(b);
-    if (da !== db) return da < db ? -1 : 1;
-    if ((a.seq || 0) !== (b.seq || 0)) return (b.seq || 0) - (a.seq || 0);
-    return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
-  });
-};
-
-/* A count like 3 windows open. Without words of its own, a class takes Home Assistant's name for it. */
-const alikeTitle = (lang, dc, n, localize) => {
-  const forms = (ALIKE_TITLES[String(lang).split("-")[0]] || {})[dc];
-  if (forms) return fill(n === 1 && forms.one ? forms.one : forms.other, { n });
-  const name = (typeof localize === "function" && localize("component.binary_sensor.entity_component." + dc + ".name")) || prettySlug(dc);
-  return fill("{name} ({n})", { name, n });
-};
-
-/* A group can't show the buttons, the picture or the tap of one entry, so such an entry stays alone. */
-const groupable = (it) => it.kind === "generic" && Boolean(it.deviceClass) && !it.image && !it.open && !(it.actions && it.actions.length);
-
-/* Two or more plain binary sensors of one device class become one entry. */
-const groupAlike = (items, ctx) => {
-  const alike = new Map();
-  for (const it of items) {
-    if (!groupable(it)) continue;
-    if (!alike.has(it.deviceClass)) alike.set(it.deviceClass, []);
-    alike.get(it.deviceClass).push(it);
-  }
-  const out = [];
-  for (const it of items) {
-    const members = groupable(it) ? alike.get(it.deviceClass) : null;
-    if (!members || members.length < 2) out.push(it);
-    else if (members[0] === it) out.push(alikeGroup(it.deviceClass, members, ctx));
-  }
-  return out;
-};
-
-/* The newest member comes first. A member without a room is named instead, and a room shared by several shows once. */
-const alikeGroup = (dc, members, ctx) => {
-  const sorted = sortItems([...members], ctx.now);
-  const rooms = new Set();
-  const names = [];
-  for (const m of sorted) {
-    const room = areaOf(ctx.hass, m.entity);
-    if (!room) {
-      names.push(m.title);
-    } else if (!rooms.has(room)) {
-      rooms.add(room);
-      names.push(room);
-    }
-  }
-  return {
-    key: "gr:" + dc,
-    kind: "group",
-    sev: sorted[0].sev,
-    title: ctx.alikeTitle(dc, sorted.length),
-    message: nameList(names),
-    ts: sorted.reduce((ts, m) => Math.max(ts, m.ts), -Infinity),
-    past: true,
-    icon: sorted[0].icon,
-    stateObj: sorted[0].stateObj,
-    members: sorted,
-    dismiss: () => ctx.host._dismiss(sorted),
-  };
-};
-
-/* Forecasts by "<entity>|<type>", shared by every card and kept over a remount. */
-const FORECAST_CACHE = new Map();
-
-/* Home Assistant's feature bits for forecasts. For rain ahead the card asks for hourly, then twice daily, then daily. */
-const FORECAST_BITS = { daily: 1, hourly: 2, twice_daily: 4 };
-const FORECAST_TYPES = Object.keys(FORECAST_BITS);
-
-const forecastSupported = (st, type) =>
-  FORECAST_TYPES.includes(type) && Boolean((Number(st && st.attributes && st.attributes.supported_features) || 0) & FORECAST_BITS[type]);
-
-const forecastType = (st) => ["hourly", "twice_daily", "daily"].find((type) => forecastSupported(st, type)) || null;
-
-/* An info shows the forecast it names while its weather entity has it. */
-const showsForecast = (info, st) => info.entity.startsWith("weather.") && info.show_forecast !== false && forecastSupported(st, info.forecast_type);
-
-/* Like Home Assistant's forecast card, a clear or partly cloudy night has a night icon. */
-const NIGHT_ICONS = { sunny: "mdi:weather-night", partlycloudy: "mdi:weather-night-partly-cloudy" };
-
-const FORECAST_SPAN = { hourly: 3600000, twice_daily: 43200000, daily: 86400000 };
-
-/* Where the profile picks a number format, Home Assistant formats numbers like these locales. None is en-US
- * without grouping. */
-const NUMBER_LOCALES = { comma_decimal: "en-US", decimal_comma: "de", space_comma: "fr", quote_decimal: "de-CH", none: "en-US" };
-
-/* The entries that have not ended yet. Home Assistant sends null when it has no forecast. */
-const forecastFilterPast = (forecast, type, now) =>
-  (Array.isArray(forecast) ? forecast : []).filter((f) => f && Date.parse(f.datetime) + FORECAST_SPAN[type] > now);
-
-/* What the card reads from a forecast. A new one with the same print changes nothing. */
-const forecastFingerprint = (forecast) =>
-  Array.isArray(forecast)
-    ? forecast
-        .map((f) =>
-          f ? [f.datetime, f.condition, f.temperature, f.templow, f.is_daytime, f.precipitation, f.precipitation_probability].join("|") : ""
-        )
-        .join(";")
-    : "";
-
-const WET = new Set(["rainy", "pouring", "lightning", "lightning-rainy", "snowy", "snowy-rainy", "hail"]);
-
-const isWet = (f, unit) =>
-  WET.has(f.condition) || Number(f.precipitation) >= (unit === "in" ? 0.01 : 0.2) || Number(f.precipitation_probability) >= 60;
-
-const wetKind = (condition, temperature, cold) => {
-  const c = String(condition || "");
-  if (c.startsWith("lightning")) return "thunder";
-  if (c === "hail") return "hail";
-  return c.startsWith("snowy") || (temperature != null && temperature !== "" && Number(temperature) <= cold) ? "snow" : "rain";
-};
-
-const WEATHER_ICONS = {
-  rain: "mdi:weather-rainy",
-  snow: "mdi:weather-snowy",
-  thunder: "mdi:weather-lightning",
-  hail: "mdi:weather-hail",
-  frost: "mdi:snowflake-thermometer",
-};
-
-/* The weather condition whose state color each entry takes. */
-const WEATHER_STATES = { rain: "rainy", snow: "snowy", thunder: "lightning", hail: "hail", frost: "snowy" };
-
-const weatherColor = (kind) => stateColorChain("weather", null, WEATHER_STATES[kind], true);
-
-/* Open windows anywhere in Home Assistant, but not a group of them. Every window is watched, so one that opens counts at once. */
-const openWindows = (states, watch) => {
-  let open = 0;
-  for (const id in states) {
-    const st = states[id];
-    if (!st || !st.attributes || st.attributes.device_class !== "window" || Array.isArray(st.attributes.entity_id)) continue;
-    if (id.startsWith("binary_sensor.")) {
-      watch(id);
-      if (st.state === "on") open++;
-    } else if (id.startsWith("cover.")) {
-      watch(id);
-      if (st.state !== "closed" && st.state !== "unavailable" && st.state !== "unknown") open++;
-    }
-  }
-  return open;
-};
-
-/* Rain, snow, thunder or hail in the next 6 hours, and frost in the next 18. With a window open, wet weather is a
- * warning, also while it already rains. A daily forecast has no hours, so it gives neither. */
-const renderWeather = (id, st, forecast, type, items, ctx) => {
-  if (!st) return;
-  const t = ctx.t;
-  const a = st.attributes;
-  const fahrenheit = a.temperature_unit === "°F";
-  const hours = type === "hourly" || type === "twice_daily" ? forecast : [];
-  const windows = openWindows(ctx.hass.states, ctx.watch);
-  const wet = (kind, title, message, ts, past) =>
-    items.push({
-      key: "wx:" + id + ":wet",
-      kind: "weather",
-      entity: id,
-      icon: WEATHER_ICONS[kind],
-      color: weatherColor(kind),
-      sev: windows ? "warn" : undefined,
-      title,
-      message,
-      ts,
-      past,
-      /* An open window makes it new, so a hint dismissed before comes back as a warning. */
-      ack: kind + (windows ? " open" : ""),
-    });
-  if (WET.has(st.state)) {
-    const kind = wetKind(st.state, a.temperature, fahrenheit ? 34 : 1);
-    if (windows) wet(kind, t["wx_" + kind + "_now"], ctx.alikeTitle("window", windows), parseTs(st.last_changed, ctx.now), true);
-  } else {
-    const hour = hours.find((f) => Date.parse(f.datetime) < ctx.now + 6 * 3600000 && isWet(f, a.precipitation_unit));
-    if (hour) {
-      /* A forecast hour that has begun counts from now. */
-      const start = Math.max(Date.parse(hour.datetime), ctx.now);
-      const kind = wetKind(hour.condition, hour.temperature, fahrenheit ? 34 : 1);
-      const chance = Number(hour.precipitation_probability);
-      const message = windows
-        ? ctx.alikeTitle("window", windows)
-        : hour.precipitation_probability != null && Number.isFinite(chance)
-          ? fill(t.wx_chance, { p: ctx.percent(chance) })
-          : "";
-      wet(kind, fill(t["wx_" + kind + "_from"], { t: ctx.hour(start) }), message, start, false);
-    }
-  }
-  const freeze = fahrenheit ? 32 : 0;
-  if (!hours.length || a.temperature == null || !(Number(a.temperature) > freeze)) return;
-  const ahead = hours.filter((f) => Date.parse(f.datetime) < ctx.now + 18 * 3600000 && f.temperature != null && Number.isFinite(Number(f.temperature)));
-  const first = ahead.find((f) => Number(f.temperature) < freeze);
-  if (!first) return;
-  const start = Math.max(Date.parse(first.datetime), ctx.now);
-  items.push({
-    key: "wx:" + id + ":frost",
-    kind: "weather",
-    entity: id,
-    icon: WEATHER_ICONS.frost,
-    color: weatherColor("frost"),
-    title: fill(t.wx_frost_from, { t: ctx.hour(start) }),
-    message: fill(t.wx_low, { v: ctx.formatAttribute(st, "temperature", Math.min(...ahead.map((f) => Number(f.temperature)))) }),
-    ts: start,
-    ack: "frost",
-  });
-};
-
-/* Only moments ahead count. One that has passed would wake the card again and again. */
-const waker = (times, now) => (ts) => {
-  if (ts > now) times.push(ts);
-};
-
-/* An entry goes at its expiry without a change in Home Assistant. The card wakes for that, and for
- * the end of a countdown. */
-const dropExpired = (items, now, wake) =>
-  items.filter((it) => {
-    if (it.expires != null && it.expires <= now) return false;
-    if (it.expires != null) wake(it.expires);
-    if (it.live) wake(it.ts);
-    return true;
-  });
-
-/* The order changes on its own once an entry ahead comes as close to now as the one before it.
- * Neighbours always swap first, so the earliest of their swaps is the next change. */
-const nextReorder = (items, now) => {
-  let next = null;
-  for (let i = 1; i < items.length; i++) {
-    const a = items[i - 1];
-    const b = items[i];
-    if ((a.sev === "crit") !== (b.sev === "crit") || !isAhead(b, now) || !(b.ts > a.ts)) continue;
-    const at = Math.max((a.ts + b.ts) / 2, now + 1);
-    if (next === null || at < next) next = at;
-  }
-  return next;
-};
-
-/* One wait for the earliest of times, at most a day. The extra 50 ms make sure the moment has passed. */
-const wakeDelay = (times, now) => {
-  if (!times.length) return null;
-  const next = times.reduce((a, b) => Math.min(a, b), Infinity);
-  return Math.min(Math.max(next - now, 0), DAY_MS) + 50;
-};
-
-/* A countdown rounds up, so it reads 0:00 only once it has ended. */
-const clockText = (ms) => {
-  const total = ms > 0 ? Math.ceil(ms / 1000) : 0;
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = String(total % 60).padStart(2, "0");
-  return h ? h + ":" + String(m).padStart(2, "0") + ":" + s : m + ":" + s;
-};
-
-/* Milliseconds until the times on show change, or 0. A countdown in view changes by the second, in
- * step with its end. Other times change by the minute, while the list is open or an entry lies
- * ahead. */
-const nextTick = (items, head, open, now) => {
-  const clock = (open ? items : head ? [head] : []).find((it) => it.clock && it.ts > now);
-  if (clock) return (clock.ts - now) % 1000 || 1000;
-  if (open || items.some((it) => isAhead(it, now)) || (head && !head.clock && headTime(head))) return 60000 - (now % 60000);
-  return 0;
-};
-
-/* The closed card shows the time of an entry in place of its message while it runs, or when it has no message. */
-const headTime = (it) => Boolean(it.live || (!it.message && Number.isFinite(it.ts)));
-
-/* A row is built again only when something it shows has changed. Times change in place. */
-const rowSig = (it) =>
-  [
-    it.kind,
-    it.icon || "",
-    it.sev || "",
-    it.title,
-    it.message || Number.isFinite(it.ts),
-    Boolean(it.dismiss),
-    Boolean(it.open || it.entity) && !it.inert,
-    (it.actions || []).map((a) => a.label + (a.disabled ? "!" : "")).join("|"),
-  ].join("\u0000");
-
-/* Writing the same text again would make a screen reader announce it again. */
-const setText = (el, text) => {
-  if (el.textContent !== text) el.textContent = text;
-};
-
-const setImage = (tile, url) => {
-  let img = tile.querySelector("img");
-  if (!url) {
-    if (img) img.remove();
-    return;
-  }
-  if (!img) {
-    img = document.createElement("img");
-    img.alt = "";
-    img.decoding = "async";
-    img.draggable = false;
-    img.referrerPolicy = "no-referrer";
-    img.addEventListener("load", () => img.classList.add("ready"));
-    img.addEventListener("error", () => img.classList.remove("ready"));
-    tile.prepend(img);
-  }
-  if (img.getAttribute("src") !== url) img.src = url;
-};
-
-/* Like Home Assistant's own icons, the option goes first, then the icon the user picked for the entity, then the
- * one the entity names. */
-const fallbackIcon = (it, hass) => {
-  const st = it.stateObj;
-  const reg = st && hass && hass.entities && hass.entities[st.entity_id];
-  return it.icon || (reg && reg.icon) || (st && st.attributes && st.attributes.icon) || ICONS[it.kind] || ICONS.generic;
-};
-
-/* Home Assistant's state icon follows the state, like an open or a closed lock. Until Home Assistant has defined
- * it, an entry shows the icon its entity names, or its kind's. */
-const setIcon = (tile, it, hass) => {
-  const state = it.stateObj && customElements.get("ha-state-icon") ? it.stateObj : null;
-  const tag = state ? "ha-state-icon" : "ha-icon";
-  let el = tile.querySelector("ha-icon, ha-state-icon");
-  if (!el || el.localName !== tag) {
-    const fresh = document.createElement(tag);
-    if (el) el.replaceWith(fresh);
-    else tile.insertBefore(fresh, tile.querySelector(".badge"));
-    el = fresh;
-  }
-  if (state) {
-    el.hass = hass;
-    el.stateObj = state;
-    el.icon = it.icon || undefined;
-  } else {
-    el.setAttribute("icon", fallbackIcon(it, hass));
-  }
-};
-
-const STYLES = `
-  *, *::before, *::after { box-sizing: border-box; }
+`,Gt=M`
   :host {
     --origami-pad: 10px;
     --origami-gap: 10px;
-    --origami-gap-s: var(--ha-space-2, 8px);
     --origami-radius: var(--ha-border-radius-md, 8px);
     --origami-tile: 36px;
     --origami-icon: 24px;
@@ -1805,50 +295,64 @@ const STYLES = `
     --origami-row-bg: transparent;
     --origami-hover: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
     --origami-focus: var(--ha-color-focus, var(--primary-color));
-    --origami-time: var(--ha-animation-duration-normal, 250ms);
-    --origami-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+`,ks=M`
+  :host {
     --origami-bg-auto: 0.22;
-    --tile-color: var(--state-inactive-color);
     display: grid;
-    grid-template-rows: 1fr;
     -webkit-tap-highlight-color: transparent;
   }
-  :host(.dark) { --origami-bg-auto: 0.32; }
-  /* :host sets display, which would beat [hidden]. */
-  :host([hidden]) { display: none !important; }
-  :host(.leaving) { pointer-events: none; }
-  :host(.intro) .slide, :host(.intro) .head .glyph { opacity: 0; }
-  :host(.no-anim), :host(.no-anim) * {
+  :host(.dark) {
+    --origami-bg-auto: 0.32;
+  }
+  :host([hidden]) {
+    display: none !important;
+  }
+  :host(.hiding) {
+    pointer-events: none;
+  }
+  :host([preview]) *,
+  :host([preview]) *::before {
     transition: none !important;
     animation: none !important;
   }
   ha-card {
-    background: var(--origami-card-bg);
+    --tile-color: var(--state-inactive-color);
     display: flex;
     flex-direction: column;
     min-height: 0;
     max-height: var(--origami-max-height, none);
     overflow: hidden;
     isolation: isolate;
-    -webkit-user-select: none;
+    background: var(--origami-card-bg);
     user-select: none;
     -webkit-touch-callout: none;
-    transition: box-shadow 180ms ease-in-out, border-color 180ms ease-in-out;
+    transition: box-shadow var(--ha-animation-duration-normal, 250ms) ease-in-out, border-color var(--ha-animation-duration-normal, 250ms) ease-in-out;
   }
-  /* Keyboard focus rings the card in the color of what it shows, like a tile. */
   ha-card:has(.head:focus-visible) {
     border-color: var(--tile-color);
     box-shadow: var(--ha-card-box-shadow, 0 0 0 0 transparent), 0 0 0 1px var(--tile-color);
   }
-  /* In the sections view footer the list scrolls within a quarter of the screen. */
-  :host(.docked) ha-card { max-height: var(--origami-max-height, 25dvh); }
-  /* With a fixed height from the layout tab the card fills its cell, the header centers and the list
-   * scrolls. ha-card is stretched rather than sized, so a margin from css stays inside the cell. */
-  :host(.bounded) { height: 100%; }
-  :host(.bounded) ha-card:not(.open) .hwrap { flex: 1 1 auto; }
-  :host(.bounded) ha-card:not(.open) .head { height: 100%; }
+  :host(.docked) ha-card {
+    max-height: var(--origami-max-height, 25dvh);
+  }
+  :host(.bounded) {
+    height: 100%;
+  }
+  :host(.bounded) ha-card:not(.open) .head-wrap {
+    flex: 1 1 auto;
+  }
+  :host(.bounded) ha-card:not(.open) .head {
+    height: 100%;
+  }
 
-  .backdrop, .alert {
+  .backdrop,
+  .pulse {
     position: absolute;
     inset: 0;
     z-index: -1;
@@ -1857,69 +361,123 @@ const STYLES = `
     pointer-events: none;
   }
   .backdrop img {
+    --blur: var(--origami-bg-blur, 24px);
     position: absolute;
-    top: calc(var(--origami-bg-blur, 24px) * -2);
-    left: calc(var(--origami-bg-blur, 24px) * -2);
-    width: calc(100% + var(--origami-bg-blur, 24px) * 4);
-    height: calc(100% + var(--origami-bg-blur, 24px) * 4);
+    top: calc(var(--blur) * -2);
+    left: calc(var(--blur) * -2);
+    width: calc(100% + var(--blur) * 4);
+    height: calc(100% + var(--blur) * 4);
     max-width: none;
     object-fit: cover;
-    filter: blur(var(--origami-bg-blur, 24px)) saturate(1.3);
+    filter: blur(var(--blur)) saturate(1.3);
     opacity: 0;
-    transition: opacity 700ms var(--origami-ease);
+    transition: opacity calc(2 * var(--ha-animation-duration-slow, 350ms)) ease-in-out;
   }
-  .backdrop img.on { opacity: var(--origami-bg-opacity, var(--origami-bg-auto)); }
-  /* Something critical makes the closed card pulse, like Home Assistant's alert card. */
-  .alert { background: var(--error-color); opacity: 0; }
-  ha-card.crit:not(.open) .alert { animation: origami-pulse 1s ease-in-out infinite alternate; }
-  @keyframes origami-pulse { to { opacity: var(--origami-pulse-opacity, 0.2); } }
+  .backdrop img.on {
+    opacity: var(--origami-bg-opacity, var(--origami-bg-auto));
+  }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+    .backdrop {
+      display: none;
+    }
+  }
 
-  .head, .ebar {
+  .pulse {
+    background: var(--error-color);
+    opacity: 0;
+  }
+  @keyframes pulse {
+    to {
+      opacity: var(--origami-pulse-opacity, 0.3);
+    }
+  }
+  ha-card.crit:not(.open) .pulse {
+    animation: pulse 1s ease-in-out infinite alternate;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    ha-card.crit:not(.open) .pulse {
+      animation: none;
+      opacity: var(--origami-pulse-opacity, 0.3);
+    }
+  }
+
+  .head-wrap,
+  .drawer {
+    display: grid;
+    transition: grid-template-rows var(--ha-animation-duration-normal, 250ms) ease-in-out;
+  }
+  .head-wrap {
+    flex: none;
+    grid-template-rows: 1fr;
+  }
+  .drawer {
+    flex: 0 1 auto;
+    min-height: 0;
+    grid-template-rows: 0fr;
+  }
+  ha-card.open .head-wrap {
+    grid-template-rows: 0fr;
+  }
+  ha-card.open .drawer {
+    grid-template-rows: 1fr;
+  }
+  .head,
+  .inner {
+    min-height: 0;
+    overflow: hidden;
+    transition:
+      opacity var(--ha-animation-duration-fast, 150ms) ease-in-out,
+      visibility 0s var(--ha-animation-duration-normal, 250ms);
+  }
+  ha-card:not(.open) .inner,
+  ha-card.open .head {
+    opacity: 0;
+    visibility: hidden;
+  }
+  ha-card.open .inner,
+  ha-card:not(.open) .head {
+    transition:
+      opacity var(--ha-animation-duration-fast, 150ms) ease-in-out var(--ha-animation-duration-instant, 75ms),
+      visibility 0s;
+  }
+
+  .head,
+  .bar {
     position: relative;
     display: flex;
     align-items: center;
     gap: var(--origami-gap);
+    padding: 0 var(--origami-pad);
     outline: none;
   }
   .head {
-    padding: 0 var(--origami-pad);
     touch-action: pan-y;
   }
-  ha-card.tappable .head, .ebar { cursor: pointer; }
+  ha-card.tappable .head,
+  .bar {
+    cursor: pointer;
+  }
+  ha-card:not(.tappable) .head ha-ripple {
+    display: none;
+  }
   ha-ripple {
     --ha-ripple-color: var(--tile-color);
     --ha-ripple-hover-opacity: 0.04;
     --ha-ripple-pressed-opacity: 0.12;
   }
-  ha-card:not(.tappable) .head ha-ripple { display: none; }
-
-  .tile, .rtile {
-    position: relative;
-    flex: none;
-    width: var(--origami-tile);
-    height: var(--origami-tile);
-    display: flex; align-items: center; justify-content: center;
-    border-radius: var(--ha-tile-icon-border-radius, var(--ha-border-radius-pill, 9999px));
-    color: var(--tile-color);
-    --mdc-icon-size: var(--origami-icon);
-    transition: color var(--origami-time) ease-in-out;
+  .head .icon.idle {
+    color: var(--state-inactive-color);
   }
-  .glyph {
-    position: absolute;
-    inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: inherit;
-  }
-  .tile :is(ha-icon, ha-state-icon), .rtile :is(ha-icon, ha-state-icon) { display: flex; }
-  .tile.idle { color: var(--state-inactive-color); }
-
   .badge {
     position: absolute;
     top: -2px;
     inset-inline-end: -6px;
-    min-width: 16px; height: 16px;
+    min-width: 16px;
+    height: 16px;
     padding: 0 4px;
-    display: flex; align-items: center; justify-content: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: var(--accent-color);
     color: var(--text-accent-color, var(--text-primary-color, #fff));
     border-radius: 8px;
@@ -1929,10 +487,7 @@ const STYLES = `
     font-variant-numeric: tabular-nums;
     line-height: 1;
   }
-  .badge[hidden] { display: none; }
 
-  /* Only the text moves when the card turns, and it is clipped here. The soft edges lie in the space around the
-   * text, so the text at rest never fades. The row height sits here too, so the open card folds the head away. */
   .texts {
     flex: 1 1 auto;
     min-width: 0;
@@ -1943,8 +498,12 @@ const STYLES = `
     padding-inline: var(--origami-gap);
     overflow: hidden;
   }
-  .texts.up { mask-image: linear-gradient(to bottom, transparent, #000 8px, #000 calc(100% - 8px), transparent); }
-  .texts.side { mask-image: linear-gradient(to right, transparent, #000 var(--origami-gap), #000 calc(100% - var(--origami-gap)), transparent); }
+  .texts.up {
+    mask-image: linear-gradient(to bottom, transparent, #000 8px, #000 calc(100% - 8px), transparent);
+  }
+  .texts.side {
+    mask-image: linear-gradient(to right, transparent, #000 var(--origami-gap), #000 calc(100% - var(--origami-gap)), transparent);
+  }
   .slide {
     flex: 1 1 auto;
     min-width: 0;
@@ -1959,78 +518,59 @@ const STYLES = `
     font-weight: var(--ha-tile-info-primary-font-weight, var(--ha-font-weight-medium, 500));
     line-height: var(--ha-tile-info-primary-line-height, var(--ha-line-height-normal, 1.6));
     letter-spacing: var(--ha-tile-info-primary-letter-spacing, 0.1px);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .msg, .eta {
+  .head .secondary {
     min-width: 0;
     color: var(--ha-tile-info-secondary-color, var(--secondary-text-color));
     font-size: var(--ha-tile-info-secondary-font-size, var(--ha-font-size-s, 12px));
     font-weight: var(--ha-tile-info-secondary-font-weight, var(--ha-font-weight-normal, 400));
     line-height: var(--ha-tile-info-secondary-line-height, var(--ha-line-height-condensed, 1.2));
     letter-spacing: var(--ha-tile-info-secondary-letter-spacing, 0.4px);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .msg state-display { display: inline; }
-  .msg state-display[hidden] { display: none; }
-  .eta { font-variant-numeric: tabular-nums; }
-  .msg[hidden], .eta[hidden], .head.single .msg { display: none; }
+  .head .secondary.time {
+    font-variant-numeric: tabular-nums;
+  }
+  .head state-display {
+    display: inline;
+  }
 
-  .chev {
+  .chevron {
     flex: none;
     color: var(--secondary-text-color);
     --mdc-icon-size: 20px;
   }
-  .chev[hidden], :host(.narrow) .head .chev { display: none; }
-
-  /* Like a tile with vertical content, the icon sits above the text, which then has the whole width. */
+  :host(.narrow) .head .chevron,
+  :host(.vertical) .head .chevron {
+    display: none;
+  }
   :host(.vertical) .head {
     flex-direction: column;
     justify-content: center;
     padding: 10px var(--ha-space-2, 8px);
     text-align: center;
   }
-  :host(.vertical) .texts { align-self: stretch; min-height: 0; }
-  :host(.vertical) .head .chev { display: none; }
+  :host(.vertical) .texts {
+    min-height: 0;
+  }
 
-  /* Header and drawer swap through their grid rows, nothing is measured. */
-  .hwrap, .drawer {
-    display: grid;
-    transition: grid-template-rows 280ms var(--origami-ease);
-  }
-  .hwrap { flex: none; grid-template-rows: 1fr; }
-  .drawer { flex: 0 1 auto; min-height: 0; grid-template-rows: 0fr; }
-  ha-card.open .hwrap { grid-template-rows: 0fr; }
-  ha-card.open .drawer { grid-template-rows: 1fr; }
-  .inner { min-height: 0; }
-  .head, .inner {
-    overflow: hidden;
-    transition: opacity 200ms var(--origami-ease), visibility 0s 280ms;
-  }
-  .inner {
-    display: flex; flex-direction: column;
-    padding-bottom: 0; opacity: 0; visibility: hidden;
-    transition: opacity 200ms var(--origami-ease), padding 280ms var(--origami-ease), visibility 0s 280ms;
-  }
-  ha-card.open .head { opacity: 0; visibility: hidden; }
-  ha-card.open .inner {
-    padding-bottom: var(--origami-gap-s);
-    opacity: 1;
-    visibility: visible;
-    transition: opacity 200ms 80ms var(--origami-ease), padding 280ms var(--origami-ease), visibility 0s;
-  }
-  ha-card:not(.open) .head {
-    transition: opacity 200ms 80ms var(--origami-ease), visibility 0s;
-  }
-  .ebar {
+  .bar {
     flex: none;
     min-height: 48px;
-    padding: 0 var(--origami-pad);
   }
-  .ebar:focus-visible, .row .rtile:focus-visible, .x:focus-visible, .act:focus-visible, .clear:focus-visible {
+  .bar:focus-visible,
+  .clear:focus-visible {
     outline: 2px solid var(--origami-focus);
     outline-offset: -2px;
   }
-  .ebar:focus-visible { border-radius: var(--ha-card-border-radius, var(--ha-border-radius-lg, 12px)); }
+  .bar:focus-visible {
+    border-radius: var(--ha-card-border-radius, var(--ha-border-radius-lg, 12px));
+  }
   .count {
     flex: 1 1 auto;
     color: var(--secondary-text-color);
@@ -2038,186 +578,59 @@ const STYLES = `
     font-weight: var(--ha-font-weight-medium, 500);
     font-variant-numeric: tabular-nums;
   }
+  .inner {
+    display: flex;
+    flex-direction: column;
+  }
+  ha-card.open .inner {
+    padding-bottom: var(--ha-space-2, 8px);
+  }
   .list {
-    position: relative;
     flex: 0 1 auto;
     min-height: 0;
-    display: flex; flex-direction: column;
-    gap: 2px;
     padding: 0 calc(var(--origami-pad) - 4px);
   }
-  :host(.docked) .list,
-  :host(.bounded) .list,
-  :host(.capped) .list {
+  :host(:is(.docked, .bounded, .capped)) .list {
     overflow: hidden;
     overscroll-behavior: contain;
     scrollbar-width: thin;
   }
-  :host(.docked) ha-card.settled .list,
-  :host(.bounded) ha-card.settled .list,
-  :host(.capped) ha-card.settled .list { overflow-y: auto; }
-  /* An animating row hides its overflow, so in a scrolling list it would shrink without flex none. */
-  .row {
-    position: relative;
+  :host(:is(.docked, .bounded, .capped)) ha-card.settled .list {
+    overflow-y: auto;
+  }
+  :host(.with-backdrop) .row {
+    background: color-mix(in srgb, var(--origami-card-bg) 60%, transparent);
+  }
+  :host(.with-backdrop) .row.crit {
+    background: color-mix(in srgb, var(--error-color) 16%, color-mix(in srgb, var(--origami-card-bg) 60%, transparent));
+  }
+  .foot-wrap {
     flex: none;
     display: grid;
-    grid-template-columns: var(--origami-tile) minmax(0, 1fr) auto;
-    grid-template-areas: "rtile rtitle rmeta" "rtile rbody rbody";
-    align-items: center;
-    column-gap: var(--origami-gap);
-    padding: 6px 4px;
-    background: var(--origami-row-bg);
-    border-radius: var(--origami-radius);
-    transition: background-color var(--origami-time) var(--origami-ease);
-  }
-  .row.crit { background: color-mix(in srgb, var(--error-color) 12%, var(--origami-row-bg)); }
-  .row.link, .row.expandable, .row.open { cursor: pointer; }
-  .row.moving, .foot.moving { overflow: hidden; }
-  .row.leaving, .foot.leaving { pointer-events: none; }
-  :host(.has-bg) .row { background: color-mix(in srgb, var(--origami-card-bg) 60%, transparent); }
-  :host(.has-bg) .row.crit { background: color-mix(in srgb, var(--error-color) 16%, color-mix(in srgb, var(--origami-card-bg) 60%, transparent)); }
-  .rtile {
-    grid-area: rtile;
-    align-self: start;
-    outline: none;
-  }
-  .rtile[role="button"] { cursor: pointer; }
-  .glyph img, .rtile img {
-    position: absolute; inset: 0;
-    width: 100%; height: 100%;
-    object-fit: cover;
-    border-radius: inherit;
+    grid-template-rows: 0fr;
     opacity: 0;
-    transition: opacity var(--origami-time) var(--origami-ease);
+    visibility: hidden;
+    transition:
+      grid-template-rows var(--ha-animation-duration-normal, 250ms) ease-in-out,
+      opacity var(--ha-animation-duration-fast, 150ms) ease-in-out,
+      visibility 0s var(--ha-animation-duration-normal, 250ms);
   }
-  img { -webkit-user-drag: none; }
-  img.ready { opacity: 1; }
-  img.ready ~ :is(ha-icon, ha-state-icon) { visibility: hidden; }
-  .row .title {
-    grid-area: rtitle;
-    min-width: 0;
-    color: var(--primary-text-color);
-    font-size: var(--ha-font-size-m, 14px);
-    font-weight: var(--ha-font-weight-medium, 500);
-    line-height: var(--ha-line-height-normal, 1.6);
-    letter-spacing: 0.1px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  .foot-wrap.shown {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
   }
-  /* Only a pointer can open a row, so keyboard focus on its buttons shows all of the text. */
-  .row:is(.open, :has(:focus-visible)) .title { white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; }
-  .meta {
-    grid-area: rmeta;
-    align-self: start;
-    justify-self: end;
-    min-height: calc(var(--ha-font-size-m, 14px) * var(--ha-line-height-normal, 1.6));
-    display: flex; align-items: center;
-    gap: 2px;
-  }
-  .when {
-    color: var(--secondary-text-color);
-    font-size: var(--ha-font-size-s, 12px);
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-    white-space: nowrap;
-  }
-  button {
-    -webkit-appearance: none;
-    appearance: none;
-    font: inherit;
-    touch-action: manipulation;
-  }
-  .x {
-    position: relative;
-    width: 32px; height: 32px;
-    margin: -5px -4px -5px 0;
-    display: flex; align-items: center; justify-content: center;
-    padding: 0;
-    border: none;
-    background: transparent;
-    color: var(--secondary-text-color);
-    border-radius: 50%;
-    cursor: pointer;
-    --mdc-icon-size: 20px;
-  }
-  .x::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: currentColor;
-    opacity: 0;
-    transition: opacity 150ms ease;
-  }
-  /* A bigger touch target. */
-  .x::before { content: ""; position: absolute; inset: -6px -4px; }
-  .x ha-icon { display: flex; }
-  .row .body {
-    grid-area: rbody;
-    color: var(--secondary-text-color);
-    font-size: var(--ha-font-size-s, 12px);
-    line-height: 1.4;
-    letter-spacing: 0.2px;
-    overflow-wrap: anywhere;
-    text-wrap: pretty;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    max-height: calc(2 * 1.4em);
+  .foot-wrap > .clip {
     overflow: hidden;
   }
-  .row .body:empty { display: none; }
-  .row .body .when { font-size: inherit; line-height: inherit; }
-  /* An opened message can be selected and copied. */
-  .row:is(.open, :has(:focus-visible)) .body {
-    display: block;
-    -webkit-line-clamp: unset;
-    line-clamp: none;
-    max-height: none;
-    white-space: pre-line;
-    -webkit-user-select: text;
-    user-select: text;
-    cursor: text;
-  }
-  .actions {
-    grid-row: 3;
-    grid-column: 2 / -1;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--origami-gap-s);
-    margin: var(--origami-gap-s) 0 2px;
-  }
-  /* Buttons look like Home Assistant's filled buttons. */
-  .act {
-    border: none; cursor: pointer;
-    height: 32px;
-    padding: 0 12px;
-    background: var(--ha-color-fill-primary-normal-resting, color-mix(in srgb, var(--primary-color) 14%, transparent));
-    color: var(--ha-color-on-primary-normal, var(--primary-color));
-    border-radius: var(--ha-border-radius-pill, 9999px);
-    font-size: var(--ha-font-size-m, 14px);
-    font-weight: var(--ha-font-weight-medium, 500);
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-    white-space: nowrap;
-    transition: background-color 150ms ease-out;
-  }
-  .act:active { background: var(--ha-color-fill-primary-normal-active, color-mix(in srgb, var(--primary-color) 24%, transparent)); }
-  .act[disabled] {
-    background: var(--ha-color-fill-disabled-normal-resting, color-mix(in srgb, var(--primary-text-color) 8%, transparent));
-    color: var(--ha-color-on-disabled-normal, var(--disabled-text-color));
-    pointer-events: none;
-  }
   .foot {
-    flex: none;
-    margin: var(--origami-gap-s) var(--origami-pad) 0;
+    margin: var(--ha-space-2, 8px) var(--origami-pad) 0;
     border-top: 1px solid var(--divider-color, color-mix(in srgb, currentColor 12%, transparent));
-    padding-top: var(--origami-gap-s);
+    padding-top: var(--ha-space-2, 8px);
     text-align: end;
   }
-  .foot[hidden] { display: none; }
   .clear {
-    border: none; cursor: pointer;
     height: 36px;
     padding: 0 12px;
     background: transparent;
@@ -2225,3300 +638,193 @@ const STYLES = `
     border-radius: var(--ha-border-radius-pill, 9999px);
     font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
-    transition: background-color 150ms ease-out;
+    transition: background-color var(--ha-animation-duration-fast, 150ms) ease-out;
   }
-  .clear:active { background: var(--ha-color-fill-primary-quiet-active, color-mix(in srgb, var(--primary-color) 12%, transparent)); }
-  .x:active::after { opacity: 0.16; }
-
+  .clear:active {
+    background: var(--ha-color-fill-primary-quiet-active, color-mix(in srgb, var(--primary-color) 12%, transparent));
+  }
   @media (hover: hover) {
-    .row.link:hover, .row.expandable:hover, .row.open:hover { background-color: var(--origami-hover); }
-    .row.crit.link:hover { background-color: color-mix(in srgb, var(--error-color) 16%, var(--origami-hover)); }
-    .x:hover::after { opacity: 0.1; }
-    .act:hover { background: var(--ha-color-fill-primary-normal-hover, color-mix(in srgb, var(--primary-color) 20%, transparent)); }
-    .clear:hover { background: var(--ha-color-fill-primary-quiet-hover, color-mix(in srgb, var(--primary-color) 8%, transparent)); }
-    .ebar:hover .chev { color: var(--primary-text-color); }
+    .clear:hover {
+      background: var(--ha-color-fill-primary-quiet-hover, color-mix(in srgb, var(--primary-color) 8%, transparent));
+    }
+    .bar:hover .chevron {
+      color: var(--primary-text-color);
+    }
   }
-
-  /* Read by screen readers only. */
   .say {
     position: absolute;
-    width: 1px; height: 1px;
+    width: 1px;
+    height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
   }
-
-  /* The background picture is decoration, so it goes for less transparency or more contrast. */
-  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
-    .backdrop { display: none; }
-    :host(.has-bg) .row { background: var(--origami-row-bg); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    :host, :host * {
-      transition: none !important;
-      animation: none !important;
-    }
-    ha-card.crit:not(.open) .alert { opacity: var(--origami-pulse-opacity, 0.2); }
-  }
-`;
-
-const TEMPLATE = `
-  <style>${STYLES}</style>
-  <ha-card>
-    <div class="backdrop" aria-hidden="true"><img alt="" draggable="false"><img alt="" draggable="false"></div>
-    <div class="alert" aria-hidden="true"></div>
-    <div class="hwrap">
-      <div class="head" role="button" tabindex="0">
-        <div class="tile"><div class="glyph"><ha-icon></ha-icon></div><div class="badge" hidden></div></div>
-        <div class="texts">
-          <div class="slide">
-            <div class="title"></div>
-            <div class="msg"><span class="t"></span></div>
-            <div class="eta" aria-live="off" hidden></div>
+`;var Vn=i=>i.unsub.then(t=>t()).catch(()=>{}),Yt=class{constructor(){this.subs=new Map}sync(t){for(let[e,s]of this.subs){let n=t.get(e);n&&!(s.failed&&s.token!==n.token)||(this.subs.delete(e),Vn(s))}for(let[e,{start:s,token:n}]of t){if(this.subs.has(e))continue;let o={token:n,failed:!1};o.unsub=Promise.resolve().then(s),o.unsub.catch(()=>o.failed=!0),this.subs.set(e,o)}}clear(){this.sync(new Map)}};var Ue=j+"-dialog",Kn=300,Gn=2*6e4,Yn=["connection","user","locale","config","localize","entities","devices","areas","services","themes","formatEntityState","formatEntityName","formatEntityAttributeValue"],ct=(i,t,e)=>i.dispatchEvent(new CustomEvent(t,{bubbles:!0,composed:!0,detail:e})),Xt=class extends T{static styles=[Gt,Kt,Vt,ks];static properties={preview:{type:Boolean,reflect:!0}};constructor(){super(),this.connectedWhileHidden=!0,this.preview=!1,this._data={notifications:new Map,repairs:[],todos:new Map,forecasts:new Map,conditions:new Map},this._seq=0,this._subs=new Yt,this._dismissals=new Ut(()=>this._refresh()),this._motion=new rt(()=>this.requestUpdate()),this._entries=[],this._slides=[],this._turnable=[],this._watched=[],this._wakes=[],this._opened=new Set,this._things=new Map,this._held=new Set,this._media=new Map,this._backdrops=[{},{}],this._open=!1,this._visible=!0,this._now=Date.now();for(let t of["ha-state-icon","state-display","ha-ripple"])customElements.get(t)||customElements.whenDefined(t).then(()=>this.requestUpdate())}static getConfigElement(){return document.createElement(j+"-editor")}static getStubConfig(){return{}}setConfig(t){this._config=Rt(t),this.classList.toggle("vertical",this._config.vertical),this.classList.toggle("bounded",typeof t.grid_options?.rows=="number"),this._derived=null,this._refresh()}set hass(t){let e=this._hass;this._hass=t,(!e||Yn.some(s=>e[s]!==t[s])||this._watched.some(s=>e.states[s]!==t.states[s]))&&this._refresh()}get hass(){return this._hass}getCardSize(){return this._open?1+this.listed().length:this._config?.vertical?2:1}getGridOptions(){return{columns:12,rows:"auto",min_columns:this._config?.vertical?3:6}}connectedCallback(){super.connectedCallback(),clearTimeout(this._collapseTimer);let t=this.getRootNode().host?.localName;this.classList.toggle("docked",t==="hui-view-footer"),this._inPicker=t==="hui-card-picker",this._dismissals.connect(),this._onVisibility||=()=>this._onView(this._visible),document.addEventListener("visibilitychange",this._onVisibility),this._resize||=new ResizeObserver(([s])=>this._onResize(s.contentRect.width)),this._view||=window.IntersectionObserver&&new IntersectionObserver(([s])=>this._onView(s.isIntersecting),{threshold:.01}),this._view?.observe(this);let e=this.renderRoot?.querySelector("ha-card");e&&this._resize.observe(e),this._painted=!1,this._intro=!0,this._refresh()}disconnectedCallback(){super.disconnectedCallback(),this._subs.clear(),this._dismissals.disconnect(),this._gestures?.reset(),this._held.clear();for(let t of this._media.values())t.onchange=null;this._media.clear(),document.removeEventListener("visibilitychange",this._onVisibility),this._resize?.disconnect(),this._view?.disconnect(),[this._wakeTimer,this._clock,this._rotateTimer,this._repairsTimer].forEach(clearTimeout),this._collapseTimer=setTimeout(()=>this._setOpen(!1),150)}_derive(){let t=this._hass,e=this._config,s=[e,t.entities,t.devices,t.locale,t.localize,t.config,t.user];if(this._derived?.key.every((d,p)=>d===s[p]))return this._derived;let n=Ht(t),o=os(n,t.localize),r=t.entities||{},a=new Set(e.entities.map(d=>d.entity)),c=e.label?Object.keys(r).filter(d=>!a.has(d)&&r[d]?.labels?.includes(e.label)):[],l=[...new Set(Object.values(e.audience).flatMap(d=>d.only||d.except))],h=new Map;for(let[d,p]of Object.entries(r))p?.device_id&&/^(image|camera)\./.test(d)&&h.set(p.device_id,[...h.get(p.device_id)||[],d].sort().reverse());return this._derived&&n!==this._derived.lang&&this._config.repairs&&t.user?.is_admin&&this._fetchRepairs(),this._derived={key:s,lang:n,texts:o,clock:new Nt(t,n,o),sources:[...e.entities,...c.map(d=>({entity:d}))],people:l,viewer:l.find(d=>t.states[d]?.attributes.user_id===t.user?.id)||"",updates:e.updates?[...new Set([...Object.keys(t.states),...Object.keys(r)])].filter(d=>d.startsWith("update.")):[],windows:e.weather?qi(t.states):[],pictures:d=>h.get(r[d]?.device_id)||[]},this._derived}_refresh(){let t=this._hass;if(!t||!this._config)return;let e=this._derive(),s=this._data,n=Date.now(),o={todos:new Set,forecasts:new Map,conditions:new Map},r=hs({hass:t,config:this._config,now:n,texts:e.texts,clock:e.clock,admin:!!t.user?.is_admin,viewer:e.viewer,preview:this.preview,sources:e.sources,updates:e.updates,windows:e.windows,devicePictures:e.pictures,issueLocalize:this._issueLocalize,details:d=>Di(t,d,()=>this._refresh()),todos:d=>(o.todos.add(d),s.todos.get(d)),media:d=>this._matches(d),serverCondition:d=>{let p=JSON.stringify(d);return o.conditions.set(p,d),s.conditions.get(p)||{result:!1,failed:!1}},data:{notifications:s.notifications,repairs:s.repairs,forecast:(d,p)=>(o.forecasts.set(`${d}|${p}`,[d,p]),s.forecasts.get(`${d}|${p}`))}});this._sync(o);for(let d of r.entries)(d.kind==="attribute"||d.kind==="picture")&&this._things.set(d.key,d.entity);let a=new Set([...r.known,...[...this._things].filter(([,d])=>r.available.has(d)).map(([d])=>d)]),c=us(this._dismissals.apply(r.entries,a,n,r.ctx.wake),r.ctx),l=this._seen&&c.find(d=>!this._seen.has(d.key)&&Math.abs(n-d.ts)<Gn);l&&(this._say=[l.title,l.message].filter(Boolean).join(". ")),this._seen=new Set(c.map(d=>d.key)),this._entries=c,this._slides=r.slides,this._watched=[...r.watched,...e.people],this._wakes=r.wakes,this._now=n,this._pick(l),clearTimeout(this._wakeTimer);let h=this.isConnected?ps(this._wakes,n):null;h!==null&&(this._wakeTimer=setTimeout(()=>this._refresh(),h)),this._tick(),this._rotate(),this.requestUpdate(),this._dialog?.requestUpdate()}_sync(t){let e=this._hass,s=e.connection,n=new Map,o=(r,a,c,l)=>n.set(r,{token:l,start:()=>s.subscribeMessage(c,a)});if(s&&this.isConnected){o("notifications",{type:"persistent_notification/subscribe"},r=>this._onNotifications(r)),this._config.repairs&&e.user?.is_admin&&n.set("repairs",{start:()=>(this._fetchRepairs(),s.subscribeEvents(()=>{clearTimeout(this._repairsTimer),this._repairsTimer=setTimeout(()=>this._fetchRepairs(),500)},"repairs_issue_registry_updated"))});for(let r of t.todos)o("todo|"+r,{type:"todo/item/subscribe",entity_id:r},a=>this._store("todos",r,a.items||[]),e.states[r]);for(let[r,[a,c]]of t.forecasts)o("forecast|"+r,{type:"weather/subscribe_forecast",entity_id:a,forecast_type:c},l=>this._store("forecasts",r,l.forecast||[]),e.states[a]);for(let[r,a]of t.conditions)o("condition|"+r,{type:"subscribe_condition",condition:a},c=>this._store("conditions",r,{result:c.result===!0,failed:!!c.error}))}this._subs.sync(n)}_store(t,e,s){this._data[t].set(e,s),this._refresh()}_onNotifications({type:t,notifications:e={}}){t==="current"&&(this._data.notifications=new Map);for(let[s,n]of Object.entries(e))t==="removed"?this._data.notifications.delete(s):this._data.notifications.set(s,{...n,seq:++this._seq});this._refresh()}async _fetchRepairs(){let t=this._hass,{issues:e=[]}=await t.callWS({type:"repairs/list_issues"});this._data.repairs=e.filter(n=>!n.ignored),this._refresh();let s=[...new Set(this._data.repairs.map(n=>n.domain))];!s.length||!t.loadBackendTranslation||(await t.loadBackendTranslation("issues",s),this._issueLocalize=await t.loadBackendTranslation("title",[...new Set(this._data.repairs.map(n=>n.issue_domain||n.domain))]),this._refresh())}_matches(t){if(!this._media.has(t)){let e=window.matchMedia(t);e.onchange=()=>this._refresh(),this._media.set(t,e)}return this._media.get(t).matches}listed(){let t=new Map;for(let e of this._slides)t.has(e.row)||t.set(e.row,e);return[...this._entries,...[...t.values()].map(e=>this._infoRow(e))]}_formatters(){let t=this._hass;return{state:e=>t.formatEntityState?t.formatEntityState(e):String(e.state),attr:(e,s,n)=>t.formatEntityAttributeValue?.(e,s,n)||String(n),clock:this._derive().clock,now:this._now}}_infoRow(t){let e=this._hass.states[t.entity],s=this._infoAction(t,"tap");return{key:t.row,kind:"info",title:t.name,message:Ae(e,t.info.state_content,t.name,this._formatters()),icon:t.icon,image:t.image,stateObj:e,color:t.color,ts:NaN,tap:s,inert:!s,actions:[]}}_infoAction(t,e){let s=t.info,n={entity:t.entity,tap_action:s.tap_action||{action:"more-info"},hold_action:s.hold_action,double_tap_action:s.double_tap_action},o=n[e+"_action"];return o&&o.action!=="none"?{...n,gesture:e}:null}_run({gesture:t="tap",...e}){ct(this,"hass-action",{config:e,action:t})}dismiss(t){let e=this._hass;this._dismissals.dismiss(t,s=>s.service?e.callService(...s.service):e.callWS(s.ws))}_pick(t){let e=this._entries.filter(c=>c.sev==="crit"),s=e.length?e:[...this._entries,...this._slides],n=s[0]||null,o=!!(n&&n.kind!=="info"&&n.key!==this._topKey);this._topKey=n?.key,this._turnable=s;let r=s.find(c=>c.key===this._target?.key),a=t&&this._turns()?s.find(c=>c.key===t.key):null;a?(r=a,this._byHand=!1):(!r||o||!this._turned||!(this._turns()||this._byHand))&&(r=n),this._show(r,1,this._config.slide==="side")}_turns(){return this._config.rotate>0?this._config.rotate:0}_show(t,e,s){let n=t?.key!==this._target?.key;this._target=t,!this._turning&&(n&&this._animate()&&!this._open?this._turn(e,s):this._shown=t)}async _turn(t,e){let s=this.renderRoot.querySelector(".slide"),n=this.renderRoot.querySelector(".head .glyph"),o=t*(e&&this._rtl()?-1:1),r=B(this,"slow")*1.6,a={transform:s.style.transform||"none",opacity:s.style.opacity||"1"};s.style.transform=s.style.opacity="",this._motionClass=e?"side":"up",this._turning=!0;let c={duration:r*.4,easing:E.out,fill:"forwards"},l=s.animate([a,{transform:e?`translateX(${-o*24}px)`:`translateY(${-o*14}px)`,opacity:0}],c),h=n.animate([{opacity:1,transform:"none"},{opacity:0,transform:"scale(0.6)"}],c);await l.finished.catch(()=>{}),this._turning=!1,this._shown=this._target,this.requestUpdate(),await this.updateComplete,this._slideIn(o,e,r*.6),l.cancel(),h.cancel()}_slideIn(t,e,s){let n={duration:s,easing:E.in};this._motionClass=e?"side":"up",this.requestUpdate();let o=this.renderRoot.querySelector(".slide").animate([{transform:e?`translateX(${t*24}px)`:`translateY(${t*14}px)`,opacity:0},{transform:"none",opacity:1}],n);this.renderRoot.querySelector(".head .glyph").animate([{opacity:0,transform:"scale(0.6)"},{opacity:1,transform:"none"}],n),o.finished.then(()=>{this._motionClass=null,this.requestUpdate()},()=>{})}_step(t,e){let s=this._turnable;if(s.length<2)return;this._turned=!0,e!=="auto"&&(this._byHand=!0);let n=Math.max(0,s.findIndex(o=>o.key===this._target?.key));this._show(s[(n+t+s.length)%s.length],t,e==="swipe"||this._config.slide==="side"),this.requestUpdate(),this._tick(),this._rotate(!0)}_rotate(t=!1){let e=this._turns()>0&&this._turnable.length>1&&!this._open&&!this._dialog&&!this._held.size&&this.isConnected&&this._visible&&!document.hidden&&!this.hidden&&!this._hiding;e&&this._rotateTimer&&!t||(clearTimeout(this._rotateTimer),this._rotateTimer=null,e&&(this._rotateTimer=setTimeout(()=>{this._rotateTimer=null,this._step(1,"auto")},this._turns()*1e3)))}_hold(t,e){e!==this._held.has(t)&&(e?this._held.add(t):this._held.delete(t),this._rotate(!0))}_tick(){if(clearTimeout(this._clock),!this.isConnected||!this._visible||document.hidden)return;let t=Date.now(),e=this._open||!!this._dialog,s=this._shown?.kind!=="info"?this._shown:null,n=(e?this._entries:s?[s]:[]).find(r=>r.clock&&r.ts>t),o=0;n?o=(n.ts-t)%1e3||1e3:(e||this._entries.some(r=>Me(r,t))||s&&this._headTime(s))&&(o=6e4-t%6e4),o&&(this._clock=setTimeout(()=>{this._now=Date.now(),this.requestUpdate(),this._dialog?.requestUpdate(),this._tick()},o))}_headTime(t){return!!(t.live||!t.message&&Number.isFinite(t.ts))}_onView(t){this._visible=t,this._now=Date.now(),this.requestUpdate(),this._tick(),this._rotate()}_onResize(t){let e=t>0&&t<Kn;e!==this.classList.contains("narrow")&&(this.classList.toggle("narrow",e),this.requestUpdate())}_rtl(){return getComputedStyle(this).direction==="rtl"}_animate(){return!!(this._painted&&!this.preview&&this.isConnected&&this.getClientRects().length)}_empty(){return!this._entries.length&&!this._slides.length&&this._config.hide_when_empty&&!this.preview&&!this._inPicker}_setOpen(t){t!==this._open&&(this._open=t,this._settled=!1,clearTimeout(this._settleTimer),t&&(this.classList.toggle("capped",getComputedStyle(this).getPropertyValue("--origami-max-height").trim()!==""),this._settleTimer=setTimeout(()=>{this._settled=!0,this.requestUpdate()},this._animate()?B(this,"normal"):0)),this.requestUpdate(),this._tick(),this._rotate())}_toggle(){if(!this.listed().length)return;if(!this._open&&this.classList.contains("narrow")&&!this.preview&&customElements.get("ha-adaptive-dialog")){ct(this,"show-dialog",{dialogTag:Ue,dialogImport:()=>Promise.resolve(),dialogParams:{card:this}});return}let t=!!this.renderRoot.activeElement;this._setOpen(!this._open),t&&this.updateComplete.then(()=>this.renderRoot.querySelector(this._open?".bar":".head").focus({preventScroll:!0}))}_tap(){let t=this.listed(),e=t.length===1&&qt(t[0]);e?this._run(e):this._toggle()}_tappable(t){let e=this._shown;return t.length>1||!!(t[0]&&qt(t[0]))||e?.kind==="info"&&["hold","double_tap"].some(s=>this._infoAction(e,s))}_gestureAction(t){let e=this._shown?.kind==="info"&&this._infoAction(this._shown,t);return e?()=>this._run(e):null}firstUpdated(){let t=this.renderRoot.querySelector(".head");this._resize.observe(this.renderRoot.querySelector("ha-card")),this._gestures=new jt(t,{pressed:e=>this._hold("press",e),canDrag:()=>this._turnable.length>1&&!this._open,drag:e=>{if(this._turning)return;let s=this.renderRoot.querySelector(".slide");s.style.transform=`translateX(${e*.6}px)`,s.style.opacity=String(Math.max(.2,1-Math.abs(e)/160))},dragEnd:e=>{if(e)return this._step(e,"swipe");let s=this.renderRoot.querySelector(".slide"),n={transform:s.style.transform||"none",opacity:s.style.opacity||"1"};s.style.transform=s.style.opacity="",s.animate([n,{transform:"none",opacity:1}],{duration:B(this,"normal"),easing:E.standard})},step:e=>this._step(e,"key"),tap:()=>this._tap(),holdAction:()=>this._gestureAction("hold"),doubleTapAction:()=>this._gestureAction("double_tap"),rtl:()=>this._rtl()}),t.addEventListener("focusin",()=>this._hold("focus",t.matches(":focus-visible"))),t.addEventListener("focusout",()=>this._hold("focus",!1))}willUpdate(){this._listMotion=this._open&&this._animate(),this._listMotion&&this._motion.measure(this.renderRoot.querySelector(".list"))}updated(){!this._config||!this._hass||(this._motion.play(this.renderRoot.querySelector(".list"),this._listMotion),this._setHidden(this._empty()),this.classList.toggle("dark",!!this._hass?.themes?.darkMode),this._userCss?.textContent!==this._config.css&&(this._userCss||=this.renderRoot.appendChild(document.createElement("style")),this._userCss.textContent=this._config.css||""),this._refocus!=null&&this._focusRow(this._refocus),this._intro&&this._playIntro())}_playIntro(){this._intro=!1;let t=this._config.slide==="side";this._turnable.length>1&&!this.preview&&this.getClientRects().length&&this._slideIn(t&&this._rtl()?-1:1,t,B(this,"slow")*1.6*.6),requestAnimationFrame(()=>this._painted=!0)}_setHidden(t){if(t===!!(this._hiding||this.hidden))return;this._hostAnim?.cancel();let e=getComputedStyle(this).height,s=!this.classList.contains("bounded"),[n,o]=[B(this,"fast"),B(this,"normal")];if(t){if(!this._animate())return this._gone();this._hiding=!0,this.classList.add("hiding");let c=[{opacity:1,height:e,easing:E.out},{opacity:0,height:e,offset:n/(n+o),easing:E.standard},{opacity:0,height:s?"0px":e}],l=this._hostAnim=this.animate(c,{duration:n+o,fill:"forwards"});l.finished.then(()=>this._hostAnim===l&&this._gone(),()=>{});return}if(this._hiding=!1,this.classList.remove("hiding"),!this.hidden||(this.hidden=!1,ct(this,"card-visibility-changed",{value:!0}),!this._animate()))return;let r=getComputedStyle(this).height,a=s?[{height:"0px",opacity:0,easing:E.standard},{height:r,opacity:0,offset:o/(n+o),easing:E.in},{height:r,opacity:1}]:[{opacity:0},{opacity:1}];this._hostAnim=this.animate(a,{duration:n+o})}_gone(){this._hostAnim?.cancel(),this._hostAnim=null,this._hiding=!1,this.classList.remove("hiding"),this.hidden=!0,ct(this,"card-visibility-changed",{value:!1}),this._setOpen(!1),this._rotate()}_focusRow(t){this._refocus=null;let e=[...this.renderRoot.querySelectorAll(".item:not(.leaving)")];(e[Math.min(t,e.length-1)]?.querySelector(".dismiss, .icon[role=button]")||this.renderRoot.querySelector(this._open?".bar":".head")).focus({preventScroll:!0})}rowView(t){let e=this._derive();return{hass:this._hass,texts:e.texts,clock:e.clock,now:this._now,opened:this._opened,run:s=>this._run(s),toggle:s=>{this._opened.delete(s)||this._opened.add(s),this.requestUpdate(),this._dialog?.requestUpdate()},dismiss:(s,n)=>{let o=this.listed().findIndex(r=>r.key===s.key);this.dismiss([s]),n&&t(o)}}}setDialog(t){this._dialog=t,this._tick(),this._rotate()}get gone(){return this.hidden||!!this._hiding}get css(){return this._config.css||""}get texts(){return this._derive().texts}dismissible(){return this._entries.length>1?this._entries.filter(Lt):[]}listTitle(){let t=this._entries.length,e=this._derive().texts;return t?v(t===1?e.count_one:e.count_other,{n:t}):e.idle_title}_secondary(t,e){return t?t.kind!=="info"?this._headTime(t)?this._derive().clock.entryTime(t,this._now):t.message:t.text!=null?t.text:customElements.get("state-display")?b`<state-display .hass=${this._hass} .stateObj=${t.stateObj} .content=${t.info.state_content} .timeFormat=${t.info.time_format} .name=${t.title}></state-display>`:Ae(t.stateObj,t.info.state_content,t.title,this._formatters()):e.idle_msg}render(){if(!this._config||!this._hass)return _;let t=this._derive().texts,e=this._shown,s=this.listed(),n=this._tappable(s),o=s.length>1,r=this.classList.contains("narrow"),a=e&&e.kind!=="info"&&this._headTime(e),c=this._secondary(e,t),l=this._entries.length,h=this.dismissible();return b`
+      <ha-card
+        class=${Z({open:this._open,crit:e?.sev==="crit",tappable:n,settled:this._open&&this._settled})}
+        style="--tile-color: ${e?De(e):"var(--state-inactive-color)"}"
+        @keydown=${d=>d.key==="Escape"&&this._open&&(d.stopPropagation(),this._toggle())}
+      >
+        ${this._backdrop(e?.backdrop?Ie(this._hass,e.image):null)}
+        <div class="pulse"></div>
+        <div class="head-wrap">
+          <div
+            class="head"
+            role="button"
+            tabindex="0"
+            aria-disabled=${String(!n)}
+            aria-expanded=${o&&!r?String(this._open):_}
+            aria-haspopup=${o&&r?"dialog":_}
+          >
+            <ha-ripple></ha-ripple>
+            <div class=${Z({icon:!0,idle:!e})}>
+              <div class="glyph">${Pe(e||{icon:"mdi:bell-outline"},this._hass)}</div>
+              ${l>1?b`<div class="badge">${l>9?"9+":l}</div>`:_}
+            </div>
+            <div class="texts ${this._motionClass||""}">
+              <div class="slide">
+                <div class="title">${e?e.title:t.idle_title}</div>
+                ${c?b`<div class="secondary ${a?"time":""}" aria-live=${a?"off":_}>${c}</div>`:_}
+              </div>
+            </div>
+            ${o?b`<ha-icon class="chevron" icon="mdi:chevron-down"></ha-icon>`:_}
           </div>
         </div>
-        <ha-icon class="chev" icon="mdi:chevron-down"></ha-icon>
+        <div class="drawer">
+          <div class="inner">
+            <div class="bar" role="button" tabindex="0" aria-expanded="true" @click=${()=>this._toggle()} @keydown=${d=>(d.key==="Enter"||d.key===" ")&&(d.preventDefault(),this._toggle())}>
+              <ha-ripple></ha-ripple>
+              <span class="count">${this.listTitle()}</span>
+              <ha-icon class="chevron" icon="mdi:chevron-up"></ha-icon>
+            </div>
+            <div class="list" role="list">${Ft(this._motion.withLeaving(s,this._listMotion),this.rowView(d=>this._refocus=d))}</div>
+            <div class=${Z({"foot-wrap":!0,shown:h.length>0})}>
+              <div class="clip">
+                <div class="foot">
+                  <button class="clear" type="button" tabindex=${h.length?"0":"-1"} @click=${d=>(this.dismiss(h),d.detail===0&&(this._refocus=0))}>${t.clear}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="say" aria-live="polite">${this._say||""}</div>
+      </ha-card>
+    `}_backdrop(t){let e=this._backdrops;if(t!==this._backdropUrl){this._backdropUrl=t;let n=e.find(o=>o.on);if(!t)e.forEach(o=>o.on=!1);else if(n?.url!==t){let o=n===e[0]?e[1]:e[0];o.url=t,o.loaded===t&&e.forEach(r=>r.on=r===o)}}let s=n=>{n.loaded=n.url,n.url===this._backdropUrl&&e.forEach(o=>o.on=o===n),this.requestUpdate()};return this.classList.toggle("with-backdrop",e.some(n=>n.on)),b`<div class="backdrop" aria-hidden="true">
+      ${e.map(n=>n.url?b`<img class=${n.on?"on":""} src=${n.url} alt="" draggable="false" referrerpolicy="no-referrer" @load=${()=>s(n)} />`:_)}
+    </div>`}};var Jt=class extends T{static styles=[Gt,Kt,Vt,M`
+      :host {
+        font-family: var(--ha-font-family-body);
+        -webkit-font-smoothing: var(--ha-font-smoothing);
+        -moz-osx-font-smoothing: var(--ha-moz-osx-font-smoothing);
+      }
+      ha-adaptive-dialog {
+        --dialog-content-padding: 0;
+      }
+      .list {
+        padding: 0 12px 12px;
+      }
+    `];constructor(){super(),this._motion=new rt(()=>this.requestUpdate())}showDialog({card:t}){this._card&&this._card!==t&&this._release(),this._card=t,t.setDialog(this),this.requestUpdate()}closeDialog(){let t=this.renderRoot?.querySelector("ha-adaptive-dialog");return t&&this._shown?t.open=!1:this._closed(),!0}_release(){this._card?._dialog===this&&this._card.setDialog(null)}_closed(){this._release(),this._card=null,this._shown=!1,this.requestUpdate(),ct(this,"dialog-closed",{dialog:this.localName})}willUpdate(){this._animate=this._shown&&!this._card?.preview,this._animate&&this._motion.measure(this.renderRoot.querySelector(".list"))}updated(){if(this._motion.play(this.renderRoot.querySelector(".list"),this._animate),this._style||=this.renderRoot.appendChild(document.createElement("style")),this._style.textContent=this._card?.css||"",this._refocus!=null){let t=[...this.renderRoot.querySelectorAll(".item:not(.leaving)")];t[Math.min(this._refocus,t.length-1)]?.querySelector(".dismiss, .icon[role=button]")?.focus({preventScroll:!0}),this._refocus=null}}render(){let t=this._card;if(!t)return _;let e=t.gone?[]:t.listed();e.length||queueMicrotask(()=>this._card===t&&this.closeDialog());let s=t.dismissible();return b`
+      <ha-adaptive-dialog
+        open
+        flexcontent
+        .hass=${t.hass}
+        header-title=${t.listTitle()}
+        @opened=${n=>n.target===n.currentTarget&&(this._shown=!0,this.requestUpdate())}
+        @closed=${n=>n.target===n.currentTarget&&this._closed()}
+      >
+        <ha-icon-button slot="headerActionItems" .label=${t.texts.clear} ?hidden=${!s.length} @click=${()=>t.dismiss(s)}>
+          <ha-icon icon="mdi:notification-clear-all"></ha-icon>
+        </ha-icon-button>
+        <div class="list" role="list">${Ft(this._motion.withLeaving(e,this._animate),t.rowView(n=>this._refocus=n))}</div>
+      </ha-adaptive-dialog>
+    `}};var Xn=["entities","label","weather","infos","updates","repairs","hide_when_empty","vertical","rotate","slide","audience","css"],xs=["type","attribute","name","icon","image","background","before","tap_action"],Jn=["entity",...xs,"actions"],Zn=["entity","name","icon","color","show_entity_picture","state_content","time_format","show_current","show_forecast","forecast_type","forecast_slots","tap_action","hold_action","double_tap_action","visibility"],$s=["attribute","picture"],Qn=["calendar","todo"],Le=i=>i==null||i===""||i===!1||Array.isArray(i)&&!i.length||x(i)&&!Object.keys(i).length,je=(i,t)=>Object.fromEntries([...new Set([...t,...Object.keys(i)])].filter(e=>e in i).map(e=>[e,i[e]])),ze=i=>i?i.only?"only":"except":"everyone",to=i=>({days:Math.floor(i/864e5),hours:Math.floor(i%864e5/36e5),minutes:Math.floor(i%36e5/6e4),seconds:i%6e4/1e3}),Zt=i=>!i.forecast_type||i.show_forecast===!1?"show_current":i.show_current===!1?"show_forecast":"show_both",Qt=class extends T{static properties={hass:{attribute:!1},_config:{state:!0}};static styles=M`
+    .infos {
+      margin-top: 24px;
+    }
+    .content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px;
+    }
+    .intro {
+      margin: 0;
+      color: var(--secondary-text-color);
+    }
+  `;constructor(){super(),this._memos=new Map}setConfig(t){Rt(t),this._config=t}get _t(){return as(Ht(this.hass),this.hass?.localize)}_memo(t,e){let s=JSON.stringify(e),n=this._memos.get(t);return n?.json===s?n.value:(this._memos.set(t,{json:s,value:e}),e)}_name(t){let e=this.hass.states[t];return e?Re(this.hass)(e):t}_entries(t=this._config){return(t.entities||[]).map(e=>typeof e=="string"?{entity:e}:e)}_infos(t=this._config){return(t.infos||[]).map(e=>typeof e=="string"?{entity:e}:{...e})}_sources(t=this._config){let e=this._t,s=[{key:"system",name:e.label("system"),icon:O.system}];t.updates!==!1&&s.push({key:"updates",name:e.label("updates"),icon:O.update}),t.repairs!==!1&&s.push({key:"repairs",name:e.label("repairs"),icon:O.repair}),t.weather&&s.push({key:t.weather,name:this._name(t.weather),icon:O.weather});let n=this.hass.entities||{},o=t.label?Object.keys(n).filter(r=>n[r]?.labels?.includes(t.label)).map(r=>({entity:r})):[];for(let r of[...this._entries(t),...o])s.some(a=>a.key===r.entity)||s.push({key:r.entity,name:r.name||this._name(r.entity),icon:r.icon||O[this._kind(r)]});return s}_kind(t){return we(t,this.hass.states[t.entity],this.hass)}_summary(t){let e=this._t,s=ze(t);if(s==="everyone")return e.label("everyone");let n=t[s].map(o=>this._name(o)).join(", ");return n?v(e.label(s+"_x"),{x:n}):e.label(s==="only"?"nobody":"everyone")}_schema(t){let e=this._t,s=this._config.audience||{},n=this._entries(),o=(r,a=c=>e.label(c))=>r.map(c=>({value:c,label:a(c)}));return[{name:"entities",selector:{entity:{multiple:!0}}},{name:"label",selector:{label:{}}},{name:"weather",selector:{entity:{filter:{domain:"weather"}}}},{name:"infos",selector:{entity:{multiple:!0,reorder:!0}}},{name:"",type:"grid",schema:[{name:"updates",selector:{boolean:{}}},{name:"repairs",selector:{boolean:{}}}]},{name:"hide_when_empty",selector:{boolean:{}}},{name:"content_layout",selector:{select:{mode:"box",options:["horizontal","vertical"].map(r=>({value:r,label:e.label(r),image:{src:`/static/images/form/tile_content_layout_${r}.svg`,src_dark:`/static/images/form/tile_content_layout_${r}_dark.svg`,flip_rtl:!0}}))}}},{name:"",type:"grid",schema:[{name:"rotate",selector:{number:{min:0,max:60,step:1,mode:"box",unit_of_measurement:"s"}}},{name:"slide",selector:{select:{mode:"dropdown",options:o(["up","side"],r=>e.label("slide_"+r))}}}]},...n.length?[{name:"options",type:"expandable",title:e.label("options"),icon:"mdi:tune-variant",schema:n.map(r=>{let a=this._kind(r);return{name:r.entity,type:"expandable",title:r.name||this._name(r.entity),icon:r.icon||O[a],schema:[{name:"type",selector:{select:{mode:"dropdown",options:o(["auto",...me],c=>e.label("type_"+c))}}},...!r.type||$s.includes(r.type)?[{name:"attribute",helper:r.type==="picture"?"attribute_picture":"attribute",selector:{attribute:{entity_id:r.entity}}}]:[],{name:"",type:"grid",schema:[{name:"name",selector:{text:{}}},{name:"icon",selector:{icon:{placeholder:O[a]}}}]},{name:"image",selector:{text:{}}},{name:"background",selector:{boolean:{}}},...Qn.includes(a)?[{name:"before",selector:{duration:{enable_day:!0}}}]:[],{name:"tap_action",selector:{ui_action:{default_action:"more-info"}}}]}})}]:[],{name:"audience",type:"expandable",title:e.label("audience"),icon:"mdi:account-eye-outline",schema:t.map(r=>({name:r.key,type:"expandable",title:`${r.name} \xB7 ${this._summary(s[r.key])}`,icon:r.icon,schema:[{name:"visible",selector:{select:{mode:"list",options:o(["everyone","only","except"])}}},...ze(s[r.key])==="everyone"?[]:[{name:"people",selector:{entity:{multiple:!0,filter:{domain:"person"}}}}]]}))},{name:"styling",type:"expandable",flatten:!0,title:e.label("styling"),icon:"mdi:palette-outline",schema:[{name:"css",selector:{text:{multiline:!0}}}]}]}_data(t){let e=this._config,s=e.audience||{};return{...gt,...e,content_layout:e.vertical?"vertical":"horizontal",entities:this._entries().map(n=>n.entity),infos:this._infos().map(n=>n.entity),options:Object.fromEntries(this._entries().map(n=>[n.entity,{...n,type:n.type||"auto",background:!!n.background,before:n.before==null?void 0:to(Q(n.before))}])),audience:Object.fromEntries(t.map(n=>[n.key,{visible:ze(s[n.key]),people:s[n.key]?.only||s[n.key]?.except||[]}]))}}_mergeEntities(t,e={}){let s=this._entries(),n=new Map(s.map(a=>[a.entity,a])),o=t.map((a,c)=>s[c]&&a!==s[c].entity?c:-1).filter(a=>a>=0),r=t.length===s.length&&o.length===1&&!n.has(t[o[0]])?o[0]:-1;return this._swapped=r<0?null:[s[r].entity,t[r]],t.map((a,c)=>{let l=n.get(a)||(c===r?s[c]:{}),h={...l,entity:a},d=e[a]||{};for(let p of xs){if(!(p in d))continue;let u=d[p];p==="before"&&Q(u)===Q(l.before)||(Le(u)||p==="type"&&u==="auto"||p==="before"&&!Q(u)?delete h[p]:h[p]=u)}return h.type&&!$s.includes(h.type)&&delete h.attribute,Object.keys(h).length===1?a:je(h,Jn)})}_onChange(t){t.stopPropagation();let{content_layout:e,options:s,...n}=t.detail.value;e&&(n.vertical=e==="vertical");let o=this._sources().map(c=>c.key);this._swapped=null,Array.isArray(n.entities)&&(n.entities=this._mergeEntities(n.entities,s)),Array.isArray(n.infos)&&(n.infos=this._mergeInfos(n.infos));let r={...this._config.audience};for(let[c,l]of Object.entries(n.audience||{}))l.visible==="only"||l.visible==="except"?r[c]={[l.visible]:l.people||[]}:delete r[c];for(let[c,l]of[this._swapped||[],[this._config.weather,n.weather]])c&&l&&r[c]&&!r[l]&&(r[l]=r[c]);let a=new Set(this._sources({...this._config,...n}).map(c=>c.key));for(let c of o)!a.has(c)&&c!=="updates"&&!c.startsWith("update.")&&delete r[c];n.audience=r,this._write(n)}_write(t){let e={...this._config,...t},s={type:this._config.type};for(let[n,o]of Object.entries(je(e,Xn)))n==="type"||Le(o)&&o!==!1||n in gt&&o===gt[n]||(s[n]=o);this._config=s,this.dispatchEvent(new CustomEvent("config-changed",{detail:{config:s},bubbles:!0,composed:!0}))}_mergeInfos(t){let e=this._infos(),s=new Set,n=o=>o>=0&&!s.has(o)?(s.add(o),e[o]):null;return t.map((o,r)=>{let a=n(e.findIndex((c,l)=>c.entity===o&&!s.has(l)))||e.length===t.length&&!t.includes(e[r].entity)&&n(r)||{};return this._infoEntry({...a,entity:o})})}_infoEntry(t){let e={};for(let[s,n]of Object.entries(je(t,Zn)))(s==="show_current"||s==="show_forecast"?n===!1:!Le(n)&&!(s==="color"&&n==="state"))&&(e[s]=n);return Object.keys(e).length===1?e.entity:e}_forecastTypes(t){if(!t.entity.startsWith("weather."))return[];let e=this.hass.states[t.entity];return fe.filter(s=>bt(e,s)||t.forecast_type===s)}_infoSchema(t){let e=this._t,s=this.hass.states[t.entity],n=t.entity.split(".")[0],o=[].concat(t.state_content??"state").some(p=>/^last[_-](changed|updated|triggered)$/.test(p)||n==="sun"&&p.startsWith("next_")||n==="calendar"&&p.endsWith("_time")||p==="state"&&!!s&&(s.attributes.device_class==="timestamp"||fi(n))),r={entity_id:"entity"},a=this._forecastTypes(t),c=Zt(t),l=p=>({select:{mode:"dropdown",options:p.map(u=>({value:u,label:e.label(u)}))}}),h=[{name:"state_content",selector:{ui_state_content:{}},context:{filter_entity:"entity"}},...o?[{name:"time_format",selector:{ui_time_format:{}}}]:[]],d=[{name:"forecast",selector:l(["show_both","show_current","show_forecast"])},...c==="show_current"?[]:[{name:"forecast_type",selector:l(a)},{name:"forecast_slots",selector:{number:{min:1,max:12,mode:"box"}}}],...c==="show_forecast"?[]:h];return[{name:"name",selector:{entity_name:{}},context:{entity:"entity"}},{name:"",type:"grid",schema:[{name:"icon",selector:{icon:{}},context:{icon_entity:"entity"}},{name:"color",selector:{ui_color:{default_color:"state",include_state:!0}}}]},...a.length?d:h,{name:"show_entity_picture",selector:{boolean:{}}},{name:"tap_action",selector:{ui_action:{default_action:"more-info"}},context:r},{name:"",type:"optional_actions",flatten:!0,schema:["hold_action","double_tap_action"].map(p=>({name:p,selector:{ui_action:{default_action:"none"}},context:r}))}]}_onInfo(t,e,s){t.stopPropagation();let n=this._infos(),{forecast:o,...r}=s,a={...n[e],...r,entity:n[e].entity},c="forecast"in s?o||"show_current":null;if(c&&c!==Zt(n[e])&&(Object.assign(a,{show_current:c==="show_forecast"?!1:void 0,show_forecast:void 0}),a.forecast_type=c==="show_current"?void 0:a.forecast_type||this._forecastTypes(a)[0]),!a.forecast_type)for(let l of["forecast_slots","show_current","show_forecast"])delete a[l];n[e]=a,this._write({infos:n.map(l=>this._infoEntry(l))})}_infoPanel(t,e){let s=this._t,n=this.hass.states[t.entity],o=this._forecastTypes(t),r=o.length?{...t,forecast:Zt(t)}:t,a=Array.isArray(t.visibility)?t.visibility:[];return b`<ha-expansion-panel outlined .header=${t.name||this._name(t.entity)} .secondary=${o.length&&Zt(t)!=="show_current"?s.label(t.forecast_type):""}>
+      ${n&&customElements.get("ha-state-icon")?b`<ha-state-icon slot="leading-icon" .hass=${this.hass} .stateObj=${n} .icon=${t.icon}></ha-state-icon>`:b`<ha-icon slot="leading-icon" .icon=${t.icon||O.generic}></ha-icon>`}
+      <div class="content">
+        <ha-form
+          .hass=${this.hass}
+          .data=${this._memo("info-data-"+e,r)}
+          .schema=${this._memo("info-schema-"+e,this._infoSchema(t))}
+          .computeLabel=${c=>s.label(c.name)}
+          @value-changed=${c=>this._onInfo(c,e,c.detail.value)}
+        ></ha-form>
+        <ha-expansion-panel outlined .header=${s.label("visibility")}>
+          <ha-icon slot="leading-icon" icon="mdi:eye"></ha-icon>
+          <div class="content">
+            <p class="intro">${s.helper("visibility_intro")}</p>
+            <ha-card-conditions-editor
+              .hass=${this.hass}
+              .conditions=${this._memo("conditions-"+e,a)}
+              @value-changed=${c=>this._onInfo(c,e,{visibility:c.detail.value?.length?c.detail.value:void 0})}
+            ></ha-card-conditions-editor>
+          </div>
+        </ha-expansion-panel>
       </div>
-    </div>
-    <div class="drawer"><div class="inner">
-      <div class="ebar" role="button" tabindex="0" aria-expanded="true">
-        <span class="count"></span>
-        <ha-icon class="chev" icon="mdi:chevron-up"></ha-icon>
-      </div>
-      <div class="list" role="list"></div>
-      <div class="foot"><button class="clear" type="button"></button></div>
-    </div></div>
-    <div class="say" aria-live="polite"></div>
-  </ha-card>
-`;
-
-const isObject = (v) => v != null && typeof v === "object" && !Array.isArray(v);
-
-/* Checks a config and returns its sources. The editor uses it too, so Home Assistant keeps a
- * broken config in the YAML editor instead of letting the visual editor drop parts of it. */
-const checkConfig = (config) => {
-  const fail = (message) => {
-    throw new Error(CARD + ": " + message);
-  };
-  if (config.entities != null && !Array.isArray(config.entities)) fail("entities must be a list");
-  const sources = [];
-  for (const entry of config.entities || []) {
-    const src =
-      typeof entry === "string"
-        ? { entity: entry, type: "auto" }
-        : {
-            entity: entry && entry.entity,
-            type: (entry && entry.type) || "auto",
-            attribute: entry ? entry.attribute : null,
-            icon: entry ? entry.icon : null,
-            name: entry ? entry.name : null,
-            image: entry ? entry.image : null,
-            background: entry ? entry.background : null,
-            before: entry ? entry.before : null,
-            actions: entry ? entry.actions : null,
-            tap_action: entry ? entry.tap_action : null,
-          };
-    if (typeof src.entity !== "string" || !src.entity.includes(".")) {
-      fail("entities must contain entity ids, got " + JSON.stringify(entry));
-    }
-    /* `type: dwd` from 0.6 and earlier. The card finds numbered warnings on its own. */
-    if (src.type === "dwd") src.type = "warning";
-    /* `type: recipe` from 0.2, which showed objects only. */
-    if (src.type === "recipe") {
-      src.type = "attribute";
-      src.attribute = src.attribute || "recipe";
-      src.objectOnly = true;
-    }
-    if (src.type !== "auto" && !RENDERERS[src.type]) fail("unknown source type '" + src.type + "'");
-    if (src.attribute != null && typeof src.attribute !== "string") fail("attribute must be the name of an attribute");
-    if (src.image != null && typeof src.image !== "string") fail("image must be an attribute path or URL");
-    if (src.background != null && typeof src.background !== "boolean") fail("background must be true or false");
-    if (src.before != null && !(parseBefore(src.before) >= 0)) fail("before must be minutes or a duration like 1:30:00");
-    if (typeof src.tap_action === "string") src.tap_action = { action: src.tap_action };
-    src.actions = Array.isArray(src.actions) ? src.actions.filter(isObject) : null;
-    if (!sources.some((s) => s.entity === src.entity)) sources.push(src);
-  }
-  if (config.weather != null && !(typeof config.weather === "string" && config.weather.startsWith("weather."))) {
-    fail("weather must be a weather entity, e.g. weather.home");
-  }
-  if (config.css != null && typeof config.css !== "string") fail("css must be a string");
-  if (config.infos != null && !Array.isArray(config.infos)) fail("infos must be a list");
-  const infos = [];
-  for (const entry of config.infos || []) {
-    const info = typeof entry === "string" ? { entity: entry } : isObject(entry) ? { ...entry } : null;
-    if (!info || typeof info.entity !== "string" || !info.entity.includes(".")) {
-      fail("infos must contain entity ids, got " + JSON.stringify(entry));
-    }
-    if (info.visibility != null && !Array.isArray(info.visibility)) fail("visibility of " + info.entity + " must be a list of conditions");
-    if (info.forecast_type != null && !FORECAST_TYPES.includes(info.forecast_type)) fail("forecast_type must be daily, hourly or twice_daily");
-    for (const key of ["show_current", "show_forecast"]) {
-      if (info[key] != null && typeof info[key] !== "boolean") fail(key + " must be true or false");
-    }
-    if (info.forecast_slots != null && !(Number.isInteger(info.forecast_slots) && info.forecast_slots > 0)) {
-      fail("forecast_slots must be a whole number above 0");
-    }
-    for (const key of ["tap_action", "hold_action", "double_tap_action"]) {
-      if (typeof info[key] === "string") info[key] = { action: info[key] };
-    }
-    infos.push(info);
-  }
-  if (config.rotate != null && config.rotate !== false && !(typeof config.rotate === "number" && config.rotate >= 0)) {
-    fail("rotate must be the seconds between turns, or 0 to turn them off");
-  }
-  if (config.slide != null && config.slide !== "up" && config.slide !== "side") fail("slide must be up or side");
-  if (config.vertical != null && typeof config.vertical !== "boolean") fail("vertical must be true or false");
-  return { sources, audience: checkAudience(config.audience), infos };
-};
-
-/* Local dismissals, shared by every card in this browser. Where storage is blocked, the copy
- * in memory keeps them for this page. */
-const ACK_STORE = "origami-notifications-ack";
-const ACK_MARK = "#";
-const CARDS = new Set();
-const memory = { acks: null };
-
-/* Acks up to 0.3 held the shown text, with the time except for attribute rows. They carry over
- * while the time, or the title of an attribute row, still matches. */
-const isOldAck = (ack, it, once) => {
-  if (typeof ack !== "string" || ack.startsWith(ACK_MARK)) return false;
-  if (once) return (it.titles || [it.title]).includes(ack.split("\u0000")[0]);
-  return ack.endsWith("\u0000" + it.ts) || ack === it.title + "\u0000" + it.message;
-};
-
-/* Whether ack hid the plain row this entry had up to 0.4, saved as in 0.4 or in 0.3. */
-const heldAs = (ack, row) => ack === ACK_MARK + row.ack + "\u0000" + row.ts || isOldAck(ack, row, false);
-
-const loadAcks = () => {
-  if (!memory.acks) {
-    try {
-      const acks = JSON.parse(localStorage.getItem(ACK_STORE) || "{}");
-      memory.acks = isObject(acks) ? acks : {};
-    } catch (e) {
-      memory.acks = {};
-    }
-  }
-  return memory.acks;
-};
-
-/* At most 64. Those no card shows go first, then the oldest. */
-const saveAcks = (present) => {
-  const acks = loadAcks();
-  const shown = new Set([...present, ...[...CARDS].flatMap((card) => [...card._present])]);
-  const keys = Object.keys(acks);
-  const order = [...keys.filter((k) => !shown.has(k)), ...keys.filter((k) => shown.has(k))];
-  for (const k of order.slice(0, keys.length - 64)) delete acks[k];
-  try {
-    localStorage.setItem(ACK_STORE, JSON.stringify(acks));
-  } catch (e) {
-    /* storage blocked */
-  }
-};
-
-window.addEventListener("storage", (e) => {
-  if (e.key !== ACK_STORE) return;
-  memory.acks = null;
-  for (const card of CARDS) card._recompute();
-});
-
-class OrigamiNotificationsCard extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: "open" });
-    /* Without this, Home Assistant detaches a hidden card and ends the subscriptions that bring it back. */
-    this.connectedWhileHidden = true;
-    this._persistent = new Map();
-    this._items = [];
-    this._updateIds = [];
-    this._labelIds = [];
-    this._repairs = [];
-    this._watched = [];
-    this._readIds = [];
-    this._allSources = [];
-    this._audience = {};
-    this._people = [];
-    this._viewer = null;
-    this._rowCache = new Map();
-    this._entitiesRef = null;
-    this._expanded = false;
-    this._editMode = false;
-    this._unsub = null;
-    this._unsubRepairs = null;
-    this._todos = new Map();
-    this._forecasts = new Map();
-    this._pictures = new Map();
-    this._clock = null;
-    this._boundaryTimer = null;
-    this._wakes = [];
-    this._visible = true;
-    this._onVisibility = () => {
-      if (!document.hidden) this._refreshTimes();
-      this._tick();
-      this._rotate();
-    };
-    this._infos = [];
-    this._serverSubs = new Map();
-    this._serverUsed = new Set();
-    this._slides = [];
-    this._slideKey = null;
-    this._seenKeys = null;
-    this._news = null;
-    this._headSlide = null;
-    this._swapping = null;
-    this._held = new Set();
-    this._byHand = false;
-    this._turned = false;
-    this._rotateTimer = null;
-    this._press = null;
-    this._noClick = false;
-    this._swiped = false;
-    this._ownCancel = null;
-    this._tapWait = null;
-    this._narrow = false;
-    this._bgUrl = null;
-    this._hostAnim = null;
-    this._enterFrom = null;
-    this._shownOpen = false;
-    this._pending = new Map();
-    this._present = new Set();
-    this._thingIds = new Set();
-    this._epoch = 0;
-    this._painted = false;
-    this._seq = 0;
-    this._setLang("en");
-    /* Home Assistant may define its state icon and its state text after the card. Then everything is drawn again. */
-    for (const tag of ["ha-state-icon", "state-display"]) {
-      if (customElements.get(tag)) continue;
-      customElements.whenDefined(tag).then(() => {
-        this._epoch++;
-        this._headSlide = null;
-        this._render();
-      });
-    }
-  }
-
-  setConfig(config) {
-    const { sources, audience, infos } = checkConfig(config);
-    this._config = { ...DEFAULTS, ...config };
-    this._infoConfig = infos;
-    /* Home Assistant reads layout_options only when grid_options is missing. */
-    const rows = config.grid_options
-      ? config.grid_options.rows
-      : config.layout_options && config.layout_options.grid_rows;
-    this.classList.toggle("bounded", typeof rows === "number");
-    this.classList.toggle("vertical", this._config.vertical === true);
-    this._sources = sources;
-    this._audience = audience;
-    this._people = [...new Set(Object.values(audience).flatMap((rule) => rule[ruleMode(rule)]))];
-    this._epoch++;
-    this._applyCustomStyles();
-    /* Outside the editor preview, Home Assistant changes the config of a live card without a new hass. */
-    if (!this._hass) return;
-    this._viewer = this._viewerOf(this._hass);
-    const subscribed = Boolean(this._unsubRepairs);
-    if (this.isConnected) this._subscribe();
-    if (subscribed) this._refreshRepairs();
-    this._refreshSources();
-    this._recompute();
-  }
-
-  _applyCustomStyles() {
-    if (this._dom) this._dom.userCss.textContent = this._config.css || "";
-  }
-
-  static getConfigElement() {
-    return document.createElement(EDITOR);
-  }
-
-  static getStubConfig() {
-    return {};
-  }
-
-  _setLang(lang, localize) {
-    this._lang = lang;
-    const base = String(lang).split("-")[0];
-    this._curated = Boolean(STRINGS[base]);
-    this._t = STRINGS[base] || borrowedStrings(localize);
-    this._localizeRef = localize || null;
-    try {
-      this._rel = new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "short" });
-    } catch (e) {
-      this._rel = new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "short" });
-    }
-    this._abs = null;
-    this._epoch++;
-    if (this._dom) this._dom.clear.textContent = this._t.clear;
-  }
-
-  /* 12 or 24 hours and the time zone from the user's profile. */
-  _clockOpts() {
-    const h = this._hass;
-    const l = (h && h.locale) || {};
-    const o = {};
-    if (l.time_format === "12") o.hour12 = true;
-    else if (l.time_format === "24") o.hour12 = false;
-    else if (l.time_format === "system") {
-      const sys = dateFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12;
-      if (sys !== undefined) o.hour12 = sys;
-    }
-    if (l.time_zone === "server" && h.config && h.config.time_zone) o.timeZone = h.config.time_zone;
-    return o;
-  }
-
-  _relTime(ts, now = Date.now()) {
-    const s = Math.round((ts - now) / 1000);
-    const m = Math.round(s / 60);
-    const h = Math.round(s / 3600);
-    if (Math.abs(s) < 60) return (s > 0 ? this._t.soon : this._t.just_now) || this._rel.format(0, "second");
-    if (Math.abs(m) < 60) return this._rel.format(m, "minute");
-    if (Math.abs(h) < 24) return this._rel.format(h, "hour");
-    return this._rel.format(Math.round(s / 86400), "day");
-  }
-
-  /* The one text for the time of an entry. A countdown counts the seconds. A day has no time of day. */
-  _timeText(it, now = Date.now()) {
-    if (!Number.isFinite(it.ts)) return "";
-    if (it.clock) return clockText(it.ts - now);
-    if (!it.day) return this._relTime(it.past ? Math.min(it.ts, now) : it.ts, now);
-    const { near, date } = this._dayOf(it.ts, serverZone(this._hass), now);
-    return near ? date : fill(this._t.on_date, { d: date });
-  }
-
-  _absTime(ts) {
-    if (!this._abs) {
-      try {
-        this._abs = new Intl.DateTimeFormat(this._lang, { dateStyle: "medium", timeStyle: "short", ...this._clockOpts() });
-      } catch (e) {
-        this._abs = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
-      }
-    }
-    return this._abs.format(ts);
-  }
-
-  /* An hour as the profile writes it, like 7 PM or 19 Uhr. Intl writes 01 Uhr where people write 1 Uhr. */
-  _hourText(ts) {
-    let text;
-    try {
-      text = dateFormat(this._lang, { hour: "numeric", ...this._clockOpts() }).format(ts);
-    } catch (e) {
-      text = dateFormat(undefined, { hour: "numeric" }).format(ts);
-    }
-    return text.replace(/^0(?=\d\D)/, "");
-  }
-
-  _percentText(p) {
-    try {
-      return new Intl.NumberFormat(this._lang, { style: "percent", maximumFractionDigits: 0 }).format(p / 100);
-    } catch (e) {
-      return Math.round(p) + " %";
-    }
-  }
-
-  _weatherId() {
-    return (this._config && this._config.weather) || null;
-  }
-
-  _absDate(ts, zone) {
-    try {
-      return dateFormat(this._lang, { dateStyle: "medium", timeZone: zone }).format(ts);
-    } catch (e) {
-      return dateFormat(undefined, { dateStyle: "medium" }).format(ts);
-    }
-  }
-
-  /* Yesterday, today or tomorrow, else the date of ts in zone. Today is the day in the zone of the profile. */
-  _dayOf(ts, zone, now) {
-    const diff = dayNumber(ts, zone) - dayNumber(now, this._clockOpts().timeZone);
-    if (Math.abs(diff) <= 1) return { near: true, date: this._rel.format(diff, "day") };
-    try {
-      return { near: false, date: dateFormat(this._lang, { day: "2-digit", month: "2-digit", timeZone: zone }).format(ts) };
-    } catch (e) {
-      return { near: false, date: dateFormat(undefined, { day: "2-digit", month: "2-digit" }).format(ts) };
-    }
-  }
-
-  _calWhen(start, allDay, now = Date.now()) {
-    const t = this._t;
-    const server = serverZone(this._hass);
-    const ts = start ? fromServerTime(start, server) : NaN;
-    if (isNaN(ts)) return t.event;
-    /* An all-day event is a date on the server. Times show in the zone of the profile. */
-    const zone = allDay ? server : this._clockOpts().timeZone;
-    const { near, date } = this._dayOf(ts, zone, now);
-    if (allDay) return near ? date : fill(t.on_date, { d: date });
-    const d = new Date(ts);
-    let time;
-    try {
-      time = d.toLocaleTimeString(this._lang, { hour: "numeric", minute: "2-digit", ...this._clockOpts() });
-    } catch (e) {
-      time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-    }
-    return fill(near ? t.day_at : t.date_at, { d: date, t: time });
-  }
-
-  /* Changed parts of hass get new references, so comparing references is enough. */
-
-  set hass(hass) {
-    const old = this._hass;
-    this._hass = hass;
-    if (!this._dom) this._build();
-    const fetched = this.isConnected && this._subscribe();
-    this.classList.toggle("dark", Boolean(hass.themes && hass.themes.darkMode));
-    const lang = langOf(hass);
-    const langSwitched = lang !== this._lang;
-    /* Borrowed strings are read again whenever Home Assistant loads more of them. */
-    const langChanged =
-      langSwitched || (!this._curated && hass.localize && hass.localize !== this._localizeRef);
-    if (langChanged) this._setLang(lang, hass.localize);
-    const localeChanged = !old || hass.locale !== old.locale || hass.config !== old.config;
-    if (localeChanged) {
-      this._abs = null;
-      this._epoch++;
-    }
-    /* Home Assistant swaps in new formatters once translations or settings have loaded. */
-    const formatChanged =
-      !old || hass.formatEntityState !== old.formatEntityState || hass.formatEntityName !== old.formatEntityName;
-    const userChanged = !old || hass.user !== old.user;
-    const registryChanged = hass.entities !== this._entitiesRef;
-    const viewer = this._viewerOf(hass);
-    const viewerChanged = viewer !== this._viewer;
-    this._viewer = viewer;
-    if (!old || registryChanged || langChanged || viewerChanged || userChanged) {
-      this._entitiesRef = hass.entities;
-      if (old && (langSwitched || userChanged) && !fetched) this._refreshRepairs();
-      this._refreshSources();
-      this._recompute();
-      return;
-    }
-    /* Home Assistant may load its actions, translations and rooms after the states. Warnings and groups need them. */
-    const loaded =
-      hass.services !== old.services || hass.localize !== old.localize || hass.areas !== old.areas || hass.devices !== old.devices;
-    if (localeChanged || formatChanged || loaded) {
-      this._recompute();
-      return;
-    }
-    const changed = (id) => old.states[id] !== hass.states[id];
-    if (this._watched.some(changed) || this._readIds.some(changed)) this._recompute();
-  }
-
-  get hass() {
-    return this._hass;
-  }
-
-  set preview(v) {
-    this._setEditMode(v);
-  }
-
-  get preview() {
-    return this._editMode;
-  }
-
-  _setEditMode(v) {
-    const on = Boolean(v);
-    if (on === this._editMode && this._painted) return;
-    this._editMode = on;
-    if (on) this.classList.add("no-anim");
-    else if (!this._settling) this.classList.remove("no-anim");
-    this._recompute();
-  }
-
-  connectedCallback() {
-    if (this._detachReset) {
-      clearTimeout(this._detachReset);
-      this._detachReset = null;
-    }
-    this._visible = true;
-    const root = this.getRootNode();
-    this.classList.toggle("docked", Boolean(root && root.host && root.host.localName === "hui-view-footer"));
-    /* The card picker sets no preview flag. An empty card stays visible there. */
-    const picker = Boolean(root && root.host && root.host.localName === "hui-card-picker");
-    if (picker !== Boolean(this._inPicker)) {
-      this._inPicker = picker;
-      this._recompute();
-    }
-    CARDS.add(this);
-    if (this._hass) this._subscribe();
-    /* Conditions the server checks were given up when the card left. */
-    if (this._hass && (this._infoConfig || []).some((info) => info.visibility)) this._recompute();
-    if (this._hostAnim) this._hostAnim.finish();
-    document.addEventListener("visibilitychange", this._onVisibility);
-    this._scheduleDay();
-    this._scheduleBoundary();
-    if (this._dom) {
-      this._ro.observe(this._dom.card);
-      if (this._io) this._io.observe(this);
-      this._suppressAnim();
-      this._refreshTimes();
-      this._tick();
-      this._rotate();
-    }
-  }
-
-  disconnectedCallback() {
-    for (const key of ["_unsub", "_unsubRepairs"]) {
-      if (this[key]) {
-        this[key].then((u) => u()).catch(() => {});
-        this[key] = null;
-      }
-    }
-    /* The items stay, so a card that comes back shows them until Home Assistant sends the list again. */
-    for (const [id, sub] of this._todos) {
-      if (sub.unsub) sub.unsub.then((u) => u()).catch(() => {});
-      this._todos.set(id, { items: sub.items });
-    }
-    this._unsubscribeForecasts();
-    this._dropServerConditions();
-    /* A card that leaves gets no pointerleave or pointerup, so what held its turns is let go here. */
-    if (this._press) clearTimeout(this._press.timer);
-    this._press = null;
-    this._held.clear();
-    for (const mql of (this._mediaWatch || new Map()).values()) mql.onchange = null;
-    this._mediaWatch = null;
-    CARDS.delete(this);
-    clearTimeout(this._repairsTimer);
-    clearTimeout(this._dayTimer);
-    clearTimeout(this._boundaryTimer);
-    this._boundaryTimer = null;
-    if (this._ro) this._ro.disconnect();
-    if (this._io) this._io.disconnect();
-    document.removeEventListener("visibilitychange", this._onVisibility);
-    this._stopClock();
-    this._rotate();
-    /* Collapse only if the card stays detached. The dashboard editor re-parents it all the time. */
-    this._detachReset = setTimeout(() => this._collapse(), 150);
-  }
-
-  _isAdmin() {
-    const u = this._hass && this._hass.user;
-    return Boolean(u && u.is_admin);
-  }
-
-  /* Returns true when it started listening to repairs, which also fetches them. */
-  _subscribe() {
-    const conn = this._hass && this._hass.connection;
-    if (!conn) return false;
-    if (!this._unsub) {
-      this._unsub = conn.subscribeMessage((msg) => this._onNotifications(msg), {
-        type: "persistent_notification/subscribe",
-      });
-      this._unsub.catch(() => {
-        this._unsub = null;
-      });
-    }
-    this._subscribeTodos();
-    this._subscribeForecasts();
-    /* Like the repairs page in Home Assistant's settings, repairs are for admins only. A new
-     * subscription also fetches the list, which may have changed while the card was away. */
-    if (!this._unsubRepairs && conn.subscribeEvents && this._config && this._config.repairs && this._isAdmin()) {
-      this._unsubRepairs = conn.subscribeEvents(
-        () => {
-          clearTimeout(this._repairsTimer);
-          this._repairsTimer = setTimeout(() => this._refreshRepairs(), 500);
-        },
-        "repairs_issue_registry_updated"
-      );
-      this._unsubRepairs.catch(() => {
-        this._unsubRepairs = null;
-      });
-      this._refreshRepairs();
-      return true;
-    }
-    return false;
-  }
-
-  /* One subscription per to-do list. Home Assistant sends the whole list at once and again after every
-   * change. A list it refused is asked for again once its state changes. */
-  _subscribeTodos() {
-    const h = this._hass;
-    const conn = h && h.connection;
-    if (!conn || !this.isConnected) return;
-    const wanted = new Set(
-      this._allSources
-        .filter((src) => src.entity.startsWith("todo.") && h.states[src.entity] && kindOf(src, h.states[src.entity]) === "todo")
-        .map((src) => src.entity)
-    );
-    for (const [id, sub] of this._todos) {
-      if (wanted.has(id)) continue;
-      if (sub.unsub) sub.unsub.then((u) => u()).catch(() => {});
-      this._todos.delete(id);
-    }
-    for (const id of wanted) {
-      const old = this._todos.get(id);
-      if (old && old.unsub && (old.failed === undefined || old.failed === h.states[id])) continue;
-      const sub = { items: old ? old.items : null };
-      this._todos.set(id, sub);
-      sub.unsub = conn.subscribeMessage(
-        (msg) => {
-          if (this._todos.get(id) !== sub) return;
-          sub.items = Array.isArray(msg && msg.items) ? msg.items : [];
-          this._recompute();
-        },
-        { type: "todo/item/subscribe", entity_id: id }
-      );
-      sub.unsub.catch(() => {
-        sub.failed = (this._hass && this._hass.states[id]) || null;
-      });
-    }
-  }
-
-  /* One forecast subscription for each weather entity and type the card reads, for rain ahead and for infos. Like a
-   * to-do list, a forecast Home Assistant refused is asked for again once the weather changes, since the entity may
-   * still be loading. */
-  _subscribeForecasts() {
-    const h = this._hass;
-    const want = new Map();
-    if (h && this.isConnected) {
-      const id = this._weatherId();
-      const type = id ? forecastType(h.states[id]) : null;
-      if (type) want.set(id + "|" + type, [id, type]);
-      for (const info of this._quietInfos()) {
-        if (showsForecast(info, h.states[info.entity])) want.set(info.entity + "|" + info.forecast_type, [info.entity, info.forecast_type]);
-      }
-    }
-    for (const [key, sub] of this._forecasts) {
-      if (want.has(key) && (sub.failed === undefined || sub.failed === h.states[sub.id])) continue;
-      this._forecasts.delete(key);
-      sub.unsub.then((unsub) => unsub()).catch(() => {});
-    }
-    if (!h || !h.connection) return;
-    for (const [key, [id, type]] of want) {
-      if (this._forecasts.has(key)) continue;
-      const sub = { key, id };
-      this._forecasts.set(key, sub);
-      sub.unsub = h.connection.subscribeMessage((msg) => this._onForecast(sub, msg), {
-        type: "weather/subscribe_forecast",
-        entity_id: id,
-        forecast_type: type,
-      });
-      sub.unsub.catch(() => {
-        sub.failed = (this._hass && this._hass.states[id]) || null;
-      });
-    }
-  }
-
-  _unsubscribeForecasts() {
-    for (const sub of this._forecasts.values()) sub.unsub.then((unsub) => unsub()).catch(() => {});
-    this._forecasts.clear();
-  }
-
-  /* Every card on the same forecast takes the news at once. A repeat of what the cache holds changes nothing. */
-  _onForecast(sub, msg) {
-    if (this._forecasts.get(sub.key) !== sub) return;
-    const forecast = msg && Array.isArray(msg.forecast) ? msg.forecast : null;
-    const print = forecastFingerprint(forecast);
-    const cached = FORECAST_CACHE.get(sub.key);
-    if (cached && cached.print === print) return;
-    FORECAST_CACHE.set(sub.key, { forecast, print });
-    for (const card of CARDS) if (card._forecasts.has(sub.key)) card._recompute();
-  }
-
-  _onNotifications(msg) {
-    const entries = Object.entries(msg.notifications || {});
-    if (msg.type === "removed") {
-      for (const [id] of entries) this._persistent.delete(id);
-    } else {
-      if (msg.type === "current") this._persistent = new Map();
-      for (const [id, n] of entries) {
-        n.__seq = ++this._seq;
-        this._persistent.set(id, n);
-      }
-    }
-    this._recompute();
-  }
-
-  _refreshSources() {
-    this._refreshUpdateIds();
-    this._refreshLabelIds();
-    this._refreshWatched();
-    this._subscribeTodos();
-  }
-
-  /* From the registry as well, so an update whose state arrives later is already watched. */
-  _refreshUpdateIds() {
-    const h = this._hass;
-    if (!this._config || !this._config.updates || !h) {
-      this._updateIds = [];
-      return;
-    }
-    const ids = [...Object.keys(h.states), ...Object.keys(h.entities || {})];
-    this._updateIds = [...new Set(ids.filter((id) => id.startsWith("update.")))];
-  }
-
-  _refreshRepairs() {
-    const h = this._hass;
-    if (!h || !h.callWS || !this._config || !this._config.repairs || !this._isAdmin()) {
-      this._repairs = [];
-      return;
-    }
-    h.callWS({ type: "repairs/list_issues" })
-      .then((res) => {
-        this._repairs = ((res && res.issues) || []).filter((i) => !i.ignored);
-        this._recompute();
-        const domains = [...new Set(this._repairs.map((i) => i.domain))];
-        const named = [...new Set(this._repairs.map((i) => i.issue_domain || i.domain))];
-        if (domains.length && typeof h.loadBackendTranslation === "function") {
-          const load = (category, list) =>
-            h.loadBackendTranslation(category, list).then((localize) => {
-              this._issueLocalize = localize;
-              this._recompute();
-            });
-          /* Each load returns Home Assistant's localize with everything loaded so far. */
-          return load("issues", domains).then(() => load("title", named));
-        }
-      })
-      .catch(() => {});
-  }
-
-  _refreshLabelIds() {
-    this._labelIds = labelled(this._hass, this._config && this._config.label);
-  }
-
-  _viewerOf(hass) {
-    const uid = hass.user && hass.user.id;
-    const person =
-      uid && this._people.find((id) => hass.states[id] && hass.states[id].attributes.user_id === uid);
-    return person || "";
-  }
-
-  _refreshWatched() {
-    const list = [...(this._sources || [])];
-    for (const id of this._labelIds) {
-      if (!list.some((s) => s.entity === id)) list.push({ entity: id, type: "auto" });
-    }
-    this._allSources = list;
-    /* A picture from a device changes on its own, with every new snapshot or token. */
-    this._pictures = devicePictures(this._hass && this._hass.entities, list.filter(usesDevicePicture).map((s) => s.entity));
-    const refs = list.flatMap((s) => [s.entity, ...(this._pictures.get(s.entity) || [])]);
-    this._watched = [...new Set([...this._updateIds, ...refs])];
-  }
-
-  _recompute() {
-    const h = this._hass;
-    const c = this._config || {};
-    const now = Date.now();
-    const wakes = [];
-    const read = [];
-    let items = [];
-    const allowed = (source) => this._editMode || visibleTo(this._audience[source], this._viewer);
-    const name = (st, override) => {
-      if (typeof override === "string" && override) return override;
-      if (h && h.formatEntityName) {
-        try {
-          const text = (override && h.formatEntityName(st, override)) || h.formatEntityName(st);
-          if (text) return text;
-        } catch (e) {
-          /* use the plain name */
-        }
-      }
-      return st.attributes.friendly_name || st.entity_id;
-    };
-    const ctx = {
-      hass: h,
-      host: this,
-      t: this._t,
-      admin: this._isAdmin(),
-      issueLocalize: this._issueLocalize,
-      now,
-      /* A renderer names a moment when its entries change on their own, like a reminder that opens. */
-      wake: waker(wakes, now),
-      calWhen: (s, allDay) => this._calWhen(s, allDay, now),
-      absTime: (ts) => this._absTime(ts),
-      zone: this._clockOpts().timeZone,
-      todos: (id) => (this._todos.get(id) || {}).items || null,
-      devicePictures: (id) => this._pictures.get(id) || [],
-      details: (st) => askDetails(h, st, this),
-      /* The members of a group entity change without the group, so they are watched as well. */
-      memberText: (st) => {
-        const ids = groupMembers(st);
-        read.push(...ids);
-        return memberText(h, ids, name);
-      },
-      alikeTitle: (dc, n) => alikeTitle(this._lang, dc, n, h && h.localize),
-      /* An entity read besides the card's own, so a change to it counts. */
-      watch: (id) => read.push(id),
-      hour: (ts) => this._hourText(ts),
-      percent: (p) => this._percentText(p),
-      name,
-      format: (st) => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state)),
-      formatAttribute: (st, path, value) => {
-        if (h && h.formatEntityAttributeValue && !path.includes(".")) {
-          try {
-            return h.formatEntityAttributeValue(st, path, value) || String(value);
-          } catch (e) {
-            /* use the raw value */
-          }
-        }
-        return String(value);
-      },
-      /* If Home Assistant can't parse a URL, only the picture is lost. */
-      url: (path) => {
-        if (typeof path !== "string" || !path) return null;
-        try {
-          return h.hassUrl(path);
-        } catch (e) {
-          return null;
-        }
-      },
-    };
-
-    if (allowed("system")) {
-      for (const [id, n] of this._persistent) {
-        const message = n.message || "";
-        if (MUTED_NOTIFICATIONS.has(id)) continue;
-        const link = firstLink(message);
-        items.push({
-          key: "s:" + id,
-          kind: "system",
-          title: plainText(n.title) || this._t.notification,
-          message: plainText(message),
-          image: ctx.url(firstPicture(message)),
-          ts: parseTs(n.created_at, now),
-          past: true,
-          seq: n.__seq || 0,
-          open: link ? linkAction(this, link) : null,
-          dismiss: () =>
-            h.callService("persistent_notification", "dismiss", {
-              notification_id: id,
-            }),
-        });
-      }
-    }
-
-    if (h && c.repairs && allowed("repairs")) {
-      for (const issue of this._repairs) renderRepair(issue, items, ctx);
-    }
-
-    const available = new Set();
-    if (h) {
-      /* The updates rule covers every update entity, listed or found. */
-      const allowedEntity = (id) => allowed(id) && (!id.startsWith("update.") || allowed("updates"));
-      const listed = new Set(this._allSources.map((src) => src.entity));
-      const found = this._updateIds.filter((id) => !listed.has(id)).map((id) => ({ entity: id }));
-      for (const src of [...this._allSources, ...found]) {
-        if (!allowedEntity(src.entity)) continue;
-        const st = h.states[src.entity];
-        if (st && st.state !== "unavailable" && st.state !== "unknown") available.add(src.entity);
-        renderEntity(src.entity, st, items, ctx, src);
-      }
-    }
-    const weather = this._weatherId();
-    let forecastKnown = false;
-    if (h && weather && allowed(weather)) {
-      read.push(weather);
-      const st = h.states[weather];
-      const type = forecastType(st);
-      const cached = type && FORECAST_CACHE.get(weather + "|" + type);
-      forecastKnown = Boolean(cached);
-      renderWeather(weather, st, cached ? forecastFilterPast(cached.forecast, type, now) : [], type, items, ctx);
-      /* The six and eighteen hours ahead move on with every hour. */
-      if (cached && type !== "daily") ctx.wake(Math.floor(now / 3600000) * 3600000 + 3600000);
-    }
-
-    /* Dismissed, but Home Assistant has not removed them yet. */
-    if (this._pending.size) {
-      const present = new Set(items.map((it) => it.key));
-      for (const [key, until] of this._pending) {
-        if (!present.has(key) || until <= now) this._pending.delete(key);
-      }
-      for (let i = items.length - 1; i >= 0; i--) {
-        if (this._pending.has(items[i].key)) items.splice(i, 1);
-      }
-      clearTimeout(this._pendingTimer);
-      const next = Math.min(...this._pending.values());
-      if (next !== Infinity) this._pendingTimer = setTimeout(() => this._recompute(), next - now + 50);
-    }
-    items = dropExpired(items, now, ctx.wake);
-
-    /* Without a dismiss in Home Assistant, items are hidden in this browser until they change.
-     * An ack stays while its item is gone, so a reload can't bring it back. The signature
-     * comes from the source data, so a new language or formatter doesn't count as a change. */
-    const acks = loadAcks();
-    const present = new Set(items.map((it) => it.key));
-    this._present = present;
-    let acksDirty = false;
-    for (let i = items.length - 1; i >= 0; i--) {
-      const it = items[i];
-      if (it.dismiss || it.sticky) continue;
-      const oldKey = acks[it.key] === undefined && it.oldKey ? it.oldKey : it.key;
-      const heldBefore = oldKey !== it.key && it.oldRow !== undefined && heldAs(acks[oldKey], it.oldRow);
-      /* A warning without its details has no signature yet. A dismissal stays as it is and hides it meanwhile. */
-      if (it.waiting) {
-        if (acks[it.key] !== undefined || heldBefore) items.splice(i, 1);
-        continue;
-      }
-      /* Weather ahead keeps its dismissal while its first hour moves on. */
-      const once = it.kind === "attribute" || it.kind === "picture" || (it.kind === "weather" && !it.past);
-      const sig = ACK_MARK + (once ? it.ack : it.ack + "\u0000" + it.ts);
-      /* A dismissal from an older version moves to the new key, so it can't hide the entry again once it changes. */
-      if (heldBefore || isOldAck(acks[oldKey], it, once)) {
-        delete acks[oldKey];
-        acks[it.key] = sig;
-        acksDirty = true;
-      }
-      /* The same signature under the old key carries over. It stays there for a card that still shows the row that way. */
-      if (oldKey !== it.key && acks[oldKey] === sig) {
-        acks[it.key] = sig;
-        acksDirty = true;
-      }
-      if (acks[it.key] === sig) {
-        items.splice(i, 1);
-      } else {
-        if (acks[it.key] !== undefined) {
-          delete acks[it.key];
-          acksDirty = true;
-        }
-        it.ackSig = sig;
-        it.dismiss = () => this._dismiss([it]);
-        it.localDismiss = true;
-      }
-    }
-    /* An attribute row has no time. Once its attribute has been empty, it counts as new. Only a card
-     * that showed the row decides that, since another card may show the entity another way. */
-    for (const key of present) if (key.startsWith("r:")) this._thingIds.add(key.slice(2));
-    for (const id of this._thingIds) {
-      if (available.has(id) && !present.has("r:" + id) && acks["r:" + id] !== undefined) {
-        delete acks["r:" + id];
-        acksDirty = true;
-      }
-    }
-    /* So does weather that was gone while the forecast was known. */
-    for (const key of forecastKnown ? ["wx:" + weather + ":wet", "wx:" + weather + ":frost"] : []) {
-      if (!present.has(key) && acks[key] !== undefined) {
-        delete acks[key];
-        acksDirty = true;
-      }
-    }
-    if (acksDirty) saveAcks(present);
-    items = groupAlike(items, ctx);
-    this._items = sortItems(items, now);
-    /* An entry is news when it was not there at the last look and began just now. One that only comes into view,
-     * like after a reload, when a group splits or when an alarm ends, is not. */
-    const seen = this._seenKeys;
-    this._seenKeys = new Set(this._items.map((it) => it.key));
-    const news = seen && this._items.find((it) => !seen.has(it.key) && Math.abs(now - it.ts) < NEWS_MS);
-    if (news) this._news = news;
-    this._infos = h ? this._infosNow(ctx, read, allowed) : [];
-    this._readIds = read;
-    const reorder = nextReorder(this._items, now);
-    if (reorder !== null) ctx.wake(reorder);
-    this._render(now);
-    this._scheduleDay();
-    this._scheduleBoundary(wakes, now);
-  }
-
-  /* A card that stays while nothing needs attention always has something to say. After the infos come the weather
-   * now and in the hours ahead, and the next event of each calendar it watches. */
-  _quietInfos(allowed = () => true) {
-    const own = this._infoConfig || [];
-    const h = this._hass;
-    if (!h || !this._config || this._config.hide_when_empty !== false) return own;
-    const taken = new Set(own.map((info) => info.entity));
-    const extra = [];
-    const id = this._weatherId();
-    const st = id && h.states[id];
-    if (st && !taken.has(id) && allowed(id)) {
-      const type = forecastType(st);
-      extra.push({ entity: id, state_content: ["state", "temperature"], ...(type ? { forecast_type: type, forecast_slots: 3, ahead: true } : {}) });
-    }
-    for (const src of this._allSources || []) {
-      const cal = h.states[src.entity];
-      if (!src.entity.startsWith("calendar.") || taken.has(src.entity) || !allowed(src.entity)) continue;
-      if (cal && cal.state === "off" && !isEmpty(cal.attributes.message)) {
-        extra.push({ entity: src.entity, name: src.name || undefined, state_content: ["message", "start_time"] });
-      }
-    }
-    return [...own, ...extra];
-  }
-
-  /* The infos a quiet card shows, in their order, while their entity is there and their conditions hold. */
-  _infosNow(ctx, read, allowed) {
-    const h = ctx.hass;
-    const out = [];
-    const keys = new Set();
-    this._serverUsed = new Set();
-    for (const info of this._quietInfos(allowed)) {
-      const st = h.states[info.entity];
-      read.push(info.entity);
-      if (!st || st.state === "unavailable" || st.state === "unknown") continue;
-      if (!this._conditionsMet(info.visibility, info.entity, ctx, read)) continue;
-      let key = "i:" + info.entity;
-      while (keys.has(key)) key += "+";
-      keys.add(key);
-      const own = info.color && info.color !== "state";
-      const colorOf = (s) => (own ? (stateActive(s) ? themeColor(info.color) : "var(--state-inactive-color)") : stateColor(s));
-      const base = {
-        kind: "info",
-        info,
-        entity: info.entity,
-        name: ctx.name(st, info.name),
-        icon: info.icon || undefined,
-        image: info.show_entity_picture ? ctx.url(findPicture(st.attributes)) : null,
-      };
-      /* Like Home Assistant's forecast card, the current weather shows unless only the forecast is asked for. */
-      const slots = this._forecastSlots(info, st, ctx);
-      if (!slots || info.show_current !== false) {
-        out.push({ ...base, key, stateObj: st, title: ctx.name(st, info.name), color: colorOf(st), content: info.state_content, timeFormat: info.time_format });
-      }
-      if (!slots) continue;
-      /* Each forecast slot turns by like an info of its own, with the condition as its state. A name of the
-       * info's own comes first, and the day or hour moves to the second line. */
-      const named = isEmpty(info.name) ? "" : ctx.name(st, info.name);
-      slots.forEach((slot, n) => {
-        const shown = { ...st, state: slot.condition || "unknown" };
-        const label = this._slotLabel(Date.parse(slot.datetime), info.forecast_type, ctx.now);
-        out.push({
-          ...base,
-          key: key + "#" + n,
-          stateObj: shown,
-          title: named || label,
-          text: [named ? label : "", this._slotText(slot, shown, info.forecast_type)].filter(Boolean).join(" · "),
-          icon: base.icon || (slot.is_daytime === false && NIGHT_ICONS[slot.condition]) || undefined,
-          color: colorOf(shown),
-        });
-      });
-    }
-    this._dropServerConditions(this._serverUsed);
-    return out;
-  }
-
-  /* The forecast slots an info shows, none while the forecast loads, or null without a forecast. Like Home
-   * Assistant's forecast card, a type the entity lacks or a forecast that came empty shows the current weather. */
-  _forecastSlots(info, st, ctx) {
-    const type = info.forecast_type;
-    if (!showsForecast(info, st)) return null;
-    const cached = FORECAST_CACHE.get(info.entity + "|" + type);
-    if (!cached) return [];
-    /* A day lasts until midnight where the user is, whatever hour the integration gives it. */
-    const today = dayNumber(ctx.now, ctx.zone);
-    const slots = (Array.isArray(cached.forecast) ? cached.forecast : [])
-      .filter((f) => f && Number.isFinite(Date.parse(f.datetime)))
-      .filter((f) => (type === "daily" ? dayNumber(Date.parse(f.datetime), ctx.zone) >= today + (info.ahead ? 1 : 0) : Date.parse(f.datetime) + (info.ahead ? 0 : FORECAST_SPAN[type]) > ctx.now))
-      .slice(0, info.forecast_slots || 1);
-    if (!slots.length) return null;
-    /* Today and Tomorrow move on at midnight, and an hour or half a day when it ends. */
-    ctx.wake(dayStart(today + 1, ctx.zone));
-    if (type !== "daily") ctx.wake(Date.parse(slots[0].datetime) + FORECAST_SPAN[type]);
-    return slots;
-  }
-
-  /* Today, Tomorrow or the weekday, and the hour for an hourly forecast. */
-  _slotLabel(ts, type, now) {
-    const zone = this._clockOpts().timeZone;
-    const diff = dayNumber(ts, zone) - dayNumber(now, zone);
-    let day;
-    try {
-      day = Math.abs(diff) <= 1 ? this._rel.format(diff, "day") : dateFormat(this._lang, { weekday: "long", timeZone: zone }).format(ts);
-    } catch (e) {
-      day = dateFormat(undefined, { weekday: "long" }).format(ts);
-    }
-    let text = day;
-    if (type === "hourly") {
-      let time;
-      try {
-        time = new Date(ts).toLocaleTimeString(this._lang, { hour: "numeric", minute: "2-digit", ...this._clockOpts() });
-      } catch (e) {
-        time = new Date(ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-      }
-      text = diff === 0 ? time : fill(this._t.day_at, { d: day, t: time });
-    }
-    return text.charAt(0).toLocaleUpperCase(this._lang) + text.slice(1);
-  }
-
-  /* Day or night, the temperatures and the condition, like a slot of Home Assistant's forecast card. */
-  _slotText(slot, shown, type) {
-    const h = this._hass;
-    const temps = [slot.temperature, slot.templow]
-      .filter((v) => v != null && v !== "" && Number.isFinite(Number(v)))
-      .map((v) => this._numText(Number(v)) + "°")
-      .join(" / ");
-    return [
-      type === "twice_daily" ? (slot.is_daytime === false ? this._t.wx_night : this._t.wx_day) : "",
-      temps,
-      slot.condition ? (h && h.formatEntityState ? h.formatEntityState(shown) : slot.condition) : "",
-    ]
-      .filter(Boolean)
-      .join(" · ");
-  }
-
-  /* A number as the profile writes numbers. */
-  _numText(v) {
-    const l = (this._hass && this._hass.locale) || {};
-    const locale = l.number_format === "system" ? undefined : NUMBER_LOCALES[l.number_format] || this._lang;
-    try {
-      return new Intl.NumberFormat(locale, { maximumFractionDigits: 1, useGrouping: l.number_format !== "none" }).format(v);
-    } catch (e) {
-      return String(v);
-    }
-  }
-
-  /* Visibility as Home Assistant checks it for cards. An entity a condition reads counts as watched, and the
-   * moment a time condition can change wakes the card. */
-  _conditionsMet(conditions, entity, ctx, read) {
-    this._conditionFailed = false;
-    const met = listOf(conditions).filter(switchedOn).map((c) => this._conditionMet(c, entity, ctx, read));
-    /* An error from the server hides the info, as it hides a card. */
-    return met.every(Boolean) && !this._conditionFailed;
-  }
-
-  _conditionMet(c, entity, ctx, read) {
-    if (!isObject(c) || ("enabled" in c && typeof c.enabled !== "boolean")) return false;
-    const h = ctx.hass;
-    const type = "condition" in c ? c.condition : "state";
-    if (type === "and" || type === "or" || type === "not") {
-      if (c.conditions == null) return true;
-      const met = listOf(c.conditions).filter(switchedOn).map((k) => this._conditionMet(k, entity, ctx, read));
-      return type === "and" ? met.every(Boolean) : type === "or" ? met.some(Boolean) : !met.every(Boolean);
-    }
-    if ("entity_id" in c || !CLIENT_CONDITIONS.has(type)) return this._serverCondition(c, ctx);
-    /* A value that names an entity also stands for that entity's state. */
-    const refer = (v) => {
-      if (!isEntityId(v) || !h.states[v]) return undefined;
-      read.push(v);
-      return h.states[v].state;
-    };
-    const own = () => {
-      const id = c.entity || entity;
-      read.push(id);
-      const st = h.states[id];
-      return st && c.attribute ? st.attributes[c.attribute] : st && st.state;
-    };
-    if (type === "screen") return Boolean(c.media_query) && this._media(c.media_query);
-    if (type === "user") return Boolean(c.users && h.user && h.user.id) && c.users.includes(h.user.id);
-    if (type === "view_columns") return true;
-    if (type === "time") return this._timeMet(c, ctx);
-    if (type === "location") {
-      const person = userPerson(h);
-      if (person) read.push(person.entity_id);
-      return Boolean(person && c.locations && c.locations.includes(person.state));
-    }
-    if (type === "numeric_state") {
-      const n = Number(own());
-      if (isNaN(n)) return false;
-      const bound = (v) => Number(typeof v === "string" ? (refer(v) !== undefined ? refer(v) : v) : v);
-      const above = bound(c.above);
-      const below = bound(c.below);
-      return (c.above == null || isNaN(above) || above < n) && (c.below == null || isNaN(below) || below > n);
-    }
-    const raw = own();
-    const state = raw == null ? "unknown" : String(raw);
-    const value = c.state != null ? c.state : c.state_not;
-    if (value === undefined) return false;
-    const values = listOf(value).flatMap((v) => (refer(v) !== undefined ? [v, refer(v)] : [v]));
-    return c.state != null ? values.includes(state) : !values.includes(state);
-  }
-
-  /* Like Home Assistant, a time condition reads today in the zone of the profile and includes both ends. */
-  _timeMet(c, ctx) {
-    const zone = this._clockOpts().timeZone;
-    const p = zonedParts(ctx.now, zone);
-    const day = dayNumber(ctx.now, zone);
-    const now = p.hour * 3600 + p.minute * 60 + p.second;
-    const after = c.after ? daySeconds(c.after) : null;
-    const before = c.before ? daySeconds(c.before) : null;
-    for (const at of [after, before == null ? null : before + 1]) {
-      if (at == null) continue;
-      ctx.wake(wallTime(day, at, zone));
-      ctx.wake(wallTime(day + 1, at, zone));
-    }
-    ctx.wake(dayStart(day + 1, zone));
-    if (c.weekdays && c.weekdays.length && !c.weekdays.includes(WEEKDAYS[new Date(day * DAY_MS).getUTCDay()])) return false;
-    if (after != null && before != null) return before < after ? now >= after || now <= before : now >= after && now <= before;
-    if (after != null) return now >= after;
-    return before == null || now <= before;
-  }
-
-  /* A media query is asked again whenever its answer changes. */
-  _media(query) {
-    if (!window.matchMedia) return false;
-    this._mediaWatch = this._mediaWatch || new Map();
-    let mql = this._mediaWatch.get(query);
-    if (!mql) {
-      mql = window.matchMedia(query);
-      mql.onchange = () => this._recompute();
-      this._mediaWatch.set(query, mql);
-    }
-    return mql.matches;
-  }
-
-  /* From 2026.10 Home Assistant checks conditions like sun or template on the server and sends each change. Until
-   * the first answer, and where the server does not know the command, the condition counts as not met. */
-  _serverCondition(c, ctx) {
-    const key = JSON.stringify(c);
-    this._serverUsed.add(key);
-    let sub = this._serverSubs.get(key);
-    if (!sub) {
-      sub = { result: false, failed: false };
-      this._serverSubs.set(key, sub);
-    }
-    /* Home Assistant hands a card its hass before it puts the card on the page, so the card asks once it is there. */
-    const conn = ctx.hass.connection;
-    if (!sub.unsub && conn && this.isConnected) {
-      sub.unsub = conn.subscribeMessage(
-        (msg) => {
-          const result = Boolean(msg && msg.result === true);
-          const failed = Boolean(msg && msg.error);
-          if (result === sub.result && failed === sub.failed) return;
-          Object.assign(sub, { result, failed });
-          this._recompute();
-        },
-        { type: "subscribe_condition", condition: c }
-      );
-      sub.unsub.catch(() => {});
-    }
-    if (sub.failed) this._conditionFailed = true;
-    return sub.result;
-  }
-
-  _dropServerConditions(keep = new Set()) {
-    for (const [key, sub] of this._serverSubs) {
-      if (keep.has(key)) continue;
-      if (sub.unsub) sub.unsub.then((u) => u()).catch(() => {});
-      this._serverSubs.delete(key);
-    }
-  }
-
-  /* Calendar rows and entries for a day say today or tomorrow, so they are built again after midnight. */
-  _scheduleDay() {
-    clearTimeout(this._dayTimer);
-    if (!this.isConnected || !this._items.some((it) => it.kind === "calendar" || it.day)) return;
-    const p = zonedParts(Date.now(), this._clockOpts().timeZone);
-    const ms = ((23 - p.hour) * 3600 + (59 - p.minute) * 60 + (60 - p.second)) * 1000;
-    this._dayTimer = setTimeout(() => this._recompute(), ms + 1000);
-  }
-
-  /* One timer for the earliest moment the list changes on its own. A card that was away catches up
-   * when it comes back. */
-  _scheduleBoundary(wakes = this._wakes, now = Date.now()) {
-    clearTimeout(this._boundaryTimer);
-    this._boundaryTimer = null;
-    this._wakes = wakes;
-    if (!this.isConnected) return;
-    const ms = wakeDelay(wakes, now);
-    if (ms !== null) this._boundaryTimer = setTimeout(() => this._recompute(), ms);
-  }
-
-  _build() {
-    this.shadowRoot.innerHTML = TEMPLATE;
-    const q = (s) => this.shadowRoot.querySelector(s);
-    const userCss = document.createElement("style");
-    this.shadowRoot.appendChild(userCss);
-    this._dom = {
-      card: q("ha-card"),
-      head: q(".head"),
-      tile: q(".head .tile"),
-      glyph: q(".head .glyph"),
-      texts: q(".texts"),
-      slide: q(".slide"),
-      title: q(".head .title"),
-      msg: q(".msg"),
-      t: q(".msg .t"),
-      eta: q(".head .eta"),
-      badge: q(".badge"),
-      chev: q(".head .chev"),
-      list: q(".list"),
-      foot: q(".foot"),
-      clear: q(".clear"),
-      ebar: q(".ebar"),
-      count: q(".count"),
-      say: q(".say"),
-      bgs: [...this.shadowRoot.querySelectorAll(".backdrop img")],
-      userCss,
-    };
-    const d = this._dom;
-    for (const img of d.bgs) img.referrerPolicy = "no-referrer";
-    d.clear.textContent = this._t.clear;
-    this._applyCustomStyles();
-    /* Home Assistant's own ripple gives the hover and press feedback of its cards. */
-    if (customElements.get("ha-ripple")) {
-      for (const el of [d.head, d.ebar]) el.prepend(document.createElement("ha-ripple"));
-    }
-    d.head.addEventListener("click", () => {
-      if (this._noClick) {
-        this._noClick = false;
-        return;
-      }
-      this._activate();
-    });
-    d.head.addEventListener("keydown", (e) => {
-      const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
-      if (step && this._slides.length > 1) {
-        e.preventDefault();
-        this._step(step * ((e.key === "ArrowLeft" || e.key === "ArrowRight") && this._rtl() ? -1 : 1), "key");
-        return;
-      }
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      this._activate();
-    });
-    d.head.addEventListener("pointerdown", (e) => this._onPress(e));
-    d.head.addEventListener("pointermove", (e) => this._onDrag(e));
-    d.head.addEventListener("pointerup", (e) => this._onRelease(e, false));
-    d.head.addEventListener("pointercancel", (e) => e !== this._ownCancel && this._onRelease(e, true));
-    /* A press that leaves the card ends there, like on Home Assistant's ripple. */
-    d.head.addEventListener("pointerleave", (e) => this._press && !this._press.drag && this._onRelease(e, true));
-    d.head.addEventListener("focusin", () => this._hold("focus", d.head.matches(":focus-visible")));
-    d.head.addEventListener("focusout", () => this._hold("focus", false));
-    /* The click that ends a swipe reaches neither the card nor its ripple. */
-    d.card.addEventListener(
-      "click",
-      (e) => {
-        if (!this._swiped || !d.head.contains(e.target)) return;
-        this._swiped = false;
-        e.stopPropagation();
-      },
-      true
-    );
-    d.ebar.addEventListener("click", () => this._toggle());
-    d.ebar.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      this._toggle();
-    });
-    d.card.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape" || !this._expanded) return;
-      e.stopPropagation();
-      this._toggle();
-      d.head.focus({ preventScroll: true });
-    });
-    d.clear.addEventListener("click", (e) => {
-      this._clearAll();
-      if (e.detail === 0) this._focusAfter(0);
-    });
-    /* Like Home Assistant's own cards, the card measures its width to fit a narrow cell. */
-    this._ro = new ResizeObserver((entries) => {
-      const width = entries[entries.length - 1].contentRect.width;
-      const narrow = width > 0 && width < NARROW_PX;
-      if (narrow === this._narrow) return;
-      this._narrow = narrow;
-      this.classList.toggle("narrow", narrow);
-      this._render();
-    });
-    this._ro.observe(d.card);
-    if (window.IntersectionObserver) {
-      this._io = new IntersectionObserver((entries) => this._onView(entries), { threshold: 0.01 });
-      if (this.isConnected) this._io.observe(this);
-    }
-    this._suppressAnim();
-  }
-
-  /* Off screen nothing ticks. Back in view, the times are brought up to date at once. */
-  _onView(entries) {
-    const entry = entries[entries.length - 1];
-    const visible = Boolean(entry && entry.isIntersecting);
-    if (visible === this._visible) return;
-    this._visible = visible;
-    if (visible) this._refreshTimes();
-    this._tick();
-    this._rotate();
-  }
-
-  /* No transitions on the first paint after attaching, and none in the dashboard editor. */
-  _suppressAnim() {
-    this.classList.add("no-anim");
-    this._settling = true;
-    this._markIntro();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        this._settling = false;
-        if (!this._editMode) this.classList.remove("no-anim");
-        this._playIntro();
-      });
-    });
-  }
-
-  /* Until the card settles, the first entry of several waits out of sight for its way in. */
-  _markIntro() {
-    if (this._settling && this._slides.length > 1 && !this._editMode && motionOK()) this.classList.add("intro");
-  }
-
-  /* Focus follows the toggle, which hides itself as it opens or closes. */
-  _toggle() {
-    if (!this._listed().length) return;
-    if (this._narrow && !this._expanded && this._openDialog()) return;
-    const d = this._dom;
-    const active = this.shadowRoot.activeElement;
-    const refocus = active === d.head || active === d.ebar;
-    this._expanded = !this._expanded;
-    d.head.setAttribute("aria-expanded", String(this._expanded));
-    if (this._expanded) {
-      const cap = getComputedStyle(d.card).getPropertyValue("--origami-max-height").trim();
-      this.classList.toggle("capped", cap !== "");
-    }
-    this._render();
-    if (refocus) (this._expanded ? d.ebar : d.head).focus({ preventScroll: true });
-  }
-
-  /* Where the card is narrow, the list opens in Home Assistant's own dialog. It is a bottom sheet on a phone.
-   * Until Home Assistant has loaded that dialog, and in the dashboard editor, the list unfolds in the card. */
-  _openDialog() {
-    if (this._editMode || !customElements.get("ha-adaptive-dialog")) return false;
-    fire(this._dom.head, "show-dialog", { dialogTag: DIALOG, dialogImport: () => Promise.resolve(), dialogParams: { card: this } });
-    return true;
-  }
-
-  /* One clock per card, and only while a time on show can change. */
-  _tick() {
-    this._stopClock();
-    if (!this._dom || !this.isConnected || !this._visible || document.hidden) return;
-    const ms = nextTick(this._items, this._headItem(), this._expanded || Boolean(this._dialogEl), Date.now());
-    if (!ms) return;
-    this._clock = setTimeout(() => {
-      this._clock = null;
-      this._refreshTimes();
-      this._tick();
-    }, ms);
-  }
-
-  _stopClock() {
-    clearTimeout(this._clock);
-    this._clock = null;
-  }
-
-  _refreshTimes(now = Date.now()) {
-    if (!this._dom) return;
-    const top = this._headItem();
-    if (top && headTime(top) && !this._swapping) setText(this._dom.eta, this._timeText(top, now));
-    for (const rows of [this._rowCache, this._dialogEl && this._dialogEl._cache]) {
-      if (!rows) continue;
-      for (const it of this._items) {
-        const entry = rows.get(it.key);
-        if (entry) this._setTime(entry.el, it, now);
-      }
-    }
-  }
-
-  /* Rows keep their element while the time changes. The full date is written only for a new time.
-   * An entry for a day has a date on the server and no time of day. */
-  _setTime(row, it, now) {
-    const when = row.querySelector(".when");
-    const stamp = (it.day ? "day " : "") + it.ts;
-    if (when._stamp !== stamp) {
-      when._stamp = stamp;
-      if (!Number.isFinite(it.ts)) {
-        when.removeAttribute("datetime");
-        when.removeAttribute("title");
-      } else if (it.day) {
-        const zone = serverZone(this._hass);
-        const p = zonedParts(it.ts, zone);
-        when.dateTime = [p.year, p.month, p.day].map((n) => String(n).padStart(2, "0")).join("-");
-        when.title = this._absDate(it.ts, zone);
-      } else {
-        when.dateTime = new Date(it.ts).toISOString();
-        when.title = this._absTime(it.ts);
-      }
-    }
-    setText(when, this._timeText(it, now));
-  }
-
-  /* Rows go at once. PENDING_MS covers Home Assistant refusing. */
-  _dismiss(items) {
-    const acks = loadAcks();
-    let acked = false;
-    /* A group stands for its members, and each of them keeps a dismissal of its own. */
-    for (const it of items.flatMap((i) => i.members || [i])) {
-      if (it.localDismiss) {
-        acks[it.key] = it.ackSig;
-        acked = true;
-        continue;
-      }
-      if (!it.dismiss) continue;
-      const key = it.key;
-      this._pending.set(key, Infinity);
-      new Promise((resolve) => resolve(it.dismiss())).then(
-        () => {
-          if (this._pending.get(key) !== Infinity) return;
-          this._pending.set(key, Date.now() + PENDING_MS);
-          this._recompute();
-        },
-        (e) => {
-          console.warn(CARD + ": could not dismiss " + key, e);
-          if (this._pending.delete(key)) this._recompute();
-        }
-      );
-    }
-    if (acked) {
-      saveAcks(this._present);
-      for (const card of CARDS) if (card !== this) card._recompute();
-    }
-    this._recompute();
-  }
-
-  _clearAll() {
-    if (this._hass) this._dismiss(this._items.filter((it) => it.dismiss));
-  }
-
-  _hiding() {
-    return this.hidden || Boolean(this._hostAnim && !this._hostAnim.showing);
-  }
-
-  /* After a dismissal by keyboard, focus the row that took its place, in the card or in the dialog. */
-  _focusAfter(index, root = this.shadowRoot, cache) {
-    const inCard = root === this.shadowRoot;
-    if (inCard && this._hiding()) return;
-    const rows = cache || (inCard ? this._rowCache : (this._dialogEl && this._dialogEl._cache) || new Map());
-    const it = this._items[Math.min(Math.max(index, 0), this._items.length - 1)];
-    const entry = it && rows.get(it.key);
-    const target =
-      (entry && (entry.el.querySelector(".x") || entry.el.querySelector(".rtile[role=button]"))) ||
-      (inCard ? (this._expanded ? this._dom.ebar : this._dom.head) : null);
-    if (target) target.focus({ preventScroll: true });
-  }
-
-  /* The hidden attribute plus card-visibility-changed make Home Assistant drop the slot. A slot
-   * with a fixed height can't shrink, so then the card only fades and the slot goes at once. */
-  _setShown(show) {
-    if (show !== this._hiding()) return;
-    const running = this._hostAnim;
-    const now = getComputedStyle(this);
-    const from = { height: now.height, opacity: now.opacity };
-    if (running) {
-      running.onfinish = null;
-      running.cancel();
-      this._hostAnim = null;
-    }
-    this.classList.remove("leaving");
-    this._enterFrom = null;
-    if (show) {
-      if (this.hidden) {
-        this.hidden = false;
-        fire(this, "card-visibility-changed", { value: true });
-        from.height = "0px";
-        from.opacity = "0";
-      }
-      /* Played at the end of _render, once the content can be measured. */
-      if (this._animOK()) this._enterFrom = from;
-      return;
-    }
-    const fade = Number(from.opacity) > 0;
-    const size = !this.classList.contains("bounded");
-    if (!this._animOK() || !(fade || size)) {
-      this._gone();
-      return;
-    }
-    const frames = [];
-    if (fade) frames.push({ height: from.height, opacity: from.opacity, easing: EASE_FADE_OUT });
-    if (size) {
-      frames.push({ height: from.height, opacity: 0, easing: easeClose(gapPace(this, parseFloat(from.height))) });
-      if (fade) frames[1].offset = FADE_MS / (FADE_MS + SIZE_MS);
-    }
-    frames.push({ height: size ? "0px" : from.height, opacity: 0 });
-    this.classList.add("leaving");
-    const duration = (fade ? FADE_MS : 0) + (size ? SIZE_MS : 0);
-    const anim = this.animate(frames, { duration, fill: "forwards" });
-    anim.showing = false;
-    this._hostAnim = anim;
-    /* Hide one frame after the card shows closed. The gap Home Assistant then drops is the last step. */
-    let closed = false;
-    const watch = () => {
-      if (this._hostAnim !== anim) return;
-      if (!closed) {
-        closed = anim.playState === "finished" || anim.currentTime >= duration - 4;
-        requestAnimationFrame(watch);
-        return;
-      }
-      this._hostAnim = null;
-      this._gone();
-      anim.cancel();
-    };
-    requestAnimationFrame(watch);
-  }
-
-  _playEnter() {
-    const from = this._enterFrom;
-    this._enterFrom = null;
-    if (!from || !this._animOK()) return;
-    const to = getComputedStyle(this).height;
-    const size = !this.classList.contains("bounded") && from.height !== to;
-    const frames = size
-      ? [
-          { height: from.height, opacity: from.opacity, easing: easeOpen(gapPace(this, parseFloat(to) - parseFloat(from.height))) },
-          { height: to, opacity: from.opacity, offset: SIZE_MS / (SIZE_MS + FADE_MS), easing: EASE_FADE_IN },
-          { height: to, opacity: 1 },
-        ]
-      : [{ opacity: from.opacity, easing: EASE_FADE_IN }, { opacity: 1 }];
-    const anim = this.animate(frames, { duration: (size ? SIZE_MS : 0) + FADE_MS });
-    anim.showing = true;
-    this._hostAnim = anim;
-    anim.onfinish = () => {
-      if (this._hostAnim === anim) this._hostAnim = null;
-    };
-  }
-
-  _collapse() {
-    this._expanded = false;
-    this._shownOpen = false;
-    clearTimeout(this._settleTimer);
-    if (!this._dom) return;
-    this._dom.card.classList.remove("open", "settled");
-    this._dom.head.setAttribute("aria-expanded", "false");
-  }
-
-  /* A hidden card comes back closed, with a fresh list. */
-  _gone() {
-    const d = this._dom;
-    this.classList.remove("leaving");
-    this.hidden = true;
-    fire(this, "card-visibility-changed", { value: false });
-    this._collapse();
-    this._stopClock();
-    clearTimeout(this._listTimer);
-    this._listTimer = null;
-    if (!d) return;
-    for (const el of d.list.children) stopMotion(el);
-    stopMotion(d.foot);
-    d.list.replaceChildren();
-    this._rowCache = new Map();
-    this._setBackdrop(null);
-  }
-
-  /* Two layers, so one picture fades into the next once it has loaded. */
-  _setBackdrop(url) {
-    if (url === this._bgUrl) return;
-    this._bgUrl = url;
-    const layers = this._dom.bgs;
-    const shown = layers.find((l) => l.classList.contains("on")) || null;
-    if (!url) {
-      if (shown) shown.classList.remove("on");
-      this.classList.remove("has-bg");
-      return;
-    }
-    const next = shown === layers[0] ? layers[1] : layers[0];
-    const reveal = () => {
-      if (this._bgUrl !== url) return;
-      next.classList.add("on");
-      if (shown && shown !== next) shown.classList.remove("on");
-      this.classList.add("has-bg");
-    };
-    next.onload = reveal;
-    next.onerror = () => {
-      if (this._bgUrl !== url) return;
-      if (shown) shown.classList.remove("on");
-      this.classList.remove("has-bg");
-    };
-    if (next.getAttribute("src") === url && next.complete && next.naturalWidth) reveal();
-    else next.src = url;
-  }
-
-  _render(now = Date.now()) {
-    if (!this._dom || !this._config) return;
-    const d = this._dom;
-    const items = this._items;
-    const empty = items.length === 0 && this._infos.length === 0;
-
-    /* The card keeps showing what it showed while it fades away. */
-    if (empty && this._config.hide_when_empty && !this._editMode && !this._inPicker) {
-      this._setShown(false);
-      this._news = null;
-      this._painted = true;
-      this._stopClock();
-      this._rotate();
-      if (this._dialogEl) this._dialogEl.update();
-      return;
-    }
-    this._setShown(true);
-
-    const listed = this._listed();
-    if (!listed.length) this._expanded = false;
-    const wasOpen = this._shownOpen;
-    this._shownOpen = this._expanded;
-    d.card.classList.toggle("open", this._expanded);
-    /* A list that scrolls while the drawer still moves would flash a scrollbar. */
-    if (this._expanded !== wasOpen) {
-      clearTimeout(this._settleTimer);
-      d.card.classList.remove("settled");
-      if (this._expanded && !this._animOK()) d.card.classList.add("settled");
-      else if (this._expanded) this._settleTimer = setTimeout(() => d.card.classList.add("settled"), 300);
-    }
-    d.card.classList.toggle("has-items", items.length > 0);
-
-    const { slide, moved } = this._pickSlide();
-    /* The head opens the list, or the dialog where the card is narrow. With only one thing it opens that. */
-    const lists = listed.length > 1;
-    if (lists && !this._narrow) d.head.setAttribute("aria-expanded", String(this._expanded));
-    else d.head.removeAttribute("aria-expanded");
-    if (lists && this._narrow) d.head.setAttribute("aria-haspopup", "dialog");
-    else d.head.removeAttribute("aria-haspopup");
-    d.badge.hidden = items.length < 2;
-    setText(d.badge, badgeText(items.length));
-    d.chev.hidden = !lists;
-    const shown = this._painted && !this._hiding() && !this._expanded;
-    this._paintHead(slide, now, moved && shown ? { dir: 1 } : null);
-    this._markIntro();
-
-    /* The list animates only while open. A closing drawer keeps its rows until it is shut. */
-    if (!this._expanded && (wasOpen || this._listTimer)) {
-      this._listTimer =
-        this._listTimer ||
-        setTimeout(() => {
-          this._listTimer = null;
-          if (!this._expanded) this._renderDrawer(false);
-        }, 400);
-    } else {
-      clearTimeout(this._listTimer);
-      this._listTimer = null;
-      this._renderDrawer(wasOpen && this._expanded, now);
-    }
-    this._painted = true;
-    if (this._enterFrom) this._playEnter();
-    if (this._dialogEl) this._dialogEl.update();
-    this._tick();
-    this._rotate(moved);
-  }
-
-  /* What the closed card turns through. Critical entries take it alone, and infos fill a quiet card. A new
-   * entry comes forward at once and is read out, and so does a new first entry. */
-  _pickSlide() {
-    const items = this._items;
-    const crit = items.filter((it) => it.sev === "crit");
-    const slides = crit.length ? crit : [...items, ...this._infos];
-    const top = slides[0] || null;
-    const topMoved = Boolean(top && top.kind !== "info" && top.key !== this._topKey);
-    this._slides = slides;
-    this._topKey = top ? top.key : null;
-    let slide = slides.find((s) => s.key === this._slideKey) || null;
-    const news = this._news;
-    this._news = null;
-    /* News comes forward on a card that turns, and is read out. A card that holds still keeps its first entry. */
-    const fresh = news && this._turns() ? slides.find((s) => s.key === news.key) : null;
-    if (fresh) {
-      slide = fresh;
-      this._byHand = false;
-    } else if (!slide || topMoved || !this._turned || !(this._turns() || this._byHand)) {
-      /* Until the first turn the card shows the first entry, also one that loads later, like a forecast. */
-      slide = top;
-    }
-    /* Written anew each time, so the same news is read out again. */
-    if (news) this._dom.say.textContent = [news.title, news.message].filter(Boolean).join(". ");
-    const key = slide ? slide.key : null;
-    const moved = key !== this._slideKey;
-    this._slideKey = key;
-    return { slide, moved };
-  }
-
-  /* The entry on show, unless it is an info. */
-  _headItem() {
-    const s = this._headSlide;
-    return s && s.kind !== "info" ? s : null;
-  }
-
-  /* A turn moves only the text, and fades the icon out and in again. The card keeps its size. A turn that
-   * is under way paints whatever is current once its text is out of sight. */
-  _paintHead(slide, now, motion) {
-    this._headSlide = slide;
-    if (this._swapping) return;
-    if (!motion || !this._animOK() || !this._dom.slide.animate) {
-      this._dom.slide.style.transform = this._dom.slide.style.opacity = "";
-      this._fillHead(slide, now);
-      return;
-    }
-    const d = this._dom;
-    const side = motion.side || this._config.slide === "side";
-    const sign = (motion.dir < 0 ? -1 : 1) * (side && this._rtl() ? -1 : 1);
-    const move = (k) => (side ? "translateX(" + k * 24 + "px)" : "translateY(" + k * 14 + "px)");
-    const ms = tokenMs(this, "--ha-animation-duration-slow", 350) * 1.6;
-    const from = { transform: d.slide.style.transform || "none", opacity: d.slide.style.opacity || "1" };
-    d.slide.style.transform = d.slide.style.opacity = "";
-    for (const a of [...d.slide.getAnimations(), ...d.glyph.getAnimations()]) a.cancel();
-    d.texts.classList.remove("up", "side");
-    d.texts.classList.add(side ? "side" : "up");
-    const away = { duration: ms * 0.4, easing: EASE_FADE_OUT, fill: "forwards" };
-    const out = d.slide.animate([from, { transform: move(-sign), opacity: 0 }], away);
-    const iconOut = d.glyph.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(0.6)" }], away);
-    this._swapping = out;
-    out.onfinish = () => {
-      if (this._swapping !== out) return;
-      this._swapping = null;
-      this._fillHead(this._headSlide, Date.now());
-      this._slideIn(sign, side);
-      out.cancel();
-      iconOut.cancel();
-    };
-  }
-
-  /* The text comes in from where it turns to, and the icon grows back. */
-  _slideIn(sign, side) {
-    const d = this._dom;
-    const ms = tokenMs(this, "--ha-animation-duration-slow", 350) * 1.6 * 0.6;
-    const move = side ? "translateX(" + sign * 24 + "px)" : "translateY(" + sign * 14 + "px)";
-    d.texts.classList.add(side ? "side" : "up");
-    const back = { duration: ms, easing: EASE_FADE_IN };
-    const into = d.slide.animate([{ transform: move, opacity: 0 }, { transform: "none", opacity: 1 }], back);
-    d.glyph.animate([{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "none" }], back);
-    into.onfinish = () => d.texts.classList.remove("up", "side");
-  }
-
-  /* A card with more than one entry shows the first one coming in, as on every turn. */
-  _playIntro() {
-    if (!this.classList.contains("intro")) return;
-    this.classList.remove("intro");
-    if (this._slides.length < 2 || this._expanded || this._swapping || !this._animOK() || !this._dom.slide.animate) return;
-    const side = this._config.slide === "side";
-    this._slideIn(side && this._rtl() ? -1 : 1, side);
-  }
-
-  _fillHead(slide, now) {
-    const d = this._dom;
-    const info = Boolean(slide && slide.kind === "info");
-    const listed = this._listed();
-    const tappable = listed.length > 1 || Boolean(listed.length === 1 && this._opener(listed[0])) || Boolean(info && this._infoActs(slide));
-    d.card.classList.toggle("tappable", tappable);
-    d.head.setAttribute("aria-disabled", String(!tappable));
-    d.card.style.setProperty("--tile-color", slide ? itemColor(slide) : "var(--state-inactive-color)");
-    d.card.classList.toggle("crit", Boolean(slide && slide.sev === "crit"));
-    setIcon(d.glyph, slide || { icon: "mdi:bell-outline" }, this._hass);
-    d.tile.className = "tile" + (slide ? sevClass(slide.sev) : " idle");
-    setText(d.title, slide ? slide.title : this._t.idle_title);
-    const live = Boolean(slide && !info && headTime(slide));
-    d.msg.hidden = live;
-    d.eta.hidden = !live;
-    setText(d.eta, live ? this._timeText(slide, now) : "");
-    let sd = d.msg.querySelector("state-display");
-    if (info && slide.text == null && customElements.get("state-display")) {
-      if (!sd) {
-        sd = document.createElement("state-display");
-        d.msg.append(sd);
-      }
-      Object.assign(sd, { hass: this._hass, stateObj: slide.stateObj, content: slide.content, timeFormat: slide.timeFormat, name: slide.title });
-      sd.hidden = false;
-      d.t.hidden = true;
-      setText(d.t, "");
-    } else {
-      if (sd) sd.hidden = true;
-      d.t.hidden = false;
-      setText(d.t, info ? (slide.text != null ? slide.text : this._infoText(slide)) : slide ? slide.message || "" : this._t.idle_msg);
-    }
-    d.head.classList.toggle("single", Boolean(slide) && !info && !slide.message && !live);
-    setImage(d.glyph, slide ? slide.image : null);
-    this._setBackdrop(slide && slide.backdrop ? slide.image : null);
-  }
-
-  /* What an info says where Home Assistant's state text is missing. Like it, the state fills in for parts that
-   * have nothing to say. */
-  _infoText(slide) {
-    const h = this._hass;
-    const st = slide.stateObj;
-    const state = () => (h && h.formatEntityState ? h.formatEntityState(st) : String(st.state));
-    const text = [].concat(slide.content == null ? "state" : slide.content)
-      .map((c) => {
-        if (c === "state") return state();
-        if (c === "name") return slide.title;
-        const ts = st[String(c).replace("-", "_")];
-        if (/^last[_-](changed|updated)$/.test(c)) return this._relTime(parseTs(ts, Date.now()));
-        if (!(c in st.attributes) || st.attributes[c] == null) return "";
-        /* Like Home Assistant's state text, a time reads relative, like the start of an event or the next sunrise. */
-        const at = isoTime(st.attributes[c], serverZone(h));
-        if (Number.isFinite(at)) return this._relTime(at);
-        return h && h.formatEntityAttributeValue ? h.formatEntityAttributeValue(st, c) : String(st.attributes[c]);
-      })
-      .filter(Boolean)
-      .join(" · ");
-    return text || state();
-  }
-
-  _rtl() {
-    return getComputedStyle(this).direction === "rtl";
-  }
-
-  /* One timer turns the card while it shows more than one entry. A press, keyboard focus, an open list or the
-   * card being out of sight hold it. */
-  _rotate(restart = false) {
-    const go =
-      this._turns() > 0 && Boolean(this._dom) && this._slides.length > 1 && !this._expanded && !this._dialogEl && !this._held.size &&
-      this.isConnected && this._visible && !document.hidden && !this._hiding();
-    /* Home Assistant sends new states all the time. They must not push the next turn back. */
-    if (go && this._rotateTimer && !restart) return;
-    clearTimeout(this._rotateTimer);
-    this._rotateTimer = null;
-    if (!go) return;
-    this._rotateTimer = setTimeout(() => {
-      this._rotateTimer = null;
-      this._step(1, "auto");
-    }, this._turns() * 1000);
-  }
-
-  /* Seconds between turns, or 0 when the card holds still. */
-  _turns() {
-    const r = this._config && this._config.rotate;
-    const seconds = r == null ? DEFAULTS.rotate : Number(r);
-    return seconds > 0 ? seconds : 0;
-  }
-
-  _step(dir, how) {
-    const slides = this._slides;
-    if (slides.length < 2) return;
-    this._turned = true;
-    if (how !== "auto") this._byHand = true;
-    const i = Math.max(0, slides.findIndex((s) => s.key === this._slideKey));
-    const next = slides[(i + dir + slides.length) % slides.length];
-    this._slideKey = next.key;
-    this._paintHead(next, Date.now(), { dir, side: how === "swipe" });
-    this._tick();
-    this._rotate(true);
-  }
-
-  _hold(reason, on) {
-    if (on === this._held.has(reason)) return;
-    if (on) this._held.add(reason);
-    else this._held.delete(reason);
-    this._rotate(true);
-  }
-
-  /* A press can become a hold, a horizontal drag turns the card. */
-  _onPress(e) {
-    if (e.button > 0 || !e.isPrimary) return;
-    this._noClick = this._swiped = false;
-    this._hold("press", true);
-    const slide = this._headSlide;
-    const p = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, dx: 0, drag: false };
-    if (slide && slide.kind === "info" && hasAction(slide.info.hold_action)) {
-      p.timer = setTimeout(() => {
-        p.timer = null;
-        this._noClick = true;
-        this._infoAction(slide, "hold");
-      }, HOLD_MS);
-    }
-    this._press = p;
-  }
-
-  _onDrag(e) {
-    const p = this._press;
-    if (!p || e.pointerId !== p.id) return;
-    const dx = e.clientX - p.x;
-    const dy = e.clientY - p.y;
-    if (!p.drag) {
-      if (Math.hypot(dx, dy) > 10) clearTimeout(p.timer);
-      if (this._slides.length < 2 || this._expanded || Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-      p.drag = true;
-      this._swiped = true;
-      try {
-        this._dom.head.setPointerCapture(p.id);
-      } catch (err) {
-        /* the pointer is gone */
-      }
-      this._endRipple(e);
-    }
-    p.dx = dx;
-    if (this._swapping) return;
-    this._dom.slide.style.transform = "translateX(" + dx * 0.6 + "px)";
-    this._dom.slide.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 160));
-  }
-
-  /* A swipe ends the press on Home Assistant's ripple, as scrolling the page does. */
-  _endRipple(e) {
-    if (!this._dom.head.querySelector("ha-ripple")) return;
-    this._ownCancel = new PointerEvent("pointercancel", { pointerId: e.pointerId, pointerType: e.pointerType, isPrimary: true, buttons: e.buttons });
-    this._dom.head.dispatchEvent(this._ownCancel);
-  }
-
-  _onRelease(e, cancelled) {
-    const p = this._press;
-    if (!p || e.pointerId !== p.id) return;
-    this._press = null;
-    clearTimeout(p.timer);
-    this._hold("press", false);
-    if (!p.drag) return;
-    const fast = Math.abs(p.dx) / Math.max(e.timeStamp - p.t, 1) > 0.5;
-    if (!cancelled && (Math.abs(p.dx) > 48 || fast)) {
-      this._step((p.dx < 0) !== this._rtl() ? 1 : -1, "swipe");
-      return;
-    }
-    const s = this._dom.slide;
-    const from = { transform: s.style.transform || "none", opacity: s.style.opacity || "1" };
-    s.style.transform = s.style.opacity = "";
-    if (s.animate && this._animOK()) s.animate([from, { transform: "none", opacity: 1 }], { duration: SIZE_MS, easing: EASE_STANDARD });
-  }
-
-  /* A tap opens the list, or does what the info on show is set to do. */
-  _activate() {
-    const slide = this._headSlide;
-    if (!(slide && slide.kind === "info" && hasAction(slide.info.double_tap_action))) {
-      this._tapHead();
-    } else if (this._tapWait) {
-      clearTimeout(this._tapWait);
-      this._tapWait = null;
-      this._infoAction(slide, "double_tap");
-    } else {
-      this._tapWait = setTimeout(() => {
-        this._tapWait = null;
-        this._tapHead();
-      }, DOUBLE_TAP_MS);
-    }
-  }
-
-  /* A tap opens the list of all the card has to say. With only one thing, it opens that, as its row would. */
-  _tapHead() {
-    const listed = this._listed();
-    const go = listed.length === 1 ? this._opener(listed[0]) : null;
-    if (go) go();
-    else this._toggle();
-  }
-
-  _opener(it) {
-    return it.inert ? null : it.open || (it.entity ? () => fireMoreInfo(this, it.entity) : null);
-  }
-
-  /* What the open card lists, the entries first and then one row per info, with the state of its entity. The
-   * forecast is in the entity's own dialog. An info opens as its tap action says. */
-  _listed() {
-    const seen = new Set();
-    const infos = this._infos.filter((slide) => !seen.has(slide.info) && seen.add(slide.info));
-    return [...this._items, ...infos.map((slide) => this._infoRow(slide))];
-  }
-
-  _infoRow(slide) {
-    const tap = slide.info.tap_action;
-    const st = this._hass && this._hass.states[slide.entity];
-    const now = { ...slide, stateObj: st || slide.stateObj, title: slide.name, content: slide.info.state_content, icon: slide.info.icon };
-    return {
-      key: slide.key.split("#")[0],
-      kind: "info",
-      title: now.title,
-      message: this._infoText(now),
-      icon: now.icon,
-      image: slide.image,
-      stateObj: now.stateObj,
-      color: now.stateObj === slide.stateObj ? slide.color : undefined,
-      entity: slide.entity,
-      ts: NaN,
-      inert: Boolean(tap) && !hasAction(tap),
-      open: () => this._infoAction(slide, "tap"),
-    };
-  }
-
-  _listTitle() {
-    const n = this._items.length;
-    return n ? fill(n === 1 ? this._t.count_one : this._t.count_other, { n }) : this._t.idle_title;
-  }
-
-  /* Home Assistant runs the action as for its own cards. Without a tap action it opens the entity. */
-  _infoAction(slide, action) {
-    const info = slide.info;
-    const config = { entity: slide.entity, tap_action: info.tap_action || { action: "more-info" } };
-    if (info.hold_action) config.hold_action = info.hold_action;
-    if (info.double_tap_action) config.double_tap_action = info.double_tap_action;
-    if (action !== "tap" || hasAction(config.tap_action)) fire(this, "hass-action", { config, action });
-  }
-
-  _infoActs(slide) {
-    const info = slide.info;
-    return !info.tap_action || hasAction(info.tap_action) || hasAction(info.hold_action) || hasAction(info.double_tap_action);
-  }
-
-  _renderDrawer(animate, now = Date.now()) {
-    const d = this._dom;
-    const items = this._items;
-    animate = animate && this._animOK();
-    setText(d.count, this._listTitle());
-    this._rowCache = this._renderList(this._listed(), animate, now);
-    this._setFoot(items.length > 1 && items.some((it) => it.dismiss), animate);
-  }
-
-  _setFoot(show, animate) {
-    const foot = this._dom.foot;
-    const leaving = foot.classList.contains("leaving");
-    if (show === (!foot.hidden && !leaving)) return;
-    /* Shown again while leaving, so play the way out backwards. */
-    if (show && leaving && animate && foot._motion) {
-      const anim = foot._motion;
-      foot.classList.remove("leaving");
-      anim.onfinish = () => stopMotion(foot);
-      anim.reverse();
-      return;
-    }
-    stopMotion(foot);
-    foot.hidden = false;
-    if (!animate) {
-      foot.hidden = !show;
-      return;
-    }
-    const anim = show ? playEnter(foot, 0) : playLeave(foot, 0, 0);
-    if (!show) {
-      anim.onfinish = () => {
-        foot.hidden = true;
-        stopMotion(foot);
-      };
-    }
-  }
-
-  /* No animation without a layout, like while a visibility condition hides the card. */
-  _animOK() {
-    return (
-      this._painted &&
-      !this._editMode &&
-      this.isConnected &&
-      this.getClientRects().length > 0 &&
-      !this.classList.contains("no-anim") &&
-      motionOK()
-    );
-  }
-
-  /* Rows are keyed and reused while their content stays the same. With animate, rows
-   * leave and arrive as in playLeave and playEnter, and moved rows slide. */
-  _renderList(items, animate, now, list = this._dom.list, cache = this._rowCache, root = this.shadowRoot) {
-    const active = root.activeElement;
-    let refocus = null;
-    const before = new Map();
-    if (animate) {
-      for (const [key, entry] of cache) before.set(key, entry.el.offsetTop);
-    }
-    const old = [...list.children];
-    const replaced = new Map();
-    const next = new Map();
-    const els = [];
-    for (const it of items) {
-      const sig = rowSig(it) + "\u0000" + this._epoch;
-      const hit = cache.get(it.key);
-      let el;
-      if (hit && hit.sig === sig) {
-        el = hit.el;
-        el.style.setProperty("--tile-color", itemColor(it));
-        this._setTime(el, it, now);
-        setIcon(el.querySelector(".rtile"), it, this._hass);
-        setImage(el.querySelector(".rtile"), it.image);
-      } else {
-        el = this._row(it, now);
-        if (hit) {
-          replaced.set(hit.el, el);
-          if (hit.el.classList.contains("open")) el.classList.add("open");
-          /* Keep keyboard focus on the same control of the rebuilt row. */
-          if (active && hit.el.contains(active)) {
-            const cls = "." + active.classList[0];
-            refocus = [el, cls, [...hit.el.querySelectorAll(cls)].indexOf(active)];
-          }
-        }
-      }
-      next.set(it.key, { sig, el });
-      els.push(el);
-    }
-    const kept = new Set(els);
-    const gone = new Set(old.filter((el) => !kept.has(el) && !replaced.has(el)));
-    /* A button can end its own row, like Cancel on a timer. Focus then goes where it goes after a dismissal. */
-    const keys = [...cache.keys()];
-    const lost = active ? keys.findIndex((key) => !next.has(key) && cache.get(key).el.contains(active)) : -1;
-    const focus = () => {
-      const target = refocus && refocus[0].querySelectorAll(refocus[1])[refocus[2]];
-      if (target) target.focus({ preventScroll: true });
-      else if (lost >= 0) this._focusAfter(lost, root, next);
-    };
-    if (!animate) {
-      for (const el of old) stopMotion(el);
-      list.replaceChildren(...els);
-      focus();
-      return next;
-    }
-
-    /* Rows on their way out stay where they were, after the row above them. */
-    const after = new Map();
-    let anchor = null;
-    for (const el of old) {
-      if (gone.has(el)) {
-        if (!after.has(anchor)) after.set(anchor, []);
-        after.get(anchor).push(el);
-      } else {
-        anchor = replaced.get(el) || el;
-      }
-    }
-    const order = [...(after.get(null) || [])];
-    for (const el of els) order.push(el, ...(after.get(el) || []));
-    let cursor = list.firstChild;
-    for (const el of order) {
-      if (el === cursor) cursor = cursor.nextSibling;
-      else list.insertBefore(el, cursor);
-    }
-    while (cursor) {
-      const n = cursor.nextSibling;
-      cursor.remove();
-      cursor = n;
-    }
-    focus();
-
-    const gap = parseFloat(getComputedStyle(list).rowGap) || 0;
-    const slide = getComputedStyle(this).direction === "rtl" ? -16 : 16;
-    for (const el of gone) {
-      if (el.classList.contains("leaving")) continue;
-      playLeave(el, gap, slide).onfinish = () => {
-        stopMotion(el);
-        el.remove();
-      };
-    }
-    for (const [key, entry] of next) {
-      if (!before.has(key)) playEnter(entry.el, gap);
-    }
-    for (const [key, entry] of next) {
-      const dy = before.has(key) ? before.get(key) - entry.el.offsetTop : 0;
-      if (Math.abs(dy) > 1) {
-        entry.el.animate([{ transform: "translateY(" + dy + "px)" }, { transform: "none" }], {
-          duration: SIZE_MS,
-          easing: EASE_STANDARD,
-        });
-      }
-    }
-    return next;
-  }
-
-  _row(it, now) {
-    const row = document.createElement("div");
-    row.className = "row" + sevClass(it.sev);
-    row.dataset.kind = it.kind;
-    row.style.setProperty("--tile-color", itemColor(it));
-    row.setAttribute("role", "listitem");
-    const tile = document.createElement("div");
-    tile.className = "rtile" + sevClass(it.sev);
-    setIcon(tile, it, this._hass);
-    setImage(tile, it.image);
-    const title = document.createElement("div");
-    title.className = "title";
-    title.textContent = it.title;
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    const when = document.createElement("time");
-    when.className = "when";
-    meta.append(when);
-    if (it.dismiss) {
-      const x = document.createElement("button");
-      x.className = "x";
-      x.type = "button";
-      x.setAttribute("aria-label", this._t.dismiss);
-      x.setAttribute("title", this._t.dismiss);
-      const xi = document.createElement("ha-icon");
-      xi.setAttribute("icon", "mdi:close");
-      x.append(xi);
-      x.addEventListener("click", (e) => {
-        e.stopPropagation();
-        /* The row may be older than the item, so dismiss the current one. */
-        const index = this._items.findIndex((i) => i.key === it.key);
-        this._dismiss([index < 0 ? it : this._items[index]]);
-        if (e.detail === 0) this._focusAfter(index, row.getRootNode());
-      });
-      meta.append(x);
-    }
-    const body = document.createElement("div");
-    body.className = "body";
-    body.textContent = it.message;
-    /* Without a message the time takes its place, like on the repairs page of Home Assistant. */
-    if (!it.message && Number.isFinite(it.ts)) body.append(when);
-    row.append(tile, title, meta, body);
-    this._setTime(row, it, now);
-    if (it.actions && it.actions.length) {
-      const actions = document.createElement("div");
-      actions.className = "actions";
-      for (const a of it.actions) {
-        const btn = document.createElement("button");
-        btn.className = "act";
-        btn.type = "button";
-        btn.textContent = a.label;
-        if (a.disabled) btn.disabled = true;
-        else
-          btn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            a.run();
-          });
-        actions.append(btn);
-      }
-      row.append(actions);
-    }
-    const clamped = () =>
-      body.scrollHeight > body.clientHeight + 1 || title.scrollWidth > title.clientWidth + 1;
-    const selecting = () => {
-      const sel = (this.shadowRoot.getSelection && this.shadowRoot.getSelection()) || document.getSelection();
-      return Boolean(sel && !sel.isCollapsed && String(sel).trim());
-    };
-    const go = it.inert ? null : it.open || (it.entity ? () => fireMoreInfo(this, it.entity) : null);
-    /* The pointer shows a hand only where a tap does something. */
-    row.addEventListener("pointerenter", () => row.classList.toggle("expandable", clamped()));
-    /* A tap expands cut-off text, otherwise it opens the target. The icon always opens it. */
-    row.addEventListener("click", () => {
-      if (selecting()) return;
-      if (row.classList.contains("open") || clamped()) {
-        row.classList.toggle("open");
-      } else if (go) {
-        go();
-      }
-    });
-    if (go) {
-      row.classList.add("link");
-      tile.setAttribute("role", "button");
-      tile.tabIndex = 0;
-      tile.setAttribute("aria-label", it.title);
-      tile.addEventListener("click", (e) => {
-        e.stopPropagation();
-        go();
-      });
-      tile.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-        e.preventDefault();
-        e.stopPropagation();
-        go();
-      });
-    }
-    return row;
-  }
-
-  getCardSize() {
-    const head = this._config && this._config.vertical ? 2 : 1;
-    return this._expanded ? 1 + this._listed().length : head;
-  }
-
-  /* A vertical tile fits a quarter of a section. */
-  getGridOptions() {
-    return { columns: 12, rows: "auto", min_columns: this._config && this._config.vertical ? 3 : 6 };
-  }
-}
-
-const DIALOG = CARD + "-dialog";
-
-const DIALOG_STYLES = `
-  /* The dialog sits outside the dashboard, so like Home Assistant's own dialogs it takes the theme's font here. */
-  :host {
-    font-family: var(--ha-font-family-body);
-    -webkit-font-smoothing: var(--ha-font-smoothing);
-    -moz-osx-font-smoothing: var(--ha-moz-osx-font-smoothing);
-  }
-  ha-adaptive-dialog { --dialog-content-padding: 0; }
-  .list { padding: 0 12px 12px; }
-`;
-
-/* Home Assistant creates this element once, next to its own dialogs, and calls showDialog for every open. It
- * shows the rows of the card that opened it. A new ha-adaptive-dialog each time picks dialog or bottom sheet anew. */
-class OrigamiNotificationsDialog extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: "open" });
-    this._style = document.createElement("style");
-    this.shadowRoot.append(this._style);
-  }
-
-  set hass(hass) {
-    this._hass = hass;
-    if (this._dialog) this._dialog.hass = hass;
-  }
-
-  showDialog({ card }) {
-    if (this._card && this._card !== card) {
-      this._card._dialogEl = null;
-      this._card._rotate();
-    }
-    this._card = card;
-    card._dialogEl = this;
-    /* The card's clock runs on the minute while the dialog shows its times, and the turns wait. */
-    card._tick();
-    card._rotate();
-    if (this._dialog) {
-      this.update();
-      return;
-    }
-    this._style.textContent = STYLES + DIALOG_STYLES + (card._config.css || "");
-    const dialog = document.createElement("ha-adaptive-dialog");
-    /* 2026.4 reads hass for its close button. Later versions ignore it. */
-    dialog.hass = this._hass || card._hass;
-    dialog.setAttribute("flexcontent", "");
-    dialog.addEventListener("opened", (e) => {
-      if (e.target === dialog) this._shown = true;
-    });
-    dialog.addEventListener("closed", (e) => {
-      if (e.target === dialog) this._closed(dialog);
-    });
-    const clear = document.createElement("ha-icon-button");
-    clear.slot = "headerActionItems";
-    const icon = document.createElement("ha-icon");
-    icon.icon = "mdi:notification-clear-all";
-    clear.append(icon);
-    clear.addEventListener("click", () => {
-      if (this._card) this._card._clearAll();
-    });
-    this._list = document.createElement("div");
-    this._list.className = "list";
-    this._list.setAttribute("role", "list");
-    this._cache = new Map();
-    dialog.append(clear, this._list);
-    Object.assign(this, { _dialog: dialog, _clear: clear, _shown: false });
-    this.update();
-    this.shadowRoot.append(dialog);
-    dialog.open = true;
-  }
-
-  /* The card calls this whenever its entries change. With nothing left, the dialog closes. */
-  update() {
-    const card = this._card;
-    if (!card || !this._dialog) return;
-    const items = card._hiding() ? [] : card._listed();
-    if (!items.length) {
-      this.closeDialog();
-      return;
-    }
-    this._dialog.setAttribute("header-title", card._listTitle());
-    this._clear.label = card._t.clear;
-    this._clear.hidden = !(card._items.length > 1 && card._items.some((it) => it.dismiss));
-    this._cache = card._renderList(items, this._shown && card._animOK(), Date.now(), this._list, this._cache, this.shadowRoot);
-  }
-
-  /* Home Assistant calls this on back and before it navigates. Closing before the dialog showed skips its animation. */
-  closeDialog() {
-    if (this._dialog && this._shown) this._dialog.open = false;
-    else if (this._dialog) this._closed(this._dialog);
-    return true;
-  }
-
-  _closed(dialog) {
-    if (dialog !== this._dialog) return;
-    dialog.remove();
-    if (this._card && this._card._dialogEl === this) {
-      this._card._dialogEl = null;
-      this._card._tick();
-      this._card._rotate();
-    }
-    Object.assign(this, { _dialog: null, _list: null, _cache: null, _card: null });
-    this.dispatchEvent(new CustomEvent("dialog-closed", { bubbles: true, composed: true, detail: { dialog: this.localName } }));
-  }
-}
-
-/* An info is edited like a tile, so its fields take Home Assistant's own labels in every language. */
-const HA_TILE_LABELS = {
-  name: "ui.panel.lovelace.editor.card.generic.name",
-  icon: "ui.panel.lovelace.editor.card.generic.icon",
-  color: "ui.panel.lovelace.editor.card.tile.color",
-  state_content: "ui.panel.lovelace.editor.card.tile.state_content",
-  time_format: "ui.panel.lovelace.editor.card.generic.time_format",
-  show_entity_picture: "ui.panel.lovelace.editor.card.tile.show_entity_picture",
-  tap_action: "ui.panel.lovelace.editor.card.generic.tap_action",
-  hold_action: "ui.panel.lovelace.editor.card.generic.hold_action",
-  double_tap_action: "ui.panel.lovelace.editor.card.generic.double_tap_action",
-  visibility: "ui.panel.lovelace.editor.card.heading.entity_config.visibility",
-  visibility_intro: "ui.panel.lovelace.editor.card.heading.entity_config.visibility_explanation",
-  content_layout: "ui.panel.lovelace.editor.card.tile.content_layout",
-  horizontal: "ui.panel.lovelace.editor.card.tile.content_layout_options.horizontal",
-  vertical: "ui.panel.lovelace.editor.card.tile.content_layout_options.vertical",
-  forecast: "ui.panel.lovelace.editor.card.weather-forecast.weather_to_show",
-  show_both: "ui.panel.lovelace.editor.card.weather-forecast.show_both",
-  show_current: "ui.panel.lovelace.editor.card.weather-forecast.show_only_current",
-  show_forecast: "ui.panel.lovelace.editor.card.weather-forecast.show_only_forecast",
-  forecast_type: "ui.panel.lovelace.editor.card.weather-forecast.forecast_type",
-  forecast_slots: "ui.panel.lovelace.editor.card.weather-forecast.forecast_slots",
-  daily: "ui.panel.lovelace.editor.card.weather-forecast.daily",
-  hourly: "ui.panel.lovelace.editor.card.weather-forecast.hourly",
-  twice_daily: "ui.panel.lovelace.editor.card.weather-forecast.twice_daily",
-};
-
-/* What weather an info shows, in the terms of Home Assistant's forecast card editor. */
-const forecastShow = (info) =>
-  !info.forecast_type || info.show_forecast === false ? "show_current" : info.show_current === false ? "show_forecast" : "show_both";
-
-/* Languages the card doesn't ship get these labels from Home Assistant. */
-const HA_EDITOR = {
-  entities: "ui.panel.lovelace.editor.card.generic.entities",
-  name: "ui.panel.lovelace.editor.card.generic.name",
-  icon: "ui.panel.lovelace.editor.card.generic.icon",
-  attribute: "ui.panel.lovelace.editor.card.generic.attribute",
-  tap_action: "ui.panel.lovelace.editor.card.generic.tap_action",
-};
-
-const EDITOR_STRINGS = {
-  en: {
-    entities: "Entities",
-    label: "Include entities by label",
-    weather: "Weather",
-    updates: "Pending updates",
-    repairs: "Repairs",
-    hide_when_empty: "Hide when there is nothing to show",
-    infos: "Infos",
-    info_options: "Info options",
-    rotate: "Seconds between turns",
-    slide: "Turn",
-    slide_up: "Upwards",
-    slide_side: "Sideways",
-    color: "Color",
-    state_content: "State content",
-    time_format: "Time format",
-    show_entity_picture: "Show entity picture",
-    hold_action: "Hold behavior",
-    double_tap_action: "Double tap behavior",
-    visibility: "Visibility",
-    forecast: "Weather to show",
-    show_both: "Current weather and forecast",
-    show_current: "Only the current weather",
-    show_forecast: "Only the forecast",
-    forecast_type: "Forecast",
-    forecast_slots: "Forecasts to show",
-    daily: "Daily",
-    hourly: "Hourly",
-    twice_daily: "Twice daily",
-    options: "Entity options",
-    type: "Kind",
-    attribute: "Attribute",
-    name: "Name",
-    icon: "Icon",
-    image: "Picture",
-    background: "Picture as card background",
-    before: "Show ahead of time",
-    tap_action: "Tap behavior",
-    audience: "Who sees what",
-    content_layout: "Content layout",
-    horizontal: "Horizontal",
-    vertical: "Vertical",
-    styling: "Styling",
-    css: "CSS",
-    visible: "Visible to",
-    people: "People",
-    system: "System notifications",
-    everyone: "Everyone",
-    only: "Only these people",
-    except: "Everyone except these people",
-    nobody: "Nobody",
-    only_x: "Only {x}",
-    except_x: "Everyone except {x}",
-    type_auto: "Detect automatically",
-    type_calendar: "Calendar event",
-    type_update: "Update",
-    type_alarm: "Alarm panel",
-    type_alert: "Alert",
-    type_timer: "Timer",
-    type_countdown: "Countdown",
-    type_event: "Event",
-    type_todo: "To-do list",
-    type_device: "Device",
-    type_warning: "Warnings",
-    type_attribute: "Details from an attribute",
-    type_picture: "State as title",
-    type_generic: "Plain entity",
-  },
-  de: {
-    entities: "Entitäten",
-    label: "Entitäten mit diesem Label einbeziehen",
-    weather: "Wetter",
-    updates: "Ausstehende Updates",
-    repairs: "Reparaturen",
-    hide_when_empty: "Ausblenden, wenn nichts anliegt",
-    infos: "Infos",
-    info_options: "Optionen je Info",
-    rotate: "Sekunden bis zum Wechsel",
-    slide: "Wechsel",
-    slide_up: "Nach oben",
-    slide_side: "Seitlich",
-    color: "Farbe",
-    state_content: "Zustandsinhalt",
-    time_format: "Zeitformat",
-    show_entity_picture: "Entitätsbild anzeigen",
-    hold_action: "Verhalten beim Halten",
-    double_tap_action: "Verhalten beim Doppeltippen",
-    visibility: "Sichtbarkeit",
-    forecast: "Anzuzeigendes Wetter",
-    show_both: "Aktuelles Wetter und Vorhersage",
-    show_current: "Nur das aktuelle Wetter",
-    show_forecast: "Nur die Vorhersage",
-    forecast_type: "Vorhersage",
-    forecast_slots: "Anzahl der Vorhersagen",
-    daily: "Täglich",
-    hourly: "Stündlich",
-    twice_daily: "Zweimal täglich",
-    options: "Optionen je Entität",
-    type: "Art",
-    attribute: "Attribut",
-    name: "Name",
-    icon: "Symbol",
-    image: "Bild",
-    background: "Bild als Kartenhintergrund",
-    before: "Im Voraus zeigen",
-    tap_action: "Verhalten beim Tippen",
-    audience: "Wer sieht was",
-    content_layout: "Inhaltslayout",
-    horizontal: "Horizontal",
-    vertical: "Vertikal",
-    styling: "Gestaltung",
-    css: "CSS",
-    visible: "Sichtbar für",
-    people: "Personen",
-    system: "Systembenachrichtigungen",
-    everyone: "Alle",
-    only: "Nur diese Personen",
-    except: "Alle außer diesen Personen",
-    nobody: "Niemand",
-    only_x: "Nur {x}",
-    except_x: "Alle außer {x}",
-    type_auto: "Automatisch erkennen",
-    type_calendar: "Kalendertermin",
-    type_update: "Update",
-    type_alarm: "Alarmanlage",
-    type_alert: "Alarm (alert)",
-    type_timer: "Timer",
-    type_countdown: "Countdown",
-    type_event: "Ereignis",
-    type_todo: "To-do-Liste",
-    type_device: "Gerät",
-    type_warning: "Warnungen",
-    type_attribute: "Details aus einem Attribut",
-    type_picture: "Zustand als Titel",
-    type_generic: "Einfache Entität",
-  },
-};
-
-const EDITOR_HELPERS = {
-  en: {
-    label: "Every entity with this label is added and detected automatically.",
-    weather: "Shows rain, snow and frost ahead.",
-    visible: "Applies outside edit mode, like Home Assistant's own card visibility.",
-    people: "Matches the user account linked to each person in Settings → People.",
-    attribute: "An attribute that holds an object with a name or title, or a plain value. If empty, the card looks for an object with a description or a picture.",
-    attribute_picture: "An attribute that holds an object with a name or title. The object is shown instead of the state.",
-    image: "An attribute, a path into one like book.cover, or a URL. If empty, the card uses the picture of the shown object or of the entity.",
-    background: "Blurred behind the card while this entity is on top.",
-    before: "How long before it starts or is due.",
-    infos: "Shown in turn after what needs attention.",
-    rotate: "At 0 the card holds still.",
-    css: "Goes into the card after its own styles, so you can change any part of it.",
-    visibility_intro: "The info shows while all of these conditions hold.",
-  },
-  de: {
-    label: "Jede Entität mit diesem Label kommt dazu und wird automatisch erkannt.",
-    weather: "Zeigt Regen, Schnee und Frost im Voraus.",
-    visible: "Gilt außerhalb des Bearbeitungsmodus, wie die Sichtbarkeit von Home Assistant selbst.",
-    people: "Verglichen wird das Benutzerkonto, das unter Einstellungen → Personen verknüpft ist.",
-    attribute: "Ein Attribut, das ein Objekt mit name oder title enthält, oder ein einfacher Wert. Bleibt es leer, sucht die Karte ein Objekt mit description oder Bild.",
-    attribute_picture: "Ein Attribut, das ein Objekt mit name oder title enthält. Das Objekt erscheint statt des Zustands.",
-    image: "Ein Attribut, ein Pfad darin wie book.cover, oder eine URL. Bleibt es leer, nimmt die Karte das Bild des gezeigten Objekts oder der Entität.",
-    background: "Unscharf hinter der Karte, solange diese Entität oben steht.",
-    before: "Wie lange vor dem Beginn oder der Fälligkeit.",
-    infos: "Erscheinen im Wechsel nach dem, was anliegt.",
-    rotate: "Bei 0 bleibt die Karte stehen.",
-    css: "Kommt nach den Styles der Karte, so lässt sich jeder Teil ändern.",
-    visibility_intro: "Die Info erscheint, solange alle diese Bedingungen erfüllt sind.",
-  },
-};
-
-const TYPES = ["auto", ...Object.keys(RENDERERS)];
-
-/* The kinds that read an attribute, so only they show the field. */
-const USES_ATTRIBUTE = ["auto", "attribute", "picture", "recipe"];
-const USES_BEFORE = ["calendar", "todo"];
-
-/* Home Assistant's duration field reads only parts. A bare number there would count as seconds. */
-const durationParts = (ms) => ({
-  days: Math.floor(ms / DAY_MS),
-  hours: Math.floor((ms % DAY_MS) / 3600000),
-  minutes: Math.floor((ms % 3600000) / MINUTE_MS),
-  seconds: (ms % MINUTE_MS) / 1000,
-});
-
-class OrigamiNotificationsEditor extends HTMLElement {
-  setConfig(config) {
-    checkConfig(config);
-    this._config = { ...config };
-    this._renderForm();
-  }
-
-  set hass(hass) {
-    this._hass = hass;
-    this._renderForm();
-  }
-
-  _lang() {
-    return langOf(this._hass).split("-")[0];
-  }
-
-  _label(key) {
-    const h = this._hass;
-    const own = EDITOR_STRINGS[this._lang()] || {};
-    if (own[key]) return own[key];
-    const borrowed = HA_EDITOR[key] && h && h.localize ? h.localize(HA_EDITOR[key]) : "";
-    return borrowed || EDITOR_STRINGS.en[key] || key;
-  }
-
-  _helper(schema) {
-    return (EDITOR_HELPERS[this._lang()] || EDITOR_HELPERS.en)[schema.helper || schema.name];
-  }
-
-  _name(id) {
-    const st = this._hass && this._hass.states[id];
-    return (st && st.attributes.friendly_name) || id;
-  }
-
-  _title(entry) {
-    return typeof entry.name === "string" && entry.name ? entry.name : this._name(entry.entity);
-  }
-
-  /* Like the card, the first entry of an entity counts. */
-  _entries(c = this._config) {
-    const seen = new Set();
-    return (c.entities || [])
-      .map((e) => (typeof e === "string" ? { entity: e } : e || {}))
-      .filter((e) => typeof e.entity === "string" && !seen.has(e.entity) && seen.add(e.entity));
-  }
-
-  _sources(c = this._config || {}) {
-    const sources = [{ key: "system", name: this._label("system"), icon: ICONS.system }];
-    if (c.updates !== false) sources.push({ key: "updates", name: this._label("updates"), icon: ICONS.update });
-    if (c.repairs !== false) sources.push({ key: "repairs", name: this._label("repairs"), icon: ICONS.repair });
-    if (c.weather) sources.push({ key: c.weather, name: this._name(c.weather), icon: ICONS.weather });
-    for (const src of [...this._entries(c), ...labelled(this._hass, c.label).map((entity) => ({ entity }))]) {
-      if (sources.some((s) => s.key === src.entity)) continue;
-      sources.push({
-        key: src.entity,
-        name: this._title(src),
-        icon: src.icon || typeIcon(this._typeOf(src)),
-      });
-    }
-    return sources;
-  }
-
-  _typeOf(src) {
-    if (src.type === "recipe") return "attribute";
-    return src.type === "dwd" ? "warning" : kindOf(src, this._hass && this._hass.states[src.entity], this._hass);
-  }
-
-  _summary(rule) {
-    const mode = ruleMode(rule);
-    if (mode === "everyone") return this._label("everyone");
-    const names = rule[mode].map((id) => this._name(id)).join(", ");
-    if (mode === "only") return names ? fill(this._label("only_x"), { x: names }) : this._label("nobody");
-    return names ? fill(this._label("except_x"), { x: names }) : this._label("everyone");
-  }
-
-  _schema(sources) {
-    const audience = this._config.audience || {};
-    const options = ["everyone", "only", "except"].map((value) => ({ value, label: this._label(value) }));
-    const entries = this._entries();
-    return [
-      { name: "entities", selector: { entity: { multiple: true } } },
-      { name: "label", selector: { label: {} } },
-      { name: "weather", selector: { entity: { filter: { domain: "weather" } } } },
-      { name: "infos", selector: { entity: { multiple: true, reorder: true } } },
-      {
-        name: "",
-        type: "grid",
-        schema: [
-          { name: "updates", selector: { boolean: {} } },
-          { name: "repairs", selector: { boolean: {} } },
-        ],
-      },
-      { name: "hide_when_empty", selector: { boolean: {} } },
-      {
-        name: "content_layout",
-        selector: {
-          select: {
-            mode: "box",
-            options: ["horizontal", "vertical"].map((value) => ({
-              value,
-              label: this._tileLabel(value),
-              image: {
-                src: "/static/images/form/tile_content_layout_" + value + ".svg",
-                src_dark: "/static/images/form/tile_content_layout_" + value + "_dark.svg",
-                flip_rtl: true,
-              },
-            })),
-          },
-        },
-      },
-      {
-        name: "",
-        type: "grid",
-        schema: [
-          { name: "rotate", selector: { number: { min: 0, max: 60, step: 1, mode: "box", unit_of_measurement: "s" } } },
-          {
-            name: "slide",
-            selector: { select: { mode: "dropdown", options: ["up", "side"].map((value) => ({ value, label: this._label("slide_" + value) })) } },
-          },
-        ],
-      },
-      ...(entries.length
-        ? [
-            {
-              name: "options",
-              type: "expandable",
-              title: this._label("options"),
-              icon: "mdi:tune-variant",
-              schema: entries.map((e) => {
-                const kind = this._typeOf(e);
-                const icon = typeIcon(kind);
-                return {
-                  name: e.entity,
-                  type: "expandable",
-                  title: this._title(e),
-                  icon: e.icon || icon,
-                  schema: [
-                    {
-                      name: "type",
-                      selector: {
-                        select: {
-                          mode: "dropdown",
-                          options: TYPES.map((value) => ({ value, label: this._label("type_" + value) })),
-                        },
-                      },
-                    },
-                    ...(USES_ATTRIBUTE.includes(e.type || "auto")
-                      ? [
-                          {
-                            name: "attribute",
-                            helper: e.type === "picture" ? "attribute_picture" : undefined,
-                            selector: { attribute: { entity_id: e.entity } },
-                          },
-                        ]
-                      : []),
-                    {
-                      name: "",
-                      type: "grid",
-                      schema: [
-                        { name: "name", selector: { text: {} } },
-                        { name: "icon", selector: { icon: { placeholder: icon } } },
-                      ],
-                    },
-                    { name: "image", selector: { text: {} } },
-                    { name: "background", selector: { boolean: {} } },
-                    ...(USES_BEFORE.includes(kind) ? [{ name: "before", selector: { duration: { enable_day: true } } }] : []),
-                    { name: "tap_action", selector: { ui_action: { default_action: "more-info" } } },
-                  ],
-                };
-              }),
-            },
-          ]
-        : []),
-      {
-        name: "audience",
-        type: "expandable",
-        title: this._label("audience"),
-        icon: "mdi:account-eye-outline",
-        schema: sources.map((s) => ({
-          name: s.key,
-          type: "expandable",
-          title: s.name + " · " + this._summary(audience[s.key]),
-          icon: s.icon,
-          schema: [
-            { name: "visible", selector: { select: { mode: "list", options } } },
-            ...(ruleMode(audience[s.key]) === "everyone"
-              ? []
-              : [{ name: "people", selector: { entity: { multiple: true, filter: { domain: "person" } } } }]),
-          ],
-        })),
-      },
-      {
-        name: "styling",
-        type: "expandable",
-        flatten: true,
-        title: this._label("styling"),
-        icon: "mdi:palette-outline",
-        schema: [{ name: "css", selector: { text: { multiline: true } } }],
-      },
-    ];
-  }
-
-  _data(sources) {
-    const audience = this._config.audience || {};
-    const data = { ...DEFAULTS, ...this._config };
-    data.content_layout = this._config.vertical ? "vertical" : "horizontal";
-    data.entities = this._entries().map((e) => e.entity);
-    data.infos = this._infos().map((info) => info.entity);
-    data.options = Object.fromEntries(
-      this._entries().map((e) => [
-        e.entity,
-        {
-          type: e.type === "recipe" ? "attribute" : e.type === "dwd" ? "warning" : e.type || "auto",
-          attribute: e.attribute || (e.type === "recipe" ? "recipe" : undefined),
-          name: typeof e.name === "string" ? e.name : undefined,
-          icon: e.icon,
-          image: e.image,
-          background: Boolean(e.background),
-          before: e.before == null ? undefined : durationParts(parseBefore(e.before)),
-          tap_action: e.tap_action,
-        },
-      ])
-    );
-    data.audience = Object.fromEntries(
-      sources.map((s) => {
-        const mode = ruleMode(audience[s.key]);
-        return [s.key, { visible: mode, people: mode === "everyone" ? [] : audience[s.key][mode] }];
-      })
-    );
-    return data;
-  }
-
-  /* Picked entities keep what only YAML can set (actions, name parts). The entity picker swaps
-   * an entity in place, and its options move along, as in Home Assistant's own row editors. */
-  _mergeEntities(ids, options) {
-    const entries = this._entries();
-    const prev = new Map(entries.map((e) => [e.entity, e]));
-    const changed = ids.map((id, i) => (entries[i] && id !== entries[i].entity ? i : -1)).filter((i) => i >= 0);
-    const swap = ids.length === entries.length && changed.length === 1 && !prev.has(ids[changed[0]]) ? changed[0] : -1;
-    this._swapped = swap < 0 ? null : [entries[swap].entity, ids[swap]];
-    return ids.map((id, i) => {
-      const base = prev.get(id) || (i === swap ? { ...entries[i], entity: id } : { entity: id });
-      const opt = (options && options[id]) || {};
-      const merged = { ...base, entity: id };
-      for (const key of OPTION_KEYS) {
-        if (!(key in opt)) continue;
-        const v = opt[key];
-        if (key === "name" && isEmpty(v) && base.name != null && typeof base.name !== "string") continue;
-        /* An unchanged duration keeps the way it was written. */
-        if (key === "before" && parseBefore(v) === parseBefore(base.before)) continue;
-        if (isEmpty(v) || (key === "type" && v === "auto") || (key === "before" && !parseBefore(v))) delete merged[key];
-        else merged[key] = v;
-      }
-      if (!USES_ATTRIBUTE.includes(merged.type || "auto")) delete merged.attribute;
-      /* `type: recipe` is shown as an attribute and written back as it was. */
-      if (base.type === "recipe" && merged.type === "attribute" && merged.attribute === (base.attribute || "recipe")) {
-        merged.type = "recipe";
-        if (!base.attribute) delete merged.attribute;
-      }
-      const ordered = {};
-      for (const key of [...ENTITY_KEY_ORDER, ...Object.keys(merged)]) {
-        if (key in merged && !(key in ordered)) ordered[key] = merged[key];
-      }
-      return Object.keys(ordered).length === 1 ? id : ordered;
-    });
-  }
-
-  _onChange(e) {
-    e.stopPropagation();
-    const value = { ...(e.detail.value || {}) };
-    /* Home Assistant's tile editor writes its content layout as vertical, and so does this one. */
-    if ("content_layout" in value) value.vertical = value.content_layout === "vertical";
-    delete value.content_layout;
-    const before = this._sources().map((s) => s.key);
-    this._swapped = null;
-    if (Array.isArray(value.entities)) {
-      value.entities = this._mergeEntities(value.entities, value.options);
-    }
-    delete value.options;
-    if (Array.isArray(value.infos)) value.infos = this._mergeInfos(value.infos);
-    const audience = { ...(this._config.audience || {}) };
-    for (const [key, v] of Object.entries(value.audience || {})) {
-      if (v && (v.visible === "only" || v.visible === "except")) {
-        audience[key] = { [v.visible]: v.people || [] };
-      } else {
-        delete audience[key];
-      }
-    }
-    for (const [from, to] of [this._swapped || [], [this._config.weather, value.weather]]) {
-      if (from && to && audience[from] && !audience[to]) audience[to] = audience[from];
-    }
-    /* A rule goes when its source leaves the list, since the editor could no longer show it.
-     * Rules for updates stay, because the card applies them to the updates it finds as well. */
-    const after = new Set(this._sources({ ...this._config, ...value }).map((s) => s.key));
-    const kept = (key) => after.has(key) || key === "updates" || key.startsWith("update.");
-    for (const key of before) if (!kept(key)) delete audience[key];
-    value.audience = Object.keys(audience).length ? audience : null;
-    this._write(value);
-  }
-
-  /* Only what differs from the defaults is written, in a fixed order. */
-  _write(value) {
-    const merged = { ...this._config, ...value };
-    const config = { type: "custom:" + CARD };
-    for (const k of [...KEY_ORDER, ...Object.keys(merged)]) {
-      if (k === "type" || k in config || !(k in merged)) continue;
-      const v = merged[k];
-      if (v === "" || v == null) continue;
-      if (Array.isArray(v) && v.length === 0) continue;
-      if (k in DEFAULTS && v === DEFAULTS[k]) continue;
-      config[k] = v;
-    }
-    this._fire(config);
-  }
-
-  _fire(config) {
-    this._config = config;
-    this._renderForm();
-    this.dispatchEvent(
-      new CustomEvent("config-changed", {
-        detail: { config },
-        bubbles: true,
-        composed: true,
-      })
-    );
-  }
-
-  _infos(c = this._config) {
-    return (c.infos || []).map((info) => (typeof info === "string" ? { entity: info } : { ...info }));
-  }
-
-  /* Picked infos keep their options, also when the picker swaps or moves them. */
-  _mergeInfos(ids) {
-    const prev = this._infos();
-    const used = new Set();
-    const take = (i) => i >= 0 && !used.has(i) && used.add(i) && prev[i];
-    return ids.map((id, i) => {
-      const base = take(prev.findIndex((info, j) => info.entity === id && !used.has(j))) ||
-        (prev.length === ids.length && !ids.includes(prev[i].entity) && take(i)) || {};
-      return this._infoEntry({ ...base, entity: id });
-    });
-  }
-
-  /* An info without options is written as its entity alone. The weather to show is on unless it is off. */
-  _infoEntry(info) {
-    const out = {};
-    for (const key of [...INFO_KEY_ORDER, ...Object.keys(info)]) {
-      if (key in out || !(key in info)) continue;
-      const on = key === "show_current" || key === "show_forecast";
-      if (on ? info[key] !== false : isEmpty(info[key])) continue;
-      if (key === "color" && info[key] === "state") continue;
-      out[key] = info[key];
-    }
-    return Object.keys(out).length === 1 ? out.entity : out;
-  }
-
-  _tileLabel(key) {
-    const h = this._hass;
-    const borrowed = HA_TILE_LABELS[key] && h && h.localize ? h.localize(HA_TILE_LABELS[key]) : "";
-    return borrowed || this._label(key);
-  }
-
-  /* The keys behind a choice of what weather to show. A forecast starts with the first type the entity has. */
-  _forecastKeys(info, show) {
-    if (show === "show_current") return { forecast_type: undefined, forecast_slots: undefined, show_current: undefined, show_forecast: undefined };
-    return {
-      forecast_type: info.forecast_type || this._forecastTypes(info)[0],
-      show_current: show === "show_forecast" ? false : undefined,
-      show_forecast: undefined,
-    };
-  }
-
-  /* The forecast types a weather info can show, like in Home Assistant's forecast card editor. */
-  _forecastTypes(info) {
-    const st = this._hass && this._hass.states[info.entity];
-    if (!info.entity.startsWith("weather.")) return [];
-    return FORECAST_TYPES.filter((type) => forecastSupported(st, type) || info.forecast_type === type);
-  }
-
-  /* The fields of a tile card. The time format shows only where the content holds a time. */
-  _infoSchema(info) {
-    const st = this._hass && this._hass.states[info.entity];
-    const domain = info.entity.split(".")[0];
-    const timed = [].concat(info.state_content == null ? "state" : info.state_content).some(
-      (c) =>
-        /^last[_-](changed|updated|triggered)$/.test(c) ||
-        (domain === "sun" && /^next_/.test(c)) ||
-        (domain === "calendar" && /_time$/.test(c)) ||
-        (c === "state" && Boolean(st) && (st.attributes.device_class === "timestamp" || TIME_STATE_DOMAINS.has(domain)))
-    );
-    const actions = { entity_id: "entity" };
-    const forecasts = this._forecastTypes(info);
-    const state = [
-      { name: "state_content", selector: { ui_state_content: {} }, context: { filter_entity: "entity" } },
-      ...(timed ? [{ name: "time_format", selector: { ui_time_format: {} } }] : []),
-    ];
-    const show = forecastShow(info);
-    const forecast = [
-      {
-        name: "forecast",
-        selector: { select: { mode: "dropdown", options: ["show_both", "show_current", "show_forecast"].map((value) => ({ value, label: this._tileLabel(value) })) } },
-      },
-      ...(show === "show_current"
-        ? []
-        : [
-            { name: "forecast_type", selector: { select: { mode: "dropdown", options: forecasts.map((value) => ({ value, label: this._tileLabel(value) })) } } },
-            { name: "forecast_slots", selector: { number: { min: 1, max: 12, mode: "box" } } },
-          ]),
-      ...(show === "show_forecast" ? [] : state),
-    ];
-    return [
-      { name: "name", selector: { entity_name: {} }, context: { entity: "entity" } },
-      {
-        name: "",
-        type: "grid",
-        schema: [
-          { name: "icon", selector: { icon: {} }, context: { icon_entity: "entity" } },
-          { name: "color", selector: { ui_color: { default_color: "state", include_state: true } } },
-        ],
-      },
-      ...(forecasts.length ? forecast : state),
-      { name: "show_entity_picture", selector: { boolean: {} } },
-      { name: "tap_action", selector: { ui_action: { default_action: "more-info" } }, context: actions },
-      {
-        name: "",
-        type: "optional_actions",
-        flatten: true,
-        schema: ["hold_action", "double_tap_action"].map((name) => ({ name, selector: { ui_action: { default_action: "none" } }, context: actions })),
-      },
-    ];
-  }
-
-  /* Each info gets the fields of a tile and Home Assistant's own editor for visibility conditions, which no
-   * form field offers. */
-  _renderInfos() {
-    const infos = this._infos();
-    if (!this._infoBox) {
-      this._infoBox = document.createElement("div");
-      this._infoBox.style.marginTop = "24px";
-      this.appendChild(this._infoBox);
-    }
-    const box = this._infoBox;
-    box.hidden = !infos.length;
-    if (!infos.length) {
-      box.replaceChildren();
-      this._infoPanel = null;
-      return;
-    }
-    if (!this._infoPanel || !box.contains(this._infoPanel)) {
-      this._infoPanel = panelOf("mdi:information-outline");
-      box.replaceChildren(this._infoPanel);
-    }
-    this._infoPanel.header = this._label("info_options");
-    const body = this._infoPanel.querySelector(".content");
-    while (body.children.length > infos.length) body.lastElementChild.remove();
-    infos.forEach((info, i) => {
-      const item = body.children[i] || this._infoItem();
-      this._fillInfo(item, info, i);
-      if (!item.parentNode) body.append(item);
-    });
-  }
-
-  _infoItem() {
-    const item = panelOf("mdi:information-outline");
-    const form = document.createElement("ha-form");
-    form.addEventListener("value-changed", (e) => this._onInfo(e, item._index, e.detail.value));
-    const vis = panelOf("mdi:eye");
-    const intro = document.createElement("p");
-    intro.style.cssText = "margin: 0 0 12px; color: var(--secondary-text-color);";
-    const conditions = document.createElement("ha-card-conditions-editor");
-    conditions.conditions = [];
-    conditions.addEventListener("value-changed", (e) => {
-      const list = Array.isArray(e.detail.value) ? e.detail.value : [];
-      this._onInfo(e, item._index, { visibility: list.length ? list : undefined });
-    });
-    vis.querySelector(".content").append(intro, conditions);
-    item.querySelector(".content").append(form, vis);
-    Object.assign(item, { _form: form, _vis: vis, _intro: intro, _conditions: conditions });
-    return item;
-  }
-
-  _fillInfo(item, info, i) {
-    item._index = i;
-    const st = this._hass && this._hass.states[info.entity];
-    item.header = typeof info.name === "string" && info.name ? info.name : this._name(info.entity);
-    item.secondary = this._forecastTypes(info).length && forecastShow(info) !== "show_current" ? this._tileLabel(info.forecast_type) : "";
-    /* Like the row editors of Home Assistant, the panel shows the state icon of its entity. */
-    let lead = item.querySelector(":scope > [slot=leading-icon]");
-    if (st && customElements.get("ha-state-icon") && lead.localName !== "ha-state-icon") {
-      const icon = document.createElement("ha-state-icon");
-      icon.slot = "leading-icon";
-      lead.replaceWith(icon);
-      lead = icon;
-    }
-    if (lead.localName === "ha-state-icon") Object.assign(lead, { hass: this._hass, stateObj: st, icon: info.icon || (st ? undefined : ICONS.generic) });
-    else lead.icon = info.icon || (st && st.attributes.icon) || ICONS.generic;
-    const form = item._form;
-    form.hass = this._hass;
-    form.computeLabel = (s) => this._tileLabel(s.name);
-    form.computeHelper = () => undefined;
-    const schema = this._infoSchema(info);
-    const schemaKey = JSON.stringify(schema);
-    if (schemaKey !== item._schemaKey) {
-      item._schemaKey = schemaKey;
-      form.schema = schema;
-    }
-    /* Which weather shows is one choice, as in Home Assistant's forecast card editor. */
-    const data = this._forecastTypes(info).length ? { ...info, forecast: forecastShow(info) } : info;
-    const dataKey = JSON.stringify(data);
-    if (dataKey !== item._dataKey) {
-      item._dataKey = dataKey;
-      form.data = data;
-    }
-    item._vis.header = this._tileLabel("visibility");
-    const h = this._hass;
-    const own = (EDITOR_HELPERS[this._lang()] || {}).visibility_intro;
-    item._intro.textContent = own || (h && h.localize && h.localize(HA_TILE_LABELS.visibility_intro)) || EDITOR_HELPERS.en.visibility_intro;
-    item._conditions.hass = this._hass;
-    const conditions = Array.isArray(info.visibility) ? info.visibility : [];
-    if (JSON.stringify(conditions) !== JSON.stringify(item._conditions.conditions || [])) item._conditions.conditions = conditions;
-  }
-
-  _onInfo(e, index, value) {
-    e.stopPropagation();
-    const infos = this._infos();
-    if (!infos[index]) return;
-    const { forecast: show, ...rest } = value;
-    const info = { ...infos[index], ...rest, entity: infos[index].entity };
-    /* Only a new choice of weather sets its keys. A cleared choice is the current weather, like a tile. */
-    const choice = "forecast" in value ? show || "show_current" : null;
-    if (choice && choice !== forecastShow(infos[index])) Object.assign(info, this._forecastKeys(info, choice));
-    if (!info.forecast_type) for (const key of ["forecast_slots", "show_current", "show_forecast"]) delete info[key];
-    infos[index] = info;
-    this._write({ infos: infos.map((i) => this._infoEntry(i)) });
-  }
-
-  /* ha-form gets a new schema or new data only when they change, so fields keep their focus. */
-  _renderForm() {
-    if (!this._config) return;
-    if (!this._form) {
-      this._form = document.createElement("ha-form");
-      this._form.addEventListener("value-changed", (e) => this._onChange(e));
-      this.appendChild(this._form);
-    }
-    const lang = this._lang();
-    if (lang !== this._formLang || (this._hass && this._hass.localize !== this._formLocalize)) {
-      this._formLang = lang;
-      this._formLocalize = this._hass && this._hass.localize;
-      this._form.computeLabel = (s) => this._label(s.name);
-      this._form.computeHelper = (s) => this._helper(s);
-      this._schemaKey = null;
-    }
-    const sources = this._sources();
-    this._form.hass = this._hass;
-    const schema = this._schema(sources);
-    const schemaKey = JSON.stringify(schema);
-    if (schemaKey !== this._schemaKey) {
-      this._schemaKey = schemaKey;
-      this._form.schema = schema;
-    }
-    const data = this._data(sources);
-    const dataKey = JSON.stringify(data);
-    if (dataKey !== this._dataKey) {
-      this._dataKey = dataKey;
-      this._form.data = data;
-    }
-    this._renderInfos();
-  }
-}
-
-/* An outlined panel like the ones ha-form draws, with an icon and room for content. */
-const panelOf = (icon) => {
-  const panel = document.createElement("ha-expansion-panel");
-  panel.outlined = true;
-  const lead = document.createElement("ha-icon");
-  lead.slot = "leading-icon";
-  lead.icon = icon;
-  const content = document.createElement("div");
-  content.className = "content";
-  content.style.cssText = "display: flex; flex-direction: column; gap: 12px; padding: 12px;";
-  panel.append(lead, content);
-  return panel;
-};
-
-/* The file may be loaded twice, e.g. by HACS and a manual resource. */
-if (!customElements.get(CARD)) {
-  customElements.define(CARD, OrigamiNotificationsCard);
-  console.info("%c Origami Notifications %c v" + VERSION + " ", "font-weight:bold", "opacity:0.7");
-}
-if (!customElements.get(EDITOR)) customElements.define(EDITOR, OrigamiNotificationsEditor);
-if (!customElements.get(DIALOG)) customElements.define(DIALOG, OrigamiNotificationsDialog);
-window.customCards = window.customCards || [];
-if (!window.customCards.some((c) => c.type === CARD)) {
-  window.customCards.push({
-    type: CARD,
-    name: "Origami Notifications",
-    description:
-      "System notifications, repairs, updates, warnings and any entity you add.",
-    preview: true,
-    documentationURL: REPO,
-  });
-}
-
-/* Tests reach the pure functions through this object, which only they create. */
-if (window.__origamiTest) {
-  Object.assign(window.__origamiTest, {
-    sortItems,
-    waker,
-    dropExpired,
-    nextReorder,
-    wakeDelay,
-    clockText,
-    nextTick,
-    parseDuration,
-    endOf,
-    parseBefore,
-    stateActive,
-    stateColor,
-    alikeTitle,
-    firstPicture,
-    forecastType,
-    isWet,
-    wetKind,
-  });
-}
+    </ha-expansion-panel>`}render(){if(!this._config||!this.hass)return _;let t=this._t,e=this._sources(),s=this._infos();return b`
+      <ha-form
+        .hass=${this.hass}
+        .data=${this._memo("data",this._data(e))}
+        .schema=${this._memo("schema",this._schema(e))}
+        .computeLabel=${n=>t.label(n.name)}
+        .computeHelper=${n=>t.helper(n.helper||n.name)}
+        @value-changed=${this._onChange}
+      ></ha-form>
+      ${s.length?b`<ha-expansion-panel class="infos" outlined .header=${t.label("info_options")}>
+            <ha-icon slot="leading-icon" icon="mdi:information-outline"></ha-icon>
+            <div class="content">${s.map((n,o)=>this._infoPanel(n,o))}</div>
+          </ha-expansion-panel>`:_}
+    `}};var Be=(i,t)=>customElements.get(i)||customElements.define(i,t);Be(j,Xt);Be(j+"-editor",Qt);Be(Ue,Jt);window.customCards||=[];window.customCards.some(i=>i.type===j)||(window.customCards.push({type:j,name:"Origami Notifications",description:"System notifications, repairs, updates, warnings and any entity you add.",preview:!0,documentationURL:"https://github.com/hazymorning/origami_notifications"}),console.info(`%c Origami Notifications %c v${He} `,"font-weight: bold","opacity: 0.7"));
+/*! Bundled license information:
+
+@lit/reactive-element/css-tag.js:
+  (**
+   * @license
+   * Copyright 2019 Google LLC
+   * SPDX-License-Identifier: BSD-3-Clause
+   *)
+
+@lit/reactive-element/reactive-element.js:
+lit-html/lit-html.js:
+lit-element/lit-element.js:
+lit-html/directive.js:
+lit-html/directives/repeat.js:
+  (**
+   * @license
+   * Copyright 2017 Google LLC
+   * SPDX-License-Identifier: BSD-3-Clause
+   *)
+
+lit-html/is-server.js:
+  (**
+   * @license
+   * Copyright 2022 Google LLC
+   * SPDX-License-Identifier: BSD-3-Clause
+   *)
+
+lit-html/directives/class-map.js:
+  (**
+   * @license
+   * Copyright 2018 Google LLC
+   * SPDX-License-Identifier: BSD-3-Clause
+   *)
+
+lit-html/directive-helpers.js:
+  (**
+   * @license
+   * Copyright 2020 Google LLC
+   * SPDX-License-Identifier: BSD-3-Clause
+   *)
+*/

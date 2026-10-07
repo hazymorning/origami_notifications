@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 
-SKIP = {'scripts/text-style.py'}  # it holds the patterns
+SKIP = ('scripts/text-style.py', 'dist/')  # the patterns, and what the build writes
 MAX_SUBJECT = 72
 MAX_WORDS = 30
 MAX_COMMENT_LINES = 3
@@ -147,7 +147,7 @@ def new_commits():
 def check_repository():
     hits = []
     for path in git('ls-files', '-z').split('\0'):
-        if not path or path in SKIP:
+        if not path or path.startswith(SKIP):
             continue
         try:
             with open(path, encoding='utf-8') as fh:
