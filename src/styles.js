@@ -7,6 +7,7 @@ export const rowStyles = css`
   .list {
     display: flex;
     flex-direction: column;
+    gap: 2px;
   }
   .item {
     display: grid;
@@ -17,9 +18,6 @@ export const rowStyles = css`
   }
   .item.moving > .clip {
     overflow: hidden;
-  }
-  .item + .item .row {
-    margin-top: 2px;
   }
   .row {
     position: relative;
