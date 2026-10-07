@@ -342,11 +342,24 @@ test("vertical puts the icon above the text, and the card sizes itself like a ti
   assert.deepEqual([el.classList.contains("vertical"), el.classList.contains("bounded"), el.getGridOptions().min_columns, el.getCardSize()], [false, true, 6, 1]);
 });
 
-test("your css goes after the card's own", async () => {
-  const w = makeWindow();
-  const css = ".row { border: 1px solid red; }";
-  const el = await mount(w, card([], { hide_when_empty: false, css }), makeHass({}));
-  assert.equal([...el.shadowRoot.querySelectorAll("style")].pop().textContent, css);
+test("your css goes after the card's own, in the card and in its dialog", async () => {
+  const w = makeWindow({ define: ["ha-icon-button", "ha-adaptive-dialog"] });
+  let dialog = null;
+  w.addEventListener("show-dialog", (e) => {
+    dialog = w.document.body.appendChild(w.document.createElement(e.detail.dialogTag));
+    dialog.showDialog(e.detail.dialogParams);
+  });
+  const el = await mount(w, card(Object.keys(doors()), { css: ".row { padding: 16px; }" }), makeHass(doors()));
+  const sheets = (node) => node.shadowRoot.adoptedStyleSheets.map((s) => [...s.cssRules].map((r) => r.cssText).join(" "));
+  const own = sheets(el).length - 1;
+  const css = ":host { --origami-pad: 16px; }";
+  el.setConfig({ type: "x", ...card(Object.keys(doors()), { css }) });
+  await settle(el);
+  q(el, "ha-card").resize(180);
+  await settle(el);
+  q(el, ".head").click();
+  await settle(dialog);
+  same([sheets(el).length, sheets(el).at(-1), sheets(dialog).at(-1)], [own + 1, css, css]);
 });
 
 test("the card subscribes only to what it shows, ends every subscription when it leaves, and ignores the rest of the house", async () => {

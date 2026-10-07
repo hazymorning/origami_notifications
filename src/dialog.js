@@ -2,7 +2,7 @@ import { css, html, LitElement, nothing } from "lit";
 import { fire } from "./card.js";
 import { ListMotion } from "./motion.js";
 import { focusRow, rowsTemplate } from "./rows.js";
-import { iconStyles, rowStyles, variables } from "./styles.js";
+import { adoptCss, iconStyles, rowStyles, variables } from "./styles.js";
 
 // Home Assistant's dialog manager creates this element once and calls showDialog for every open.
 export class OrigamiNotificationsDialog extends LitElement {
@@ -64,8 +64,10 @@ export class OrigamiNotificationsDialog extends LitElement {
 
   updated() {
     this._motion.play(this.renderRoot.querySelector(".list"), this._animate);
-    this._style ||= this.renderRoot.appendChild(document.createElement("style"));
-    this._style.textContent = this._card?.css || "";
+    if (this._card && this._css !== this._card.css) {
+      this._css = this._card.css;
+      adoptCss(this, this._css);
+    }
     if (this._refocus != null) focusRow(this.renderRoot, this._refocus, null);
     this._refocus = null;
   }
