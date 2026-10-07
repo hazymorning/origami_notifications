@@ -78,6 +78,7 @@ export const rowStyles = css`
   }
   .message {
     grid-area: message;
+    margin-top: var(--ha-space-1, 4px);
     color: var(--secondary-text-color);
     font-size: var(--ha-font-size-s, 12px);
     line-height: 1.4;

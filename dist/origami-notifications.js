@@ -116,6 +116,7 @@ var Qe="1.3.0";var Ct=globalThis,Ot=Ct.ShadowRoot&&(Ct.ShadyCSS===void 0||Ct.Sha
   }
   .message {
     grid-area: message;
+    margin-top: var(--ha-space-1, 4px);
     color: var(--secondary-text-color);
     font-size: var(--ha-font-size-s, 12px);
     line-height: 1.4;
