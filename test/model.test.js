@@ -93,6 +93,9 @@ test("notifications are plain text with their first picture, and a tap follows t
   );
   const unsafe = model({}, {}, { notifications: { n2: { notification_id: "n2", message: "[x](javascript:alert(1))" } } }).entries[0];
   assert.deepEqual([unsafe.title, unsafe.tap], ["Notification", undefined]);
+  const start = performance.now();
+  model({}, {}, { notifications: { n3: { notification_id: "n3", message: "<a [b](c ![d](".repeat(20000) } } });
+  assert.ok(performance.now() - start < 1000, "a huge message full of open brackets is read in one pass");
 });
 
 test("repairs are named from Home Assistant's translations and ignored when dismissed", () => {
