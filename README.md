@@ -2,7 +2,11 @@
 
 A notification card for Home Assistant that folds away when there is nothing to see.
 
+<img src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/card.webp" alt="The closed card turning through its entries">
+
 Closed, the card is one row that turns through what needs attention, then your infos. Long text scrolls. A tap unfolds the list. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
+
+<img src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/popup.webp" alt="The list in a bottom sheet on a phone">
 
 Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door or a running timer. A weather entity adds rain and frost ahead.
 
