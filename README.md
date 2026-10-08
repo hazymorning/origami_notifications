@@ -47,7 +47,7 @@ Everything in `css` comes after the card's own styles.
 | `--origami-card-bg`, `--origami-row-bg` | theme, none | Card and row background |
 | `--origami-hover`, `--origami-focus` | light tint, theme | Hover tint and keyboard focus ring |
 | `--origami-pulse-opacity` | `0.3` | How strongly the card pulses while something is critical, like Home Assistant's alert card |
-| `--origami-max-height` | none | The card's maximum height. The open list scrolls inside. |
+| `--origami-max-height` | none, `70vh` for the popup | The highest the card and its popup get. The list scrolls inside. |
 | `--origami-bg-opacity`, `--origami-bg-blur` | `0.22` (`0.32` dark), `24px` | The background picture |
 
 `--origami-max-height`, `--origami-bg-opacity` and `--origami-bg-blur` also work in a theme. The closed card follows the tile variables of your theme, like `--ha-tile-icon-border-radius`.
