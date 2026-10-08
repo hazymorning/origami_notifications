@@ -472,7 +472,7 @@ export const cardStyles = css`
   .texts {
     flex: 1 1 auto;
     min-width: 0;
-    min-height: var(--row-height, 56px);
+    min-height: max(var(--row-height, 56px), calc(var(--origami-tile) + 2 * var(--origami-pad)));
     align-self: stretch;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
