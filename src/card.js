@@ -22,6 +22,8 @@ const NEWS_MS = 2 * MINUTE;
 const HOLD_MS = 1500;
 const SHOW_MS = 2000;
 const SCROLL_PX_PER_S = 30;
+// A description, like a recipe's, can take a minute to scroll at reading speed.
+const MAX_WAIT_MS = 10000;
 // As wide as the scroll fade in Home Assistant's lists, --ha-space-4.
 const FADE_PX = 16;
 
@@ -477,7 +479,7 @@ export class OrigamiNotificationsCard extends LitElement {
     const longest = Math.max(0, ...run.lines.map((l) => l.over));
     const moving = (longest / SCROLL_PX_PER_S) * 1000;
     run.end = longest ? run.start + HOLD_MS + moving : 0;
-    const ms = Math.max(this._config.rotate * 1000, longest && 2 * HOLD_MS + moving);
+    const ms = Math.max(this._config.rotate * 1000, Math.min(longest && 2 * HOLD_MS + moving, MAX_WAIT_MS));
     this.renderRoot.querySelector(".head .cycle")?.style.setProperty("--origami-cycle", `${ms}ms`);
     this._turnAfter(ms);
     this._frame();
