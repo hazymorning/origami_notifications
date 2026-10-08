@@ -274,6 +274,7 @@ export const variables = css`
     --origami-row-bg: transparent;
     --origami-hover: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
     --origami-focus: var(--ha-color-focus, var(--primary-color));
+    -webkit-tap-highlight-color: transparent;
   }
   *,
   *::before,
@@ -286,7 +287,6 @@ export const cardStyles = css`
   :host {
     --origami-bg-auto: 0.22;
     display: grid;
-    -webkit-tap-highlight-color: transparent;
   }
   :host(.dark) {
     --origami-bg-auto: 0.32;

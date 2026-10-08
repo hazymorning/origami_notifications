@@ -22,12 +22,20 @@ const NEWS_MS = 2 * MINUTE;
 const HOLD_MS = 1500;
 const SHOW_MS = 2000;
 const SCROLL_PX_PER_S = 30;
+// A description, like a recipe's, can take a minute to scroll at reading speed.
+const MAX_WAIT_MS = 10000;
 // As wide as the scroll fade in Home Assistant's lists, --ha-space-4.
 const FADE_PX = 16;
 
 const HASS_PARTS = ["connection", "user", "locale", "config", "localize", "entities", "devices", "areas", "services", "themes", "formatEntityState", "formatEntityName", "formatEntityAttributeValue"];
 
 export const fire = (node, type, detail) => node.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true, detail }));
+
+// Home Assistant loads some of its elements only when a card of its own needs them.
+const onPage = new Set();
+for (const tag of ["ha-state-icon", "state-display", "ha-ripple"]) {
+  if (!customElements.get(tag)) customElements.whenDefined(tag).then(() => onPage.forEach((card) => card.requestUpdate()));
+}
 
 export class OrigamiNotificationsCard extends LitElement {
   static styles = [variables, iconStyles, rowStyles, cardStyles];
@@ -59,9 +67,6 @@ export class OrigamiNotificationsCard extends LitElement {
     // A new key restarts the ring, since a CSS animation restarts only on a new element.
     this._cycleKey = 0;
     this._now = Date.now();
-    for (const tag of ["ha-state-icon", "state-display", "ha-ripple"]) {
-      if (!customElements.get(tag)) customElements.whenDefined(tag).then(() => this.requestUpdate());
-    }
   }
 
   static getConfigElement() {
@@ -101,6 +106,7 @@ export class OrigamiNotificationsCard extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    onPage.add(this);
     clearTimeout(this._collapseTimer);
     const host = this.getRootNode().host?.localName;
     this.classList.toggle("docked", host === "hui-view-footer");
@@ -125,6 +131,7 @@ export class OrigamiNotificationsCard extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    onPage.delete(this);
     this._subs.clear();
     this._dismissals.disconnect();
     this._gestures?.reset();
@@ -219,6 +226,8 @@ export class OrigamiNotificationsCard extends LitElement {
     this._seen = new Set(entries.map((e) => e.key));
     this._entries = entries;
     this._slides = model.slides;
+    const rows = new Set([...entries.map((e) => e.key), ...model.slides.map((s) => s.row)]);
+    for (const key of this._opened) if (!rows.has(key)) this._opened.delete(key);
     this._watched = [...model.watched, ...d.people];
     this._wakes = model.wakes;
     this._now = now;
@@ -260,6 +269,7 @@ export class OrigamiNotificationsCard extends LitElement {
       }
     }
     this._subs.sync(wanted);
+    for (const kind of ["todos", "forecasts", "conditions"]) for (const key of this._data[kind].keys()) if (!need[kind].has(key)) this._data[kind].delete(key);
   }
 
   _store(kind, key, value) {
@@ -290,6 +300,7 @@ export class OrigamiNotificationsCard extends LitElement {
   }
 
   _matches(query) {
+    if (!this.isConnected) return window.matchMedia(query).matches;
     if (!this._media.has(query)) {
       const list = window.matchMedia(query);
       list.onchange = () => this._refresh();
@@ -445,10 +456,12 @@ export class OrigamiNotificationsCard extends LitElement {
     if (ms > 0 && this.isConnected) this._turnTimer = setTimeout(() => this._autoTurn(), ms - (Date.now() - this._cycleAt));
   }
 
+  // Out of sight the card waits until it is seen again instead of waking up for every turn.
   _autoTurn() {
     const shown = this._shown;
-    if (this._config.rotate > 0 && this._visible && !document.hidden && !this._open && !this._dialog && !this._gestures?.press) this._step(1, "auto");
-    if (this._shown === shown) this._cycle();
+    const seen = this._visible && !document.hidden;
+    if (this._config.rotate > 0 && seen && !this._open && !this._dialog && !this._gestures?.press) this._step(1, "auto");
+    if (this._shown === shown && seen) this._cycle();
   }
 
   // Fonts and Home Assistant's state-display fill a line after the card renders, so each line and its text are
@@ -477,7 +490,7 @@ export class OrigamiNotificationsCard extends LitElement {
     const longest = Math.max(0, ...run.lines.map((l) => l.over));
     const moving = (longest / SCROLL_PX_PER_S) * 1000;
     run.end = longest ? run.start + HOLD_MS + moving : 0;
-    const ms = Math.max(this._config.rotate * 1000, longest && 2 * HOLD_MS + moving);
+    const ms = Math.max(this._config.rotate * 1000, Math.min(longest && 2 * HOLD_MS + moving, MAX_WAIT_MS));
     this.renderRoot.querySelector(".head .cycle")?.style.setProperty("--origami-cycle", `${ms}ms`);
     this._turnAfter(ms);
     this._frame();
@@ -526,8 +539,10 @@ export class OrigamiNotificationsCard extends LitElement {
   }
 
   _onView(visible) {
+    const back = visible && !this._visible;
     this._visible = visible;
     this._now = Date.now();
+    if (back) this._cycle();
     this.requestUpdate();
     this._tick();
   }
@@ -633,8 +648,9 @@ export class OrigamiNotificationsCard extends LitElement {
     if (this._listMotion) this._motion.measure(this.renderRoot.querySelector(".list"));
   }
 
+  // Lit still renders a card that left the page, and observers set up then would hold it forever.
   updated() {
-    if (!this._config || !this._hass) return;
+    if (!this._config || !this._hass || !this.isConnected) return;
     this._motion.play(this.renderRoot.querySelector(".list"), this._listMotion);
     this._setHidden(this._empty());
     this.classList.toggle("dark", Boolean(this._hass.themes?.darkMode));

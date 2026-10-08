@@ -45,10 +45,12 @@ export class Dismissals {
   }
 
   connect() {
+    this.connected = true;
     listeners.add(this.onChange);
   }
 
   disconnect() {
+    this.connected = false;
     listeners.delete(this.onChange);
     shown.delete(this);
   }
@@ -83,7 +85,8 @@ export class Dismissals {
       out.push({ ...entry, signature });
     }
     for (const key of known) if (!present.has(key)) drop(key);
-    shown.set(this, present);
+    // Data can still arrive after a card left the page.
+    if (this.connected) shown.set(this, present);
     if (changed) save();
     return out;
   }

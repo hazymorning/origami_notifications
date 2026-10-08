@@ -18,6 +18,8 @@ export class OrigamiNotificationsDialog extends LitElement {
       }
       ha-adaptive-dialog {
         --dialog-content-padding: 0;
+        --ha-bottom-sheet-max-height: var(--origami-max-height, 70vh);
+        --ha-dialog-max-height: var(--origami-max-height, 70vh);
       }
       .list {
         --inset: 12px;

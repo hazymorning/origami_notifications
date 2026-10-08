@@ -175,7 +175,14 @@ export class Clock {
   slotLabel(ts, type, now) {
     const diff = dayNumber(ts, this.zone) - dayNumber(now, this.zone);
     const day = Math.abs(diff) <= 1 ? this.rel.format(diff, "day") : dateFormat(this.lang, { weekday: "long", timeZone: this.zone }).format(ts);
-    const text = type !== "hourly" ? day : diff === 0 ? this.clockTime(ts) : fill(this.t.day_at, { d: day, t: this.clockTime(ts) });
+    return this.capital(type !== "hourly" ? day : diff === 0 ? this.clockTime(ts) : fill(this.t.day_at, { d: day, t: this.clockTime(ts) }));
+  }
+
+  nowLabel() {
+    return this.capital(this.rel.format(0, "second"));
+  }
+
+  capital(text) {
     return text.charAt(0).toLocaleUpperCase(this.lang) + text.slice(1);
   }
 

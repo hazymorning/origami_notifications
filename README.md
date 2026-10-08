@@ -2,13 +2,17 @@
 
 A notification card for Home Assistant that folds away when there is nothing to see.
 
-Closed, the card is one row that turns through whatever needs attention, then through your infos. Long text scrolls. A tap unfolds the list. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
+<img src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/card.webp" alt="The closed card turning through its entries">
 
-Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
+Closed, the card is one row that turns through what needs attention, then your infos. Long text scrolls. A tap unfolds the list. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
+
+<img src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/popup.webp" alt="The list in a bottom sheet on a phone">
+
+Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door or a running timer. A weather entity adds rain and frost ahead.
 
 Infos, like the next sunrise, are set up like tiles. With `hide_when_empty: false` the weather now and what comes next, and the next event of each calendar, join them.
 
-A row leads with what happens, like an event or a pickup. Anything else leads with its name, as on a tile.
+A row leads with what happens, like an event or a pickup. The weather leads with the time it shows, like now or tonight. Anything else leads with its name, as on a tile.
 
 ```yaml
 type: custom:origami-notifications
@@ -37,7 +41,7 @@ Without HACS, copy `dist/origami-notifications.js` to `/config/www/` and add `/l
 <details>
 <summary>Styling</summary>
 
-Everything in `css` comes after the card's own styles, so you can change any part.
+Everything in `css` comes after the card's own styles.
 
 | Variable | Default | |
 | --- | --- | --- |
@@ -47,7 +51,7 @@ Everything in `css` comes after the card's own styles, so you can change any par
 | `--origami-card-bg`, `--origami-row-bg` | theme, none | Card and row background |
 | `--origami-hover`, `--origami-focus` | light tint, theme | Hover tint and keyboard focus ring |
 | `--origami-pulse-opacity` | `0.3` | How strongly the card pulses while something is critical, like Home Assistant's alert card |
-| `--origami-max-height` | none | The card's maximum height. The open list scrolls inside. |
+| `--origami-max-height` | none, `70vh` for the popup | The highest the card and its popup get. The list scrolls inside. |
 | `--origami-bg-opacity`, `--origami-bg-blur` | `0.22` (`0.32` dark), `24px` | The background picture |
 
 `--origami-max-height`, `--origami-bg-opacity` and `--origami-bg-blur` also work in a theme. The closed card follows the tile variables of your theme, like `--ha-tile-icon-border-radius`.
@@ -61,7 +65,7 @@ Everything in `css` comes after the card's own styles, so you can change any par
 
 Rows carry `.warn` or `.crit`, and their kind in `data-kind`, like `update`, `weather` or `group`.
 
-With a fixed height from the layout tab, or in the footer of a sections view, the open list scrolls inside the card.
+With a fixed height, or in the footer of a sections view, the open list scrolls inside.
 
 </details>
 
@@ -78,7 +82,7 @@ With a fixed height from the layout tab, or in the footer of a sections view, th
 | `repairs` | `true` | Show repairs, to admins only |
 | `hide_when_empty` | `true` | Hide the card when there is nothing to show. With `false`, quiet times show the weather, the next events and your infos. |
 | `vertical` | `false` | The icon above the text, like a tile with vertical content. The text then has the whole width, as in half a header. |
-| `rotate` | `8` | Seconds between turns of the closed card. A ring around the icon fills until the next turn, which waits until long text has scrolled to its end. At `0` it holds still. A swipe or an arrow key turns it by hand. The turns wait while the list is open, a finger is on the card or the card is out of sight. |
+| `rotate` | `8` | Seconds between turns of the closed card. A ring around the icon fills until the next turn, which waits up to 10 seconds for long text to scroll to its end. At `0` it holds still. A swipe or an arrow key turns it by hand. The turns wait while the list is open, a finger is on the card or the card is out of sight. |
 | `slide` | `up` | Whether the text moves `up` or to the `side` at a turn |
 | `audience` | | Who sees what, see below |
 | `css` | | Your own CSS, see Styling |
@@ -95,7 +99,7 @@ Infos take the options of a tile card.
 | Option | |
 | --- | --- |
 | `entity` | The entity to show |
-| `name`, `icon`, `color`, `show_entity_picture` | As on a tile. Without a name, a calendar leads with its next event. |
+| `name`, `icon`, `color`, `show_entity_picture` | As on a tile. Without a name, a calendar leads with its next event and the weather with the time it shows. |
 | `state_content`, `time_format` | What the second line says, like `[temperature, state]` or `next_rising` |
 | `forecast_type` | For a weather entity, `daily`, `hourly` or `twice_daily` adds the forecast |
 | `forecast_slots` | How many days or hours turn by, 1 unless set |
