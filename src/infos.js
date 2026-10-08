@@ -92,6 +92,8 @@ export function infoSlides(infos, ctx) {
     const current = { ...base, key, stateObj: st, title: name, color: colorOf(event ? { ...st, state: "on" } : st) };
     // A calendar's own state is only on or off, so its event says more than its name.
     if (event) Object.assign(current, named ? { content: info.state_content ?? ["message", "start_time"] } : { title: st.attributes.message, content: info.state_content ?? ["start_time"] });
+    // A weather entity is named after a place that never changes, so the time leads, as in its forecast.
+    if (!named && domain === "weather") current.title = ctx.clock.nowLabel();
     if (!ahead || info.show_current !== false) slides.push(current);
     (ahead || []).forEach((a, n) => {
       const shown = { ...st, state: a.condition || "unknown" };

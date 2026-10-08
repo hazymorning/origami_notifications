@@ -2,13 +2,13 @@
 
 A notification card for Home Assistant that folds away when there is nothing to see.
 
-Closed, the card is one row that turns through whatever needs attention, then through your infos. Long text scrolls. A tap unfolds the list. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
+Closed, the card is one row that turns through what needs attention, then your infos. Long text scrolls. A tap unfolds the list. Where the card is narrow, the list opens in Home Assistant's dialog, a bottom sheet on a phone.
 
-Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door, a running timer or a calendar event. A weather entity adds rain and frost ahead.
+Home Assistant's notifications, repairs and updates show up without setup. Add any entity, and the card shows it while it needs attention, like an open door or a running timer. A weather entity adds rain and frost ahead.
 
 Infos, like the next sunrise, are set up like tiles. With `hide_when_empty: false` the weather now and what comes next, and the next event of each calendar, join them.
 
-A row leads with what happens, like an event or a pickup. Anything else leads with its name, as on a tile.
+A row leads with what happens, like an event or a pickup. The weather leads with the time it shows, like now or tonight. Anything else leads with its name, as on a tile.
 
 ```yaml
 type: custom:origami-notifications
@@ -37,7 +37,7 @@ Without HACS, copy `dist/origami-notifications.js` to `/config/www/` and add `/l
 <details>
 <summary>Styling</summary>
 
-Everything in `css` comes after the card's own styles, so you can change any part.
+Everything in `css` comes after the card's own styles.
 
 | Variable | Default | |
 | --- | --- | --- |
@@ -61,7 +61,7 @@ Everything in `css` comes after the card's own styles, so you can change any par
 
 Rows carry `.warn` or `.crit`, and their kind in `data-kind`, like `update`, `weather` or `group`.
 
-With a fixed height from the layout tab, or in the footer of a sections view, the open list scrolls inside the card.
+With a fixed height, or in the footer of a sections view, the open list scrolls inside.
 
 </details>
 
@@ -95,7 +95,7 @@ Infos take the options of a tile card.
 | Option | |
 | --- | --- |
 | `entity` | The entity to show |
-| `name`, `icon`, `color`, `show_entity_picture` | As on a tile. Without a name, a calendar leads with its next event. |
+| `name`, `icon`, `color`, `show_entity_picture` | As on a tile. Without a name, a calendar leads with its next event and the weather with the time it shows. |
 | `state_content`, `time_format` | What the second line says, like `[temperature, state]` or `next_rising` |
 | `forecast_type` | For a weather entity, `daily`, `hourly` or `twice_daily` adds the forecast |
 | `forecast_slots` | How many days or hours turn by, 1 unless set |
