@@ -1,9 +1,9 @@
-<img alt="Origami Notifications with a pizza timer, rain while a window is open and a water leak" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero.webp">
+<img alt="Origami Notifications, a notification card for Home Assistant, in light and dark mode with a pizza timer, rain while a window is open and a water leak" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero.webp">
 
 <a href="https://github.com/hazymorning/origami_notifications/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/hazymorning/origami_notifications?label=Release&color=6A8778&labelColor=181715"></a>
 <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=hazymorning&repository=origami_notifications&category=plugin"><img alt="HACS custom repository" src="https://img.shields.io/badge/HACS-Custom-6A8778?labelColor=181715"></a>
 
-Origami Notifications is a Home Assistant card that shows what needs attention right now. Notifications and updates appear on their own. Every entity you add appears only when it is relevant, such as a timer while it runs.
+Origami Notifications is a Home Assistant card that shows what needs attention right now. Home Assistant's notifications and updates appear without any setup. Every entity you add appears only when it is relevant, such as a timer while it runs.
 
 [Setup](#setup) · [Card](#card) · [Entities](#entities) · [Weather](#weather) · [Infos](#infos) · [Options](#options) · [Troubleshooting](#troubleshooting)
 
@@ -34,36 +34,39 @@ The card needs Home Assistant 2026.4 or newer.
 
 ## Card
 
-The card shows one entry at a time and switches every 8 seconds. The ring around the icon fills until it switches, and the badge counts the entries. Warnings are orange. Smoke, a leak or a triggered alarm is red.
+The card shows one entry at a time and switches every 8 seconds. Warnings, such as rain with a window open, get an orange icon. Smoke, a leak or a triggered alarm makes the card pulse red, and it stays on that entry.
 
-<img width="800" alt="The card in light and dark mode with a pizza timer, rain while a window is open, a water leak and the weather" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/states.webp">
+<img width="800" alt="The card in light and dark mode with a pizza timer, rain while a window is open, a water leak and the current weather" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/states.webp">
 
 ### List
 
-Tap the card to see all entries. A wide card opens in place.
+Tap the card to see all entries. On a wide card, the list opens inside the card.
 
 <img width="800" alt="The open card in light and dark mode with a water leak, a notification, a recipe, a pizza timer and rain" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/list.webp">
 
-A card narrower than 300 pixels opens the list in Home Assistant's dialog. On a phone, that is a bottom sheet.
+A card narrower than 300 pixels opens the list in a Home Assistant dialog instead. On a phone, it slides up from the bottom.
 
-<img width="800" alt="The list in a bottom sheet in light and dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sheet.webp">
+<img width="800" alt="The list in a bottom sheet in light and dark mode with a notification, an update, a calendar event and a pizza timer" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sheet.webp">
 
 <details>
 <summary>How it works</summary>
 
 <br>
 
-| You do | What happens |
+| Action | What happens |
 | --- | --- |
-| Tap the card | The list opens. With only one entry, that entry opens instead. |
+| Tap the card | The list opens. If there is just one entry and nothing else to show, the tap opens that entry instead. |
 | Swipe the card or press an arrow key | The card switches to the next or the previous entry. |
-| Tap an entry | Its entity, a notification's first link or the repairs page opens. If the text is cut off, the first tap shows all of it. |
-| Tap the cross | The entry is dismissed, as described below. |
+| Tap an entry | The entry's entity opens. A notification opens its first link instead, and a repair opens the repairs page. |
+| Tap an entry whose text is cut off | All of the text shows. Tap the icon to open the entry. |
+| Tap the cross | The entry is dismissed. |
 
 | Detail | Description |
 | --- | --- |
-| Order | Critical entries come first. All other entries are sorted by how close their time is to now. |
-| Groups | Binary sensors of the same kind share one row when two or more of them are on, such as open windows. The row names their rooms. |
+| Ring | The ring around the icon fills until the card switches to the next entry. |
+| Badge | The badge counts the entries. |
+| Order | Critical entries come first. The rest are sorted by time, and the one closest to now comes first. |
+| Groups | When two or more windows are open, they share one row that names their rooms. Doors, motion sensors and other binary sensors of one type work the same way. |
 
 </details>
 
@@ -78,14 +81,14 @@ A card narrower than 300 pixels opens the list in Home Assistant's dialog. On a 
 | A repair | It is ignored in Home Assistant. |
 | An update | For an admin, it is skipped in Home Assistant. For everyone else, and for updates that install themselves, it is hidden in this browser. |
 | Anything else | It is hidden in this browser until it changes or happens again. A bin, for example, comes back for the next pickup. |
-| An alarm panel or an info | It cannot be dismissed. |
-| All entries at once | **Dismiss all** appears when the list has two or more entries. It dismisses every entry that can be dismissed. |
+| An alarm panel or an entity under `infos` | It cannot be dismissed. |
+| All entries at once | With two or more entries, **Dismiss all** appears at the foot of the list. In the dialog, it is the icon at the top. It dismisses every entry that can be dismissed. |
 
 </details>
 
 ### Sizes
 
-The card needs at least half the width of a sections view. With `vertical: true`, a quarter is enough. With `background: true`, the entry's picture appears behind the card.
+The card needs at least half the width of a section. With `vertical: true`, a quarter is enough. With `background: true` on an entity, its picture shows behind the card.
 
 <img width="800" alt="The card in different sizes in light and dark mode, with a recipe picture, a timer, an oven, a door, smoke and a robot vacuum" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sizes.webp">
 
@@ -99,7 +102,7 @@ In the footer of a sections view, the card stays at the bottom of the screen.
 
 The card follows your theme. The pictures above use the [Origami](https://github.com/hazymorning/origami) theme. With the default theme, the card looks like a tile card.
 
-<img width="800" alt="The same cards with the default theme in light and dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/theme.webp">
+<img width="800" alt="The card in different sizes with the default theme in light and dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/theme.webp">
 
 ## Entities
 
@@ -116,16 +119,16 @@ You can add almost any entity under `entities`, and the card works out what kind
 | Alert | It appears while it is on. |
 | Calendar | It appears while an event runs. With `before`, it also appears that long before the next event starts. |
 | Update | It appears while an update is available. |
-| Entity with warnings, such as DWD, NINA or Meteoalarm | Each warning appears as its own row until it ends. A warning that starts later appears at once, with its start time. |
+| Entity with warnings, such as DWD, NINA or Meteoalarm | Each warning appears as its own row until it ends. A warning for later appears right away and shows when it starts. A severe warning makes the card pulse red. |
 | Timer | It appears while it runs or is paused, with buttons to pause, resume and cancel it. |
-| Sensor with a time, or with a duration and `type: countdown` | It appears while the time is ahead. With `before`, it appears only that long before the time. |
+| Sensor with a time, or with a duration and `type: countdown` | It appears until the time is reached. With `before`, it appears only that long before. |
 | Bins from Waste Collection Schedule, as a sensor or a calendar | A pickup appears from noon the day before and stays for the whole pickup day. |
 | The Android app's next alarm | It appears in the 12 hours before the alarm rings. |
-| Event | It appears for a day after it fires. It shows a picture from the same device, such as a camera's, when there is one. |
+| Event | It appears for a day after it fires. If the same device has a camera, the entry shows its picture. |
 | To-do list with `type: todo` | Each item appears on its due day or when it is overdue, with a button to mark it as done. Items without a due date never appear. |
 | Lock, cover, valve, vacuum, lawn mower or siren | It appears while Home Assistant counts it as active, such as an unlocked lock or an open cover. Where the device supports it, a button locks, closes, docks or turns it off. |
 | Entity with an attribute that holds a `name` or `title` and a `description`, `summary` or picture | The attribute appears as an entry, whatever the entity's state. The recipe in the list above works like this. |
-| Binary sensor for smoke, gas, carbon monoxide, moisture, heat or safety | It appears while it is on, and it is critical. |
+| Binary sensor for smoke, gas, carbon monoxide, moisture, heat or safety | It appears while it is on and makes the card pulse red. |
 | Anything else | It appears while it is on or active, or while its value is above 0. |
 
 </details>
@@ -137,16 +140,16 @@ You can add almost any entity under `entities`, and the card works out what kind
 
 | Option | Description |
 | --- | --- |
-| `type` | The kind of entity. Without it, the card detects the kind itself. It is one of `alarm`, `alert`, `attribute`, `calendar`, `countdown`, `device`, `event`, `generic`, `next_alarm`, `picture`, `timer`, `todo`, `update`, `warning` or `waste`. With `generic`, any state appears except off, idle, none, 0, unknown and unavailable. With `picture`, the state becomes the title. |
+| `type` | The kind of entity. Without it, the card detects the kind itself. It is one of `alarm`, `alert`, `attribute`, `calendar`, `countdown`, `device`, `event`, `generic`, `next_alarm`, `picture`, `timer`, `todo`, `update`, `warning` or `waste`. With `generic`, the entity appears in any state except off, idle, none, 0, unknown and unavailable. With `picture`, the state becomes the title. |
 | `attribute` | The attribute to show, such as `next_due` or `book.title`. A plain value becomes the title. |
 | `name` | A name that replaces the entity's name |
 | `icon` | An icon that replaces the entity's icon |
 | `color` | A theme color such as `green`, as on a tile, or any CSS color. Critical entries stay red, and warnings stay orange. |
 | `image` | A picture from an attribute, or a URL. It replaces the entity's own picture. |
-| `background` | Set to `true` to show the picture blurred behind the card while the card shows this entry. |
-| `before` | How long before its time the entry appears, in minutes or as a duration such as `1:30:00`. It works for calendars, bins, the next alarm, countdowns and to-do lists. |
+| `background` | Set to `true` to show the entry's picture blurred behind the card while this entry is shown. |
+| `before` | How long before its time the entry appears, in minutes or as a duration in quotes such as `"1:30:00"`. It works for calendars, bins, the next alarm, countdowns and to-do lists. |
 | `tap_action` | What a tap on the entry does. By default, a tap opens the entity. |
-| `visibility` | Conditions from Home Assistant's visibility tab, which must all be met. With conditions, the entity appears in any state, such as a temperature above 28°. |
+| `visibility` | Conditions from Home Assistant's visibility tab, which must all be met. An entity that fits none of the kinds above, such as a temperature, then appears whenever they are met. |
 | `actions` | Buttons of your own, each with a `label` and a `tap_action`. The **Open recipe** button in the list above is one of these. |
 
 </details>
@@ -162,15 +165,15 @@ Set `weather` to a weather entity, and the card tells you about rain, snow, hail
 
 | Entry | When it appears |
 | --- | --- |
-| Rain, snow, hail or thunderstorms | While it is dry, the entry appears up to 6 hours before the first wet hour and gives the chance of rain. |
-| Frost | While it is above freezing, the entry appears up to 18 hours before the first hour below 0 °C or 32 °F. It gives the lowest temperature of those hours. |
-| Rain with a window open | While a window is open, rain ahead appears as an orange warning that counts the open windows. Rain that has already started appears as well. |
+| Rain, snow, hail or thunderstorms | While it is dry, the entry appears up to 6 hours ahead and shows the chance of rain. |
+| Frost | While it is above freezing, the entry appears up to 18 hours before the first hour below 0 °C or 32 °F. It shows the lowest temperature of the next 18 hours. |
+| Rain with a window open | While a window is open, the rain entry becomes an orange warning that says how many windows are open. It then also appears when the rain has already started. |
 
 </details>
 
 ## Infos
 
-Infos are entities that the card shows after the entries, such as the forecast or the next sunrise. While there is an info, the card does not hide.
+Under `infos`, you can add entities that the card shows after the entries, such as the forecast or the next sunrise. While one of them is shown, the card does not hide.
 
 <details>
 <summary>Info options</summary>
@@ -185,8 +188,8 @@ Infos are entities that the card shows after the entries, such as the forecast o
 | `forecast_type` | Set to `daily`, `hourly` or `twice_daily` to add a weather entity's forecast. |
 | `forecast_slots` | How many days or hours of the forecast the card shows. The default is 1. |
 | `show_current`, `show_forecast` | These work as on Home Assistant's weather forecast card. Both are on unless you set them to `false`. |
-| `tap_action`, `hold_action`, `double_tap_action` | What a tap, a hold and a double tap do. By default, a tap opens the entity. A hold and a double tap work only on the card, not in the list. |
-| `visibility` | Conditions from Home Assistant's visibility tab. The info shows only while all of them are met. |
+| `tap_action`, `hold_action`, `double_tap_action` | What a tap, a hold and a double tap do. By default, a tap opens the entity. A hold and a double tap work only on the closed card, not in the list. |
+| `visibility` | Conditions from Home Assistant's visibility tab. The entity shows only while all of them are met. |
 
 </details>
 
@@ -202,14 +205,14 @@ The visual editor covers every option except `actions`, which you add in YAML.
 | Option | Default | Description |
 | --- | --- | --- |
 | `entities` | | The entities to watch, described under [Entities](#entities) |
-| `label` | | A label. The card also watches every entity with this label. In YAML, this is the label ID. |
+| `label` | | The card also watches every entity with this label. In YAML, use the label's ID. |
 | `weather` | | A weather entity for rain, snow and frost ahead, described under [Weather](#weather) |
-| `infos` | | Entities that always show after the entries, described under [Infos](#infos) |
+| `infos` | | Entities that show after the entries, described under [Infos](#infos) |
 | `updates` | `true` | Shows every available update. Set to `false` to show only the updates under `entities`. |
 | `repairs` | `true` | Shows repairs to admins. Set to `false` to hide them. |
-| `hide_when_empty` | `true` | Hides the card when there is nothing to show. Set to `false` to keep it, and to show the weather and your next events after the entries. |
+| `hide_when_empty` | `true` | Hides the card when there is nothing to show. Set to `false` to keep the card visible. It then also shows the weather and your next calendar events after the entries. |
 | `vertical` | `false` | Set to `true` to put the icon above the text, as on a tile card with vertical content. In a sections view, the card can then be as narrow as 3 columns instead of 6. |
-| `rotate` | `8` | The seconds before the card switches to the next entry. At `0`, the card does not switch on its own, but you can still swipe it. |
+| `rotate` | `8` | How many seconds the card shows each entry before it switches to the next. At `0`, the card does not switch on its own, but you can still swipe it. |
 | `slide` | `up` | Whether the text slides `up` or to the `side` when the card switches. A swipe always slides it to the side. |
 | `audience` | | Who sees which entries, described under Who sees what |
 | `css` | | Your own CSS, described under Styling |
@@ -221,7 +224,7 @@ The visual editor covers every option except `actions`, which you add in YAML.
 
 <br>
 
-Here, only Anna sees Home Assistant's notifications, and the kid does not see the weather warnings.
+With `only`, just the people you list see the entries. With `except`, everyone else does. In this example, only Anna sees Home Assistant's notifications, and the kid does not see the weather warnings.
 
 ```yaml
 audience:
@@ -238,7 +241,7 @@ audience:
 | `repairs` | Repairs, which only admins see |
 | An entity ID | That entity. The weather entity's ID covers its rain and frost entries. |
 
-The card matches people through the user linked to them under [People](https://my.home-assistant.io/redirect/people/). The rules change only the card, not what people can see in Home Assistant.
+The card recognizes people by the user account linked to them under [People](https://my.home-assistant.io/redirect/people/). The rules only affect this card, not what people can see elsewhere in Home Assistant.
 
 </details>
 
@@ -366,7 +369,7 @@ The card hides while there is nothing to show, but it always appears while you e
 
 <br>
 
-The weather entity needs an hourly or twice daily forecast. Set it as `weather`, because a weather entity under `entities` shows nothing.
+The weather entity needs an hourly or twice daily forecast. Add it under `weather`, not under `entities`, where it shows nothing.
 
 </details>
 
