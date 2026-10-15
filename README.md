@@ -1,9 +1,9 @@
-<img alt="Origami Notifications on two phones, closed next to a greeting in light mode and open at the top of a dashboard in dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero.webp">
+<img alt="Origami Notifications with a pizza timer, rain while a window is open and a water leak" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero.webp">
 
 <a href="https://github.com/hazymorning/origami_notifications/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/hazymorning/origami_notifications?label=Release&color=6A8778&labelColor=181715"></a>
 <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=hazymorning&repository=origami_notifications&category=plugin"><img alt="HACS custom repository" src="https://img.shields.io/badge/HACS-Custom-6A8778?labelColor=181715"></a>
 
-Origami Notifications is a Home Assistant card that shows what needs attention right now. Home Assistant's notifications and updates appear without any setup. Every entity you add appears only while it is relevant, such as a timer while it runs.
+Origami Notifications is a Home Assistant card that shows what needs attention right now. Notifications and updates appear on their own. Every entity you add appears only when it is relevant, such as a timer while it runs.
 
 [Setup](#setup) · [Card](#card) · [Entities](#entities) · [Weather](#weather) · [Infos](#infos) · [Options](#options) · [Troubleshooting](#troubleshooting)
 
@@ -34,19 +34,19 @@ The card needs Home Assistant 2026.4 or newer.
 
 ## Card
 
-The card shows one entry at a time and switches to the next one every 8 seconds. A ring around the icon fills until it switches, and a badge counts the entries. Warnings are orange. Smoke, a leak or a triggered alarm is red, and the card pulses until it is over.
+The card shows one entry at a time and switches every 8 seconds. The ring around the icon fills until it switches, and the badge counts the entries. Warnings are orange. Smoke, a leak or a triggered alarm is red.
 
-<img width="800" alt="Four cards in light and dark mode, with a pizza timer, rain while a window is open, a water leak and the current weather" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/states.webp">
+<img width="800" alt="The card in light and dark mode with a pizza timer, rain while a window is open, a water leak and the weather" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/states.webp">
 
 ### List
 
-Tap the card to open the list of all entries. A wide card opens the list in place.
+Tap the card to see all entries. A wide card opens in place.
 
-<img width="800" alt="A card opened in place in light and dark mode, with a water leak, a notification, a recipe, a pizza timer and rain" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/list.webp">
+<img width="800" alt="The open card in light and dark mode with a water leak, a notification, a recipe, a pizza timer and rain" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/list.webp">
 
-A card narrower than 300 pixels, such as one next to a greeting, opens the list in Home Assistant's dialog. On a phone, the dialog is a bottom sheet.
+A card narrower than 300 pixels opens the list in Home Assistant's dialog. On a phone, that is a bottom sheet.
 
-<img width="800" alt="The list in a bottom sheet on two phones in light and dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sheet.webp">
+<img width="800" alt="The list in a bottom sheet in light and dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sheet.webp">
 
 <details>
 <summary>How it works</summary>
@@ -85,21 +85,21 @@ A card narrower than 300 pixels, such as one next to a greeting, opens the list 
 
 ### Sizes
 
-In a sections view, the card takes half the width or more. With `vertical: true`, the icon sits above the text and the card can be as narrow as a quarter. With `background: true`, an entry's picture appears blurred behind the card.
+The card needs at least half the width of a sections view. With `vertical: true`, a quarter is enough. With `background: true`, the entry's picture appears behind the card.
 
-<img width="800" alt="Cards of different sizes in light and dark mode, with a recipe picture behind a wide card, a timer, an oven, and narrow cards for a door, smoke and a robot vacuum" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sizes.webp">
+<img width="800" alt="The card in different sizes in light and dark mode, with a recipe picture, a timer, an oven, a door, smoke and a robot vacuum" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sizes.webp">
 
 ### Footer
 
-In the footer of a sections view, the card stays at the bottom of the screen while the page scrolls. Its list opens in place and scrolls once it fills a quarter of the screen.
+In the footer of a sections view, the card stays at the bottom of the screen.
 
-<img width="800" alt="The card at the bottom of two phones in light and dark mode, warning about rain while a window is open" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/footer.webp">
+<img width="800" alt="The card at the bottom of the screen in light and dark mode, with rain while a window is open" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/footer.webp">
 
 ### Theme
 
-The pictures above use the [Origami](https://github.com/hazymorning/origami) theme. With Home Assistant's default theme, the card looks like a tile card.
+The card follows your theme. The pictures above use the [Origami](https://github.com/hazymorning/origami) theme. With the default theme, the card looks like a tile card.
 
-<img width="800" alt="The same cards with Home Assistant's default theme in light and dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/theme.webp">
+<img width="800" alt="The same cards with the default theme in light and dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/theme.webp">
 
 ## Entities
 
