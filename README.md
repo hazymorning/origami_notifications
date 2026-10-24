@@ -58,7 +58,7 @@ A card narrower than 300 pixels opens the list in a Home Assistant dialog instea
 | Tap the card | The list opens. If there is just one entry and nothing else to show, the tap opens that entry instead. |
 | Swipe the card or press an arrow key | The card switches to the next or the previous entry. |
 | Tap an entry | The entry's entity opens. A notification opens its first link instead, and a repair opens the repairs page. |
-| Tap an entry whose text is cut off | All of the text shows. Tap the icon to open the entry. |
+| Tap an entry whose message is cut off | All of the text shows. Tap the icon to open the entry. An entry that opens nothing also shows its whole title. |
 | Tap the cross | The entry is dismissed. |
 
 | Detail | Description |
@@ -262,13 +262,14 @@ Styles in `css` come after the card's own, so they override them.
 | `--origami-pulse-opacity` | `0.3` | How strongly the card pulses while an entry is critical. This also works in a theme. |
 | `--origami-max-height` | none | The maximum height of the card and its dialog. A longer list scrolls inside. The default is `25dvh` in the footer and `70vh` in the dialog. This also works in a theme. |
 | `--origami-bg-opacity`, `--origami-bg-blur` | `0.22` (`0.32` dark), `24px` | The opacity and blur of the background picture. These also work in a theme. |
-| `--ha-tile-*` | theme | The card follows the theme's tile variables, such as `--ha-tile-icon-border-radius`. |
+| `--ha-tile-*` | theme | The card follows the theme's tile variables. The icon and the ring around it take their shape from `--ha-tile-icon-border-radius`. |
 
 | Part | Classes |
 | --- | --- |
 | Card | `.head` with `.icon`, `.cycle` for the ring, `.badge`, `.title` and `.secondary` |
 | List | `.bar` with `.count`, the `.list` of `.row` elements and the `.foot` with `.clear` |
 | Row | `.icon`, `.title`, `.time`, `.dismiss`, `.message` and the `.actions` with `.action` buttons. The dialog uses the same classes. |
+| Dialog | `.heading` for the title at the top |
 | Row state | `.warn` or `.crit`, and the kind in `data-kind`, such as `update`, `weather` or `group` |
 | Background picture | `.backdrop` |
 

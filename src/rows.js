@@ -56,10 +56,10 @@ function timeTemplate(entry, view) {
   return html`<time class="time" datetime=${datetime} title=${title}>${view.clock.entryTime(entry, view.now)}</time>`;
 }
 
-const clamped = (row) => [".message", ".title"].some((s) => {
-  const el = row.querySelector(s);
-  return el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
-});
+const cut = (el) => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+
+// A long title only wraps onto a second line, so it is worth a tap only on an entry that opens nothing.
+const clamped = (row, link) => cut(row.querySelector(".message")) || (!link && cut(row.querySelector(".title")));
 
 const selecting = (root) => {
   const selection = root.getSelection?.() || document.getSelection();
@@ -79,7 +79,7 @@ function rowTemplate(entry, view) {
   const onClick = (e) => {
     const row = e.currentTarget;
     if (selecting(row.getRootNode())) return;
-    if (row.classList.contains("open") || clamped(row)) view.toggle(entry.key);
+    if (row.classList.contains("open") || clamped(row, link)) view.toggle(entry.key);
     else open();
   };
   const timeAside = Boolean(entry.message) || !Number.isFinite(entry.ts);
@@ -89,7 +89,7 @@ function rowTemplate(entry, view) {
       data-kind=${entry.kind}
       style="--tile-color: ${entryColor(entry)}"
       @click=${onClick}
-      @pointerenter=${(e) => e.currentTarget.classList.toggle("expandable", clamped(e.currentTarget))}
+      @pointerenter=${(e) => e.currentTarget.classList.toggle("expandable", clamped(e.currentTarget, link))}
     >
       <div
         class="icon"

@@ -105,6 +105,31 @@ test("a tap opens the list, or the one thing on show, and an icon opens its entr
   assert.deepEqual([q(inert, ".head").getAttribute("aria-disabled"), q(inert, "ha-card").classList.contains("tappable")], ["true", false]);
 });
 
+test("a tap on an entry opens it, and on one whose message is cut off shows all of the text", async () => {
+  const w = makeWindow();
+  let over = "";
+  for (const name of ["scrollWidth", "scrollHeight"]) Object.defineProperty(w.HTMLElement.prototype, name, { get() { return over && this.matches(over) ? 100 : 0; } });
+  const el = await mount(w, card(["binary_sensor.garage", { entity: "binary_sensor.gate", tap_action: { action: "none" } }]), makeHass(doors()));
+  const sent = actionsOf(el);
+  q(el, ".head").click();
+  await settle(el);
+  const row = (name) => [...el.shadowRoot.querySelectorAll(".row")].find((r) => r.querySelector(".title").textContent === name);
+  over = ".title";
+  row("Garage").click();
+  await settle(el);
+  same([sent.map((a) => a.config.entity), row("Garage").classList.contains("open")], [["binary_sensor.garage"], false], "a long title alone opens the entry");
+  row("Gate").click();
+  await settle(el);
+  assert.equal(row("Gate").classList.contains("open"), true, "an entry that opens nothing shows its whole title");
+  over = ".message";
+  row("Garage").click();
+  await settle(el);
+  assert.deepEqual([sent.length, row("Garage").classList.contains("open")], [1, true]);
+  row("Garage").click();
+  await settle(el);
+  assert.deepEqual([sent.length, row("Garage").classList.contains("open")], [1, false], "a second tap folds it again");
+});
+
 test("an info taps, holds and double taps like a tile", async () => {
   const w = makeWindow({ clock: true });
   const states = statesOf(st("sun.sun", "below_horizon", { friendly_name: "Sun" }));
@@ -380,8 +405,8 @@ test("a narrow card opens its list in Home Assistant's dialog", async () => {
   q(el, ".head").click();
   await settle(dialog);
   const shown = () => [...dialog.shadowRoot.querySelectorAll(".row .title")].map((t) => t.textContent);
-  const inner = dialog.shadowRoot.querySelector("ha-adaptive-dialog");
-  assert.deepEqual([q(el, ".head").getAttribute("aria-haspopup"), inner.getAttribute("header-title"), shown()], ["dialog", "3 notifications", ["Door", "Garage", "Gate"]]);
+  const heading = dialog.shadowRoot.querySelector("ha-adaptive-dialog > .heading");
+  assert.deepEqual([q(el, ".head").getAttribute("aria-haspopup"), heading.slot, heading.textContent, shown()], ["dialog", "headerTitle", "3 notifications", ["Door", "Garage", "Gate"]]);
   const behind = head(el).title;
   await tick(el, 20000);
   assert.equal(head(el).title, behind, "the card behind the dialog holds still");
