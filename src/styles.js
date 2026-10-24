@@ -165,12 +165,14 @@ export const rowStyles = css`
     gap: var(--ha-space-2, 8px);
     margin: var(--ha-space-2, 8px) 0 2px;
   }
+  /* Sized and shaped like a small filled ha-button, see ha-button.ts. */
   .action {
-    height: 32px;
+    height: var(--ha-button-height, var(--button-height, 32px));
     padding: 0 12px;
     background: var(--ha-color-fill-primary-normal-resting, color-mix(in srgb, var(--primary-color) 14%, transparent));
     color: var(--ha-color-on-primary-normal, var(--primary-color));
-    border-radius: var(--ha-border-radius-pill, 9999px);
+    border-radius: var(--ha-button-border-radius, var(--ha-border-radius-pill, 9999px));
+    box-shadow: var(--ha-button-box-shadow, none);
     font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
     font-variant-numeric: tabular-nums;

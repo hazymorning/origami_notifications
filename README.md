@@ -264,6 +264,7 @@ Styles in `css` come after the card's own, so they override them.
 | `--origami-max-height` | none | The maximum height of the card and its dialog. A longer list scrolls inside. The default is `25dvh` in the footer and `70vh` in the dialog. This also works in a theme. |
 | `--origami-bg-opacity`, `--origami-bg-blur` | `0.22` (`0.32` dark), `24px` | The opacity and blur of the background picture. These also work in a theme. |
 | `--ha-tile-*` | theme | The card follows the theme's tile variables. The icon and the ring around it take their shape from `--ha-tile-icon-border-radius`. |
+| `--ha-button-*` | theme | The buttons in the list follow the theme's button variables, such as `--ha-button-border-radius`. |
 
 | Part | Classes |
 | --- | --- |
