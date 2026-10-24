@@ -58,7 +58,7 @@ A card narrower than 300 pixels opens the list in a Home Assistant dialog instea
 | Tap the card | The list opens. If there is just one entry and nothing else to show, the tap opens that entry instead. |
 | Swipe the card or press an arrow key | The card switches to the next or the previous entry. |
 | Tap an entry | The entry's entity opens. A notification opens its first link instead, and a repair opens the repairs page. |
-| Tap an entry whose text is cut off | All of the text shows. Tap the icon to open the entry. |
+| Tap an entry whose message is cut off | All of the text shows. Tap the icon to open the entry. An entry that opens nothing also shows its whole title. |
 | Tap the cross | The entry is dismissed. |
 
 | Detail | Description |
