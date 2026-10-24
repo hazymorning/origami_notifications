@@ -831,10 +831,10 @@ var ei="1.4.1";var Ct=globalThis,Ot=Ct.ShadowRoot&&(Ct.ShadyCSS===void 0||Ct.Sha
         open
         flexcontent
         .hass=${t.hass}
-        header-title=${t.listTitle()}
         @opened=${s=>s.target===s.currentTarget&&(this._shown=!0,this.requestUpdate())}
         @closed=${s=>s.target===s.currentTarget&&this._closed()}
       >
+        <span slot="headerTitle" class="heading">${t.listTitle()}</span>
         ${n.length?w`<ha-icon-button slot="headerActionItems" .label=${t.texts.clear} @click=${()=>t.dismiss(n)}>
               <ha-icon icon="mdi:notification-clear-all"></ha-icon>
             </ha-icon-button>`:g}

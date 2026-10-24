@@ -269,6 +269,7 @@ Styles in `css` come after the card's own, so they override them.
 | Card | `.head` with `.icon`, `.cycle` for the ring, `.badge`, `.title` and `.secondary` |
 | List | `.bar` with `.count`, the `.list` of `.row` elements and the `.foot` with `.clear` |
 | Row | `.icon`, `.title`, `.time`, `.dismiss`, `.message` and the `.actions` with `.action` buttons. The dialog uses the same classes. |
+| Dialog | `.heading` for the title at the top |
 | Row state | `.warn` or `.crit`, and the kind in `data-kind`, such as `update`, `weather` or `group` |
 | Background picture | `.backdrop` |
 

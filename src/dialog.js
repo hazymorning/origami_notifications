@@ -94,15 +94,16 @@ export class OrigamiNotificationsDialog extends LitElement {
       queueMicrotask(() => this._card === card && this.closeDialog());
     }
     const clear = card.dismissible();
+    // Home Assistant styles a header-title in its own shadow root, where the css option can't reach it.
     return html`
       <ha-adaptive-dialog
         open
         flexcontent
         .hass=${card.hass}
-        header-title=${card.listTitle()}
         @opened=${(e) => e.target === e.currentTarget && ((this._shown = true), this.requestUpdate())}
         @closed=${(e) => e.target === e.currentTarget && this._closed()}
       >
+        <span slot="headerTitle" class="heading">${card.listTitle()}</span>
         ${clear.length
           ? html`<ha-icon-button slot="headerActionItems" .label=${card.texts.clear} @click=${() => card.dismiss(clear)}>
               <ha-icon icon="mdi:notification-clear-all"></ha-icon>

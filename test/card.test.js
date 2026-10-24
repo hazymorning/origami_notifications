@@ -405,8 +405,8 @@ test("a narrow card opens its list in Home Assistant's dialog", async () => {
   q(el, ".head").click();
   await settle(dialog);
   const shown = () => [...dialog.shadowRoot.querySelectorAll(".row .title")].map((t) => t.textContent);
-  const inner = dialog.shadowRoot.querySelector("ha-adaptive-dialog");
-  assert.deepEqual([q(el, ".head").getAttribute("aria-haspopup"), inner.getAttribute("header-title"), shown()], ["dialog", "3 notifications", ["Door", "Garage", "Gate"]]);
+  const heading = dialog.shadowRoot.querySelector("ha-adaptive-dialog > .heading");
+  assert.deepEqual([q(el, ".head").getAttribute("aria-haspopup"), heading.slot, heading.textContent, shown()], ["dialog", "headerTitle", "3 notifications", ["Door", "Garage", "Gate"]]);
   const behind = head(el).title;
   await tick(el, 20000);
   assert.equal(head(el).title, behind, "the card behind the dialog holds still");
