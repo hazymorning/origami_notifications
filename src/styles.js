@@ -16,14 +16,16 @@ export const rowStyles = css`
   .clip {
     min-height: 0;
   }
-  .item.moving > .clip {
+  .item.moving > .clip,
+  .item.moving .row {
     overflow: hidden;
   }
   .row {
     position: relative;
     display: grid;
-    grid-template-columns: var(--origami-tile) minmax(0, 1fr) auto;
+    grid-template-columns: var(--origami-row-tile) minmax(0, 1fr) auto;
     grid-template-areas: "icon title meta" "icon message message" ". actions actions";
+    align-content: start;
     align-items: center;
     column-gap: var(--origami-gap);
     padding: 6px 4px;
@@ -45,6 +47,8 @@ export const rowStyles = css`
   .row .icon {
     grid-area: icon;
     align-self: start;
+    width: var(--origami-row-tile);
+    height: var(--origami-row-tile);
   }
   .row .icon[role="button"] {
     cursor: pointer;
@@ -161,12 +165,14 @@ export const rowStyles = css`
     gap: var(--ha-space-2, 8px);
     margin: var(--ha-space-2, 8px) 0 2px;
   }
+  /* Sized and shaped like a small filled ha-button, see ha-button.ts. */
   .action {
-    height: 32px;
+    height: var(--ha-button-height, var(--button-height, 32px));
     padding: 0 12px;
     background: var(--ha-color-fill-primary-normal-resting, color-mix(in srgb, var(--primary-color) 14%, transparent));
     color: var(--ha-color-on-primary-normal, var(--primary-color));
-    border-radius: var(--ha-border-radius-pill, 9999px);
+    border-radius: var(--ha-button-border-radius, var(--ha-border-radius-pill, 9999px));
+    box-shadow: var(--ha-button-box-shadow, none);
     font-size: var(--ha-font-size-m, 14px);
     font-weight: var(--ha-font-weight-medium, 500);
     font-variant-numeric: tabular-nums;
@@ -269,6 +275,7 @@ export const variables = css`
     --origami-gap: 10px;
     --origami-radius: var(--ha-border-radius-md, 8px);
     --origami-tile: 36px;
+    --origami-row-tile: 40px;
     --origami-icon: 24px;
     --origami-card-bg: var(--ha-card-background, var(--card-background-color, #fff));
     --origami-row-bg: transparent;

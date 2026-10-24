@@ -43,7 +43,7 @@ export class ListMotion {
   }
 
   measure(list) {
-    this.before = new Map([...(list?.children || [])].map((el) => [el.dataset.key, el.offsetTop]));
+    this.before = new Map([...(list?.children || [])].map((el) => [el.dataset.key, { top: el.offsetTop, height: el.querySelector(".row")?.offsetHeight }]));
   }
 
   play(list, animate) {
@@ -87,18 +87,27 @@ export class ListMotion {
           fast + normal
         );
       } else {
-        const dy = this.before.get(key) - el.offsetTop;
+        const was = this.before.get(key);
+        // A row that unfolds starts at its old height, so the rows after it are still in place when they are measured.
+        const row = el.querySelector(".row");
+        row.getAnimations().forEach((a) => a.cancel());
+        const height = row.offsetHeight;
+        if (Math.abs(was.height - height) > 1) this.run(el, [{ height: `${was.height}px`, easing: EASE.standard }, { height: `${height}px` }], normal, null, row);
+        const dy = was.top - el.offsetTop;
         if (Math.abs(dy) > 1) el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: normal, easing: EASE.standard });
       }
     }
   }
 
-  run(el, frames, ms, done) {
+  run(el, frames, ms, done, box = el) {
     el.classList.add("moving");
-    const anim = el.animate(frames, { duration: ms, fill: done ? "forwards" : "none" });
-    anim.finished.then(() => {
-      el.classList.remove("moving");
-      done?.();
-    }, () => {});
+    const anim = box.animate(frames, { duration: ms, fill: done ? "forwards" : "none" });
+    anim.finished.then(
+      () => {
+        el.classList.remove("moving");
+        done?.();
+      },
+      () => box.getAnimations().length || el.classList.remove("moving")
+    );
   }
 }

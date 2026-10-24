@@ -255,7 +255,8 @@ Styles in `css` come after the card's own, so they override them.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `--origami-pad`, `--origami-gap` | `10px`, `10px` | The padding, and the space between icon and text |
-| `--origami-tile`, `--origami-icon` | `36px`, `24px` | The size of the icon area and of the icon |
+| `--origami-tile`, `--origami-icon` | `36px`, `24px` | The size of the icon area on the card, and of the icon |
+| `--origami-row-tile` | `40px` | The size of the icon area in the list |
 | `--origami-radius` | `8px` | The corner radius of the rows |
 | `--origami-card-bg`, `--origami-row-bg` | theme, none | The card's and the rows' background |
 | `--origami-hover`, `--origami-focus` | light tint, theme | The hover tint and the keyboard focus ring |
@@ -263,6 +264,8 @@ Styles in `css` come after the card's own, so they override them.
 | `--origami-max-height` | none | The maximum height of the card and its dialog. A longer list scrolls inside. The default is `25dvh` in the footer and `70vh` in the dialog. This also works in a theme. |
 | `--origami-bg-opacity`, `--origami-bg-blur` | `0.22` (`0.32` dark), `24px` | The opacity and blur of the background picture. These also work in a theme. |
 | `--ha-tile-*` | theme | The card follows the theme's tile variables. The icon and the ring around it take their shape from `--ha-tile-icon-border-radius`. |
+| `--ha-button-*` | theme | The buttons in the list follow the theme's button variables, such as `--ha-button-border-radius`. |
+| `--ha-dialog-surface-background` | theme | The background of the dialog. In a theme, it colors every dialog of Home Assistant. |
 
 | Part | Classes |
 | --- | --- |
