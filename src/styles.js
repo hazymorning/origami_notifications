@@ -16,7 +16,8 @@ export const rowStyles = css`
   .clip {
     min-height: 0;
   }
-  .item.moving > .clip {
+  .item.moving > .clip,
+  .item.moving .row {
     overflow: hidden;
   }
   .row {
@@ -24,6 +25,7 @@ export const rowStyles = css`
     display: grid;
     grid-template-columns: var(--origami-tile) minmax(0, 1fr) auto;
     grid-template-areas: "icon title meta" "icon message message" ". actions actions";
+    align-content: start;
     align-items: center;
     column-gap: var(--origami-gap);
     padding: 6px 4px;
