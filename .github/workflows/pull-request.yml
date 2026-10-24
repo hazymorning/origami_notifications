@@ -25,7 +25,7 @@ jobs:
           BODY: ${{ github.event.pull_request.body }}
         run: |
           printf '%s' "$TITLE" | python3 scripts/text-style.py --stdin title --limit 72
-          printf '%s' "$BODY" | python3 scripts/text-style.py --stdin body --limit 1200
+          printf '%s' "$BODY" | python3 scripts/text-style.py --stdin body --limit 2000
 
       - name: One open pull request at a time
         if: github.event.pull_request.user.login == github.repository_owner
