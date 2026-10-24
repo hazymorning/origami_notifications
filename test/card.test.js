@@ -414,7 +414,7 @@ test("a narrow card opens its list in Home Assistant's dialog", async () => {
   await settle(el);
   await settle(dialog);
   assert.deepEqual(shown(), ["Garage", "Gate"], "a dismissal reaches it at once");
-  const clearAll = () => Boolean(dialog.shadowRoot.querySelector("ha-icon-button"));
+  const clearAll = () => Boolean(dialog.shadowRoot.querySelector("ha-icon-button:not(.close)"));
   assert.equal(clearAll(), true);
   dialog.shadowRoot.querySelector(".dismiss").click();
   await settle(el);
@@ -422,7 +422,9 @@ test("a narrow card opens its list in Home Assistant's dialog", async () => {
   assert.deepEqual([shown(), clearAll()], [["Gate"], false], "clear all shows only while it has something to clear");
   const closed = [];
   dialog.addEventListener("dialog-closed", (e) => closed.push(e.detail.dialog));
-  dialog.closeDialog();
+  const close = dialog.shadowRoot.querySelector("ha-adaptive-dialog > .close");
+  assert.deepEqual([dialog.shadowRoot.querySelector("[slot=headerNavigationIcon]").childElementCount, close.slot], [0, "headerActionItems"], "the close button sits on the right");
+  close.click();
   await settle(dialog);
   assert.deepEqual([closed, dialog.shadowRoot.querySelector("ha-adaptive-dialog")], [["origami-notifications-dialog"], null]);
 });

@@ -95,6 +95,7 @@ export class OrigamiNotificationsDialog extends LitElement {
     }
     const clear = card.dismissible();
     // Home Assistant styles a header-title in its own shadow root, where the css option can't reach it.
+    // Anything in headerNavigationIcon takes the place of its close button on the left.
     return html`
       <ha-adaptive-dialog
         open
@@ -103,12 +104,16 @@ export class OrigamiNotificationsDialog extends LitElement {
         @opened=${(e) => e.target === e.currentTarget && ((this._shown = true), this.requestUpdate())}
         @closed=${(e) => e.target === e.currentTarget && this._closed()}
       >
+        <span slot="headerNavigationIcon"></span>
         <span slot="headerTitle" class="heading">${card.listTitle()}</span>
         ${clear.length
           ? html`<ha-icon-button slot="headerActionItems" .label=${card.texts.clear} @click=${() => card.dismiss(clear)}>
               <ha-icon icon="mdi:notification-clear-all"></ha-icon>
             </ha-icon-button>`
           : nothing}
+        <ha-icon-button slot="headerActionItems" class="close" .label=${card.texts.close} @click=${() => this.closeDialog()}>
+          <ha-icon icon="mdi:close"></ha-icon>
+        </ha-icon-button>
         <div class="list" role="list">${rowsTemplate(this._motion.withLeaving(items, this._animate), card.rowView((i) => (this._refocus = i)))}</div>
       </ha-adaptive-dialog>
     `;
