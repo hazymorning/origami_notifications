@@ -255,7 +255,8 @@ Styles in `css` come after the card's own, so they override them.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `--origami-pad`, `--origami-gap` | `10px`, `10px` | The padding, and the space between icon and text |
-| `--origami-tile`, `--origami-icon` | `36px`, `24px` | The size of the icon area and of the icon |
+| `--origami-tile`, `--origami-icon` | `36px`, `24px` | The size of the icon area on the card, and of the icon |
+| `--origami-row-tile` | `40px` | The size of the icon area in the list |
 | `--origami-radius` | `8px` | The corner radius of the rows |
 | `--origami-card-bg`, `--origami-row-bg` | theme, none | The card's and the rows' background |
 | `--origami-hover`, `--origami-focus` | light tint, theme | The hover tint and the keyboard focus ring |

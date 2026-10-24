@@ -23,7 +23,7 @@ export const rowStyles = css`
   .row {
     position: relative;
     display: grid;
-    grid-template-columns: var(--origami-tile) minmax(0, 1fr) auto;
+    grid-template-columns: var(--origami-row-tile) minmax(0, 1fr) auto;
     grid-template-areas: "icon title meta" "icon message message" ". actions actions";
     align-content: start;
     align-items: center;
@@ -47,6 +47,8 @@ export const rowStyles = css`
   .row .icon {
     grid-area: icon;
     align-self: start;
+    width: var(--origami-row-tile);
+    height: var(--origami-row-tile);
   }
   .row .icon[role="button"] {
     cursor: pointer;
@@ -271,6 +273,7 @@ export const variables = css`
     --origami-gap: 10px;
     --origami-radius: var(--ha-border-radius-md, 8px);
     --origami-tile: 36px;
+    --origami-row-tile: 40px;
     --origami-icon: 24px;
     --origami-card-bg: var(--ha-card-background, var(--card-background-color, #fff));
     --origami-row-bg: transparent;
