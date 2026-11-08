@@ -26,6 +26,6 @@ This covers the readme, the card's texts, comments, commits, pull requests and r
 
 ## Pull requests and releases
 
-One open pull request at a time. Its title and body follow the writing rules. `version` in `package.json` changes only for a release. When a pull request with a new version is merged, its body becomes the notes of that release.
+One open pull request at a time. Its title and body follow the writing rules. `version` in `package.json` and the README's release badge change only for a release. When a pull request with a new version is merged, its body becomes the notes of that release.
 
 Release notes tell people who use the card what changed, in plain, everyday words, the way someone would explain a feature. They list new things under the heading New and improvements under the heading Better, and leave out a heading with nothing under it. They stay under 300 words. They never address the reader as you and never name code.
