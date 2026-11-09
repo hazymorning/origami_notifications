@@ -1,12 +1,11 @@
+# ◪ Origami Notifications
+
 <div>
 <a href="https://github.com/hazymorning/origami_notifications/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/Release-V1.6.0-F6F4F1?labelColor=181715"></a>
 <a href="https://github.com/hazymorning?tab=repositories&q=origami"><img alt="Origami suite" src="https://img.shields.io/badge/Origami-Suite-F6F4F1?labelColor=181715&logo=data:image/svg%2Bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiBmaWxsPSJub25lIiBzdHJva2U9IiNGNkY0RjEiIHN0cm9rZS13aWR0aD0iMiIvPjxwb2x5Z29uIHBvaW50cz0iMjEsMyAyMSwyMSAzLDIxIiBmaWxsPSIjRjZGNEYxIi8%2BPC9zdmc%2B"></a>
 </div>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero-dark.webp">
-  <img alt="Origami Notifications with a pizza timer, rain while a window is open and a water leak" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero-light.webp">
-</picture>
+<img alt="Origami Notifications with a pizza timer, rain while a window is open and a water leak, in light and dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero.webp">
 
 Origami Notifications shows what needs attention right now, and only while it matters. Home Assistant's notifications, repairs and updates appear without any setup.
 
