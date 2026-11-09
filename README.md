@@ -7,7 +7,7 @@
 
 <br>
 
-<img alt="Origami Notifications with a pizza timer, its ring and its badge, in light and dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero.webp">
+<img alt="Origami Notifications in every size, with a recipe, a pizza timer, an oven, a door, smoke and a robot vacuum in light mode, and rain, a bath, the weather, a window, a garage and a leak in dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero.webp">
 
 Origami Notifications shows what needs attention right now, and only while it matters. Home Assistant's notifications, repairs and updates appear without any setup.
 
