@@ -8,7 +8,7 @@
   <img alt="Origami Notifications with a pizza timer, rain while a window is open and a water leak" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero-light.webp">
 </picture>
 
-Origami Notifications is a card for Home Assistant that shows what needs attention right now. Home Assistant's notifications, repairs and updates appear without any setup, and every entity added to it appears only while it matters, such as a timer while it runs.
+Origami Notifications shows what needs attention right now, and only while it matters. Home Assistant's notifications, repairs and updates appear without any setup.
 
 [Get started](#get-started) · [Card](#card) · [Entities](#entities) · [Weather](#weather) · [Infos](#infos) · [More](#more)
 
@@ -47,11 +47,7 @@ The visual editor covers every option except `actions`, which go in YAML.
 
 <img width="800" alt="The card in light and dark mode with a pizza timer, rain while a window is open, a water leak and the current weather" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/states.webp">
 
-The card shows one entry at a time and turns to the next every 8 seconds. The text slides up and blurs away as the next one springs in, and a ring around the icon fills until the next turn.
-
-A swipe to the side turns it by hand, with the text following the finger. `rotate` sets the seconds, and `rotate: 0` leaves the turning to swipes. With `slide: side`, the text slides sideways.
-
-Warnings, such as rain with a window open, get an orange icon. Smoke, a leak or a triggered alarm makes the card pulse red and keep to such entries until they end.
+The card shows one entry at a time and turns on its own or with a swipe.
 
 <details>
 <summary><b>How the card turns</b></summary>
@@ -60,13 +56,16 @@ Warnings, such as rain with a window open, get an orange icon. Smoke, a leak or 
 
 | Detail | What happens |
 | --- | --- |
-| Ring and badge | The ring fills until the next turn, and the badge counts the entries. The ring shows while there is more than one entry to turn to. |
+| Turning | Every 8 seconds, the text slides up and blurs away as the next one springs in. `rotate` sets the seconds, and `rotate: 0` leaves the turning to swipes. With `slide: side`, the text slides sideways. |
+| Ring and badge | The ring around the icon fills until the next turn, and the badge counts the entries. |
+| Swipes | A swipe to the side turns the card by hand, and the text follows the finger. The card then goes on from the entry it was turned to. |
+| Warnings | Rain with a window open and other warnings get an orange icon. |
+| Critical entries | Smoke, a leak or a triggered alarm makes the card pulse red, and it shows only such entries until they end. |
 | Order | Critical entries come first. The rest are sorted by time, and the one closest to now comes first. Infos come last. |
 | Something new | An entry that just happened, such as a door that opened or a new notification, comes to the front right away. |
 | Long text | A line that doesn't fit scrolls sideways after a short pause, and the card waits for it, up to 10 seconds. |
 | Many changes at once | Each entry stays at least 2 seconds, so the card doesn't flicker when much changes at once, as when the dashboard opens. |
 | Pauses | The card doesn't turn while a finger rests on it, while the list is open, or while the card or the browser tab is out of sight. |
-| After a swipe | The card goes on from the entry it was turned to. |
 | Reduced motion | With reduced motion turned on in the system, the card changes without sliding, long lines don't scroll, and a critical card stays red without pulsing. |
 
 </details>
@@ -78,7 +77,7 @@ Warnings, such as rain with a window open, get an orange icon. Smoke, a leak or 
 
 | Action | What happens |
 | --- | --- |
-| Tap the card | The list opens. With only one entry and nothing else to show, the tap opens that entry instead. |
+| Tap the card | The list opens. A wide card unfolds it inside the card, and a card narrower than 300 pixels opens it in a dialog that slides up on a phone. With only one entry and nothing else to show, the tap opens that entry instead. |
 | Swipe the card to the side | The card turns to the next or the previous entry. A short flick is enough. |
 | Arrow keys | They turn the focused card. Enter or Space opens it, and Escape closes the list. |
 | Hold or double tap | On an info, these run its `hold_action` and `double_tap_action`. |
@@ -92,7 +91,7 @@ Warnings, such as rain with a window open, get an orange icon. Smoke, a leak or 
 
 <img width="800" alt="The open card in light and dark mode with a water leak, a notification, a pizza timer, a recipe and rain" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/list.webp">
 
-A tap on the card shows all entries with their times, messages and buttons. On a wide card, the list unfolds inside it. On a card narrower than 300 pixels, it opens in a Home Assistant dialog that slides up on a phone.
+A tap on the card shows every entry with its buttons.
 
 <details>
 <summary><b>Dismissing</b></summary>
@@ -114,13 +113,20 @@ A tap on the card shows all entries with their times, messages and buttons. On a
 
 <img width="800" alt="The card in different sizes in light and dark mode, with a recipe picture, a pizza timer, an oven, an open door, smoke and a robot vacuum" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sizes.webp">
 
-The card needs at least half the width of a section, or a quarter with `vertical: true`. With `background: true` on an entity, its picture shows blurred behind the card.
+The card fits half a section, or a quarter with `vertical: true`.
 
-In a sections view's footer, the card stays at the bottom of the screen. It follows the theme, here [Origami](https://github.com/hazymorning/origami), and with the default theme it looks like a tile card.
+<details>
+<summary><b>Pictures, footer and theme</b></summary>
+
+<br>
+
+With `background: true` on an entity, its picture shows blurred behind the card. In the footer of a sections view, the card stays at the bottom of the screen. The card follows the theme, here [Origami](https://github.com/hazymorning/origami), and with the default theme it looks like a tile card.
+
+</details>
 
 ## Entities
 
-Almost any entity works under `entities`, and the card works out what kind it is. Each kind appears only at certain times or in certain states.
+Almost any entity works, and each one appears only while it matters.
 
 <details>
 <summary><b>Kinds</b></summary>
@@ -170,12 +176,14 @@ Almost any entity works under `entities`, and the card works out what kind it is
 
 ## Weather
 
-With a weather entity under `weather`, the card warns of rain, snow, hail, thunderstorms and frost before they start. The entity needs an hourly or twice daily forecast.
+With a weather entity under `weather`, the card warns of rain, snow and frost before they start.
 
 <details>
 <summary><b>When the weather appears</b></summary>
 
 <br>
+
+The weather entity needs an hourly or twice daily forecast.
 
 | Entry | When it appears |
 | --- | --- |
@@ -187,12 +195,14 @@ With a weather entity under `weather`, the card warns of rain, snow, hail, thund
 
 ## Infos
 
-Entities under `infos` show after the entries, such as the forecast or the next sunrise. While one of them shows, the card doesn't hide.
+Entities under `infos` show after the entries, such as the forecast or the next sunrise.
 
 <details>
 <summary><b>Info options</b></summary>
 
 <br>
+
+While an info shows, the card doesn't hide.
 
 | Option | Description |
 | --- | --- |
