@@ -1,11 +1,14 @@
-# ◪ Origami Notifications
-
 <div>
 <a href="https://github.com/hazymorning/origami_notifications/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/Release-V1.6.0-F6F4F1?labelColor=181715"></a>
 <a href="https://github.com/hazymorning?tab=repositories&q=origami"><img alt="Origami suite" src="https://img.shields.io/badge/Origami-Suite-F6F4F1?labelColor=181715&logo=data:image/svg%2Bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiBmaWxsPSJub25lIiBzdHJva2U9IiNGNkY0RjEiIHN0cm9rZS13aWR0aD0iMiIvPjxwb2x5Z29uIHBvaW50cz0iMjEsMyAyMSwyMSAzLDIxIiBmaWxsPSIjRjZGNEYxIi8%2BPC9zdmc%2B"></a>
 </div>
 
-Origami Notifications is a card for Home Assistant that shows what needs attention right now. Home Assistant's notifications and updates appear without any setup, and every entity added to it appears only when it matters, such as a timer while it runs.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero-dark.webp">
+  <img alt="Origami Notifications with a pizza timer, rain while a window is open and a water leak" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero-light.webp">
+</picture>
+
+Origami Notifications is a card for Home Assistant that shows what needs attention right now. Home Assistant's notifications, repairs and updates appear without any setup, and every entity added to it appears only while it matters, such as a timer while it runs.
 
 [Get started](#get-started) · [Card](#card) · [Entities](#entities) · [Weather](#weather) · [Infos](#infos) · [More](#more)
 
@@ -44,39 +47,52 @@ The visual editor covers every option except `actions`, which go in YAML.
 
 <img width="800" alt="The card in light and dark mode with a pizza timer, rain while a window is open, a water leak and the current weather" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/states.webp">
 
-One entry at a time, and every 8 seconds the next. Warnings, such as rain with a window open, get an orange icon. Smoke, a leak or a triggered alarm makes the card pulse red, and it stays on that entry.
+The card shows one entry at a time and turns to the next every 8 seconds. The text slides up and blurs away as the next one springs in, and a ring around the icon fills until the next turn.
 
-### List
+A swipe to the side turns it by hand, with the text following the finger. `rotate` sets the seconds, and `rotate: 0` leaves the turning to swipes. With `slide: side`, the text slides sideways.
 
-<img width="800" alt="The open card in light and dark mode with a water leak, a notification, a recipe, a pizza timer and rain" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/list.webp">
-
-A tap on the card shows all entries. On a wide card, the list opens inside the card.
-
-<img width="800" alt="The list in a bottom sheet in light and dark mode with a notification, an update, a calendar event and a pizza timer" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sheet.webp">
-
-A card narrower than 300 pixels opens the list in a Home Assistant dialog instead, which slides up from the bottom on a phone.
+Warnings, such as rain with a window open, get an orange icon. Smoke, a leak or a triggered alarm makes the card pulse red and keep to such entries until they end.
 
 <details>
-<summary><b>Taps and swipes</b></summary>
+<summary><b>How the card turns</b></summary>
+
+<br>
+
+| Detail | What happens |
+| --- | --- |
+| Ring and badge | The ring fills until the next turn, and the badge counts the entries. The ring shows while there is more than one entry to turn to. |
+| Order | Critical entries come first. The rest are sorted by time, and the one closest to now comes first. Infos come last. |
+| Something new | An entry that just happened, such as a door that opened or a new notification, comes to the front right away. |
+| Long text | A line that doesn't fit scrolls sideways after a short pause, and the card waits for it, up to 10 seconds. |
+| Many changes at once | Each entry stays at least 2 seconds, so the card doesn't flicker when much changes at once, as when the dashboard opens. |
+| Pauses | The card doesn't turn while a finger rests on it, while the list is open, or while the card or the browser tab is out of sight. |
+| After a swipe | The card goes on from the entry it was turned to. |
+| Reduced motion | With reduced motion turned on in the system, the card changes without sliding, long lines don't scroll, and a critical card stays red without pulsing. |
+
+</details>
+
+<details>
+<summary><b>Taps, swipes and keys</b></summary>
 
 <br>
 
 | Action | What happens |
 | --- | --- |
 | Tap the card | The list opens. With only one entry and nothing else to show, the tap opens that entry instead. |
-| Swipe the card or press an arrow key | The card switches to the next or the previous entry. |
-| Tap an entry | The entry's entity opens. A notification opens its first link instead, and a repair opens the repairs page. |
+| Swipe the card to the side | The card turns to the next or the previous entry. A short flick is enough. |
+| Arrow keys | They turn the focused card. Enter or Space opens it, and Escape closes the list. |
+| Hold or double tap | On an info, these run its `hold_action` and `double_tap_action`. |
+| Tap an entry in the list | The entry's entity opens. A notification opens its first link instead, and a repair opens the repairs page. |
 | Tap an entry whose message is cut off | All of the text shows, and a tap on the icon opens the entry. An entry that opens nothing also shows its whole title. |
 | Tap the cross | The entry is dismissed. |
 
-| Detail | Description |
-| --- | --- |
-| Ring | The ring around the icon fills until the card switches to the next entry. |
-| Badge | The badge counts the entries. |
-| Order | Critical entries come first. The rest are sorted by time, and the one closest to now comes first. |
-| Groups | Two or more open windows share one row that names their rooms. Doors, motion sensors and other binary sensors of one type work the same way. |
-
 </details>
+
+### List
+
+<img width="800" alt="The open card in light and dark mode with a water leak, a notification, a pizza timer, a recipe and rain" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/list.webp">
+
+A tap on the card shows all entries with their times, messages and buttons. On a wide card, the list unfolds inside it. On a card narrower than 300 pixels, it opens in a Home Assistant dialog that slides up on a phone.
 
 <details>
 <summary><b>Dismissing</b></summary>
@@ -96,21 +112,11 @@ A card narrower than 300 pixels opens the list in a Home Assistant dialog instea
 
 ### Sizes
 
-<img width="800" alt="The card in different sizes in light and dark mode, with a recipe picture, a timer, an oven, a door, smoke and a robot vacuum" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sizes.webp">
+<img width="800" alt="The card in different sizes in light and dark mode, with a recipe picture, a pizza timer, an oven, an open door, smoke and a robot vacuum" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sizes.webp">
 
-The card needs at least half the width of a section, or a quarter with `vertical: true`. With `background: true` on an entity, its picture shows behind the card.
+The card needs at least half the width of a section, or a quarter with `vertical: true`. With `background: true` on an entity, its picture shows blurred behind the card.
 
-### Footer
-
-<img width="800" alt="The card at the bottom of the screen in light and dark mode, with rain while a window is open" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/footer.webp">
-
-In the footer of a sections view, the card stays at the bottom of the screen.
-
-### Theme
-
-<img width="800" alt="The card in different sizes with the default theme in light and dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/theme.webp">
-
-The card follows the theme. The images above use the [Origami](https://github.com/hazymorning/origami) theme, and with the default theme the card looks like a tile card.
+In a sections view's footer, the card stays at the bottom of the screen. It follows the theme, here [Origami](https://github.com/hazymorning/origami), and with the default theme it looks like a tile card.
 
 ## Entities
 
@@ -218,8 +224,8 @@ Entities under `infos` show after the entries, such as the forecast or the next 
 | `repairs` | `true` | Shows repairs to admins. `false` hides them. |
 | `hide_when_empty` | `true` | Hides the card when there is nothing to show. With `false`, the card stays and also shows the weather and the next calendar events after the entries. |
 | `vertical` | `false` | `true` puts the icon above the text, as on a tile card with vertical content. In a sections view, the card can then be as narrow as 3 columns instead of 6. |
-| `rotate` | `8` | How many seconds the card shows each entry before the next. At `0`, it stays on one entry, and a swipe still switches. |
-| `slide` | `up` | Whether the text slides `up` or to the `side` when the card switches. A swipe always slides it to the side. |
+| `rotate` | `8` | How many seconds the card shows each entry before it turns to the next. At `0`, the card only turns by hand, with a swipe or the arrow keys. |
+| `slide` | `up` | Whether the text slides `up` or to the `side` when the card turns on its own. A swipe always slides it to the side. |
 | `audience` | | Who sees which entries, see Who sees what below |
 | `css` | | CSS of one's own, see Styling below |
 
@@ -230,7 +236,7 @@ Entities under `infos` show after the entries, such as the forecast or the next 
 
 <br>
 
-With `only`, just the people listed see the entries. With `except`, everyone else does. In this example, only Anna sees Home Assistant's notifications, and the kid doesn't see the weather warnings.
+With `only`, just the people listed see the entries. With `except`, everyone else does. In this example, only Anna sees Home Assistant's notifications, and the kid doesn't see weather warnings.
 
 ```yaml
 audience:
