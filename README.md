@@ -9,7 +9,7 @@
 
 <img alt="Origami Notifications in every size, with a recipe, a pizza timer, an oven, a door, smoke and a robot vacuum in light mode, and rain, a bath, the weather, a window, a garage and a leak in dark mode" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/hero.webp">
 
-Origami Notifications shows what needs attention right now, and only while it matters. Home Assistant's notifications, repairs and updates appear without any setup.
+Origami Notifications shows what needs attention right now, and only while it matters. Home Assistant's notifications and updates appear without any setup, and so do repairs for admins.
 
 [Get started](#get-started) · [Card](#card) · [Entities](#entities) · [Weather](#weather) · [Infos](#infos) · [More](#more)
 
@@ -57,15 +57,16 @@ The card shows one entry at a time and turns on its own or with a swipe.
 
 | Detail | What happens |
 | --- | --- |
-| Turning | Every 8 seconds, the text slides up and blurs away as the next one springs in. `rotate` sets the seconds, and `rotate: 0` leaves the turning to swipes. With `slide: side`, the text slides sideways. |
+| Turning | Every 8 seconds, the text slides up and blurs away as the next one springs in. `rotate` sets the seconds. With `rotate: 0`, the card only turns by hand, with a swipe or the arrow keys. With `slide: side`, the text slides sideways. |
 | Ring and badge | The ring around the icon fills until the next turn, and the badge counts the entries. |
 | Swipes | A swipe to the side turns the card by hand, and the text follows the finger. The card then goes on from the entry it was turned to. |
 | Warnings | Rain with a window open and other warnings get an orange icon. |
-| Critical entries | Smoke, a leak or a triggered alarm makes the card pulse red, and it shows only such entries until they end. |
+| Critical entries | Smoke, a leak or a triggered alarm makes the card pulse red. While one is on, the closed card turns only through critical entries. The list and the badge still include every entry. |
 | Order | Critical entries come first. The rest are sorted by time, and the one closest to now comes first. Infos come last. |
-| Something new | An entry that just happened, such as a door that opened or a new notification, comes to the front right away. |
+| Something new | While the card turns on its own, a new entry from the last 2 minutes, such as a door that just opened or a new notification, takes over the card right away, unless critical entries hold it. |
 | Long text | A line that doesn't fit scrolls sideways after a short pause, and the card waits for it, up to 10 seconds. |
-| Many changes at once | Each entry stays at least 2 seconds, so the card doesn't flicker when much changes at once, as when the dashboard opens. |
+| Many changes at once | When entries change, the card waits until the entry on show has had 2 seconds and then shows the latest change, so a burst of changes, as when the dashboard opens, shows as one. |
+| Groups | When two or more windows are open, they share one row that names their rooms. Doors, motion sensors and other binary sensors of one type work the same way. |
 | Pauses | The card doesn't turn while a finger rests on it, while the list is open, or while the card or the browser tab is out of sight. |
 | Reduced motion | With reduced motion turned on in the system, the card changes without sliding, long lines don't scroll, and a critical card stays red without pulsing. |
 
@@ -82,7 +83,7 @@ The card shows one entry at a time and turns on its own or with a swipe.
 | Swipe the card to the side | The card turns to the next or the previous entry. A short flick is enough. |
 | Arrow keys | They turn the focused card. Enter or Space opens it, and Escape closes the list. |
 | Hold or double tap | On an info, these run its `hold_action` and `double_tap_action`. |
-| Tap an entry in the list | The entry's entity opens. A notification opens its first link instead, and a repair opens the repairs page. |
+| Tap an entry in the list | The entry's entity opens. A notification opens its first link instead, a repair opens the repairs page, and a to-do item opens its list. An entity's own `tap_action` takes the place of all this. |
 | Tap an entry whose message is cut off | All of the text shows, and a tap on the icon opens the entry. An entry that opens nothing also shows its whole title. |
 | Tap the cross | The entry is dismissed. |
 
@@ -114,7 +115,7 @@ A tap on the card shows every entry with its buttons.
 
 <img width="800" alt="The card in different sizes in light and dark mode, with a recipe picture, a pizza timer, an oven, an open door, smoke and a robot vacuum" src="https://raw.githubusercontent.com/hazymorning/origami_notifications/main/images/sizes.webp">
 
-The card fits half a section, or a quarter with `vertical: true`.
+The card needs at least half the width of a section, or a quarter with `vertical: true`.
 
 <details>
 <summary><b>Pictures, footer and theme</b></summary>
@@ -177,7 +178,7 @@ Almost any entity works, and each one appears only while it matters.
 
 ## Weather
 
-With a weather entity under `weather`, the card warns of rain, snow and frost before they start.
+With a weather entity under `weather`, the card shows rain, snow, hail, thunderstorms and frost before they start.
 
 <details>
 <summary><b>When the weather appears</b></summary>
@@ -231,12 +232,12 @@ While an info shows, the card doesn't hide.
 | `label` | | The card also watches every entity with this label. In YAML, it takes the label's ID. |
 | `weather` | | A weather entity for rain, snow and frost ahead, see [Weather](#weather) |
 | `infos` | | Entities that show after the entries, see [Infos](#infos) |
-| `updates` | `true` | Shows every available update. `false` shows only the updates under `entities`. |
+| `updates` | `true` | Shows every available update. `false` shows only the updates under `entities` or with the `label`. |
 | `repairs` | `true` | Shows repairs to admins. `false` hides them. |
 | `hide_when_empty` | `true` | Hides the card when there is nothing to show. With `false`, the card stays and also shows the weather and the next calendar events after the entries. |
 | `vertical` | `false` | `true` puts the icon above the text, as on a tile card with vertical content. In a sections view, the card can then be as narrow as 3 columns instead of 6. |
 | `rotate` | `8` | How many seconds the card shows each entry before it turns to the next. At `0`, the card only turns by hand, with a swipe or the arrow keys. |
-| `slide` | `up` | Whether the text slides `up` or to the `side` when the card turns on its own. A swipe always slides it to the side. |
+| `slide` | `up` | Whether the text slides `up` or to the `side` when the card switches. A swipe always slides it to the side. |
 | `audience` | | Who sees which entries, see Who sees what below |
 | `css` | | CSS of one's own, see Styling below |
 
@@ -247,7 +248,7 @@ While an info shows, the card doesn't hide.
 
 <br>
 
-With `only`, just the people listed see the entries. With `except`, everyone else does. In this example, only Anna sees Home Assistant's notifications, and the kid doesn't see weather warnings.
+With `only`, just the people listed see the entries. With `except`, everyone else does. In this example, only Anna sees Home Assistant's notifications, and the kid doesn't see the weather warnings.
 
 ```yaml
 audience:
@@ -392,3 +393,7 @@ css: |
 **Another device still shows a dismissed entry.** Most entries are hidden only in the browser where they were dismissed.
 
 </details>
+
+## License
+
+Origami Notifications is licensed under [MIT](LICENSE).
