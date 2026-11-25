@@ -2,6 +2,7 @@ import { html, LitElement, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
 import { keyed } from "lit/directives/keyed.js";
 import { CARD, parseConfig } from "./config.js";
+import { isBattery } from "./ha.js";
 import { warningDetails } from "./details.js";
 import { canDismiss, Dismissals } from "./dismissals.js";
 import { Clock, fill, MINUTE } from "./format.js";
@@ -171,6 +172,7 @@ export class OrigamiNotificationsCard extends LitElement {
       people,
       viewer: people.find((id) => hass.states[id]?.attributes.user_id === hass.user?.id) || "",
       updates: config.updates ? [...new Set([...Object.keys(hass.states), ...Object.keys(reg)])].filter((id) => id.startsWith("update.")) : [],
+      batteries: config.batteries ? Object.keys(hass.states).filter((id) => isBattery(hass.states[id])) : [],
       windows: config.weather ? windowIds(hass.states) : [],
       pictures: (id) => byDevice.get(reg[id]?.device_id) || [],
     };
@@ -195,6 +197,7 @@ export class OrigamiNotificationsCard extends LitElement {
       preview: this.preview,
       sources: d.sources,
       updates: d.updates,
+      batteries: d.batteries,
       windows: d.windows,
       devicePictures: d.pictures,
       details: (st) => warningDetails(hass, st, this._onDetails),

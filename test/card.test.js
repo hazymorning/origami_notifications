@@ -186,6 +186,20 @@ test("a dismissal hides an entry in every card of this browser until it changes"
   assert.equal(rows(once).length, 1, "until its attribute was empty");
 });
 
+test("a dismissed battery stays away while it drains, and comes back once it was charged and runs low again", async () => {
+  const w = makeWindow();
+  const level = (n) => makeHass(statesOf(st("sensor.remote_battery", String(n), { friendly_name: "Remote", device_class: "battery" })));
+  const el = await mount(w, card(["sensor.remote_battery"]), level(15));
+  const after = async (n) => {
+    el.hass = level(n);
+    await settle(el);
+    return rows(el).length;
+  };
+  q(el, ".dismiss").click();
+  await settle(el);
+  assert.deepEqual([rows(el).length, await after(14), await after(80), await after(18)], [0, 0, 0, 1]);
+});
+
 test("Home Assistant confirms a dismissal later, clear all dismisses everything, and blocked storage still dismisses", async () => {
   const w = makeWindow();
   w.console.warn = () => {};

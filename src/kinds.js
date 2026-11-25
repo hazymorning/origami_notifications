@@ -1,5 +1,5 @@
 import { clockText, DAY, dayNumber, dayStart, fill, HOUR, isoTime, parseDuration, parseTime } from "./format.js";
-import { domainColor, domainOf, FEATURE, stateActive, supports, themeColor } from "./ha.js";
+import { chargingOf, domainColor, domainOf, FEATURE, isBattery, stateActive, supports, themeColor } from "./ha.js";
 import { linkAction, plainText } from "./markdown.js";
 import { isEmpty, isObject } from "./values.js";
 
@@ -364,6 +364,25 @@ function warning(st, src, ctx) {
   ];
 }
 
+// Copied from frontend src/panels/maintenance/strategies/maintenance-view-strategy.ts.
+const LOW_BATTERY = 20;
+
+function batteryLow(st, ctx) {
+  if (domainOf(st.entity_id) === "binary_sensor") return st.state === "on";
+  const level = parseFloat(st.state);
+  if (Number.isNaN(level) || level > LOW_BATTERY) return false;
+  const charging = chargingOf(ctx.hass, st.entity_id);
+  if (charging) ctx.watch(charging);
+  return ctx.hass.states[charging]?.state !== "on";
+}
+
+// A dismissed battery stays away until the card sees it charged, since its value drops in small steps.
+function battery(st, src, ctx) {
+  const shows = src.visibility ? !["unavailable", "unknown"].includes(st.state) : batteryLow(st, ctx);
+  if (!shows) return [];
+  return [{ kind: "battery", sev: "warn", deviceClass: "battery", title: ctx.name(st, src.name), message: ctx.state(st), ts: parseTime(st.last_changed, ctx.now), past: true, once: true, ack: "low" }];
+}
+
 const DEVICE_CLASS_SEV = { smoke: "crit", gas: "crit", carbon_monoxide: "crit", moisture: "crit", safety: "crit", heat: "crit", problem: "warn", tamper: "warn", battery: "warn", sound: "warn" };
 
 // With conditions of its own, a plain entity shows whenever they hold, like a temperature above a mark.
@@ -403,6 +422,7 @@ const KINDS = [
   { name: "countdown", icon: "mdi:timer-sand", ahead: true, fits: (st) => domainOf(st.entity_id) === "sensor" && st.attributes.device_class === "timestamp", show: countdown },
   { name: "todo", icon: "mdi:clipboard-check-outline", ahead: true, show: todo },
   { name: "picture", icon: "mdi:image-outline", show: (st, src, ctx) => thing(st, src, ctx, "picture") },
+  { name: "battery", icon: "mdi:battery-alert-variant-outline", fits: isBattery, show: battery },
   { name: "generic", icon: "mdi:information-outline", fits: () => true, show: generic },
 ];
 

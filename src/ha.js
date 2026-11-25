@@ -241,6 +241,13 @@ function entitiesOf(registry, device) {
 // Copied from frontend src/data/entity/entity_registry.ts, where a device page finds its battery.
 const BATTERY_DOMAINS = ["sensor", "binary_sensor"];
 
+export const isBattery = (stateObj) => Boolean(stateObj && stateObj.attributes.device_class === "battery" && BATTERY_DOMAINS.includes(domainOf(stateObj.entity_id)));
+
+export function chargingOf(hass, id) {
+  const device = hass.entities?.[id]?.device_id;
+  return device ? entitiesOf(hass.entities, device).find((other) => hass.states[other]?.attributes.device_class === "battery_charging") : undefined;
+}
+
 const deviceBattery = (hass, device) =>
   entitiesOf(hass.entities, device)
     .filter((id) => hass.states[id]?.attributes.device_class === "battery" && BATTERY_DOMAINS.includes(domainOf(id)))

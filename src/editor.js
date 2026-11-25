@@ -8,7 +8,7 @@ import { editorTexts, languageOf } from "./strings.js";
 import { isObject } from "./values.js";
 import { forecastSupported } from "./weather.js";
 
-const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "vertical", "rotate", "slide", "audience", "css"];
+const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "batteries", "hide_when_empty", "vertical", "rotate", "slide", "audience", "css"];
 const ENTITY_KEYS = ["type", "attribute", "name", "icon", "color", "image", "background", "before", "tap_action", "visibility"];
 const ENTITY_ORDER = ["entity", ...ENTITY_KEYS, "actions"];
 const INFO_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "show_battery", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
@@ -86,6 +86,7 @@ export class OrigamiNotificationsEditor extends LitElement {
     const sources = [{ key: "system", name: t.label("system"), icon: KIND_ICONS.system }];
     if (config.updates !== false) sources.push({ key: "updates", name: t.label("updates"), icon: KIND_ICONS.update });
     if (config.repairs !== false) sources.push({ key: "repairs", name: t.label("repairs"), icon: KIND_ICONS.repair });
+    if (config.batteries) sources.push({ key: "batteries", name: t.label("batteries"), icon: KIND_ICONS.battery });
     if (config.weather) sources.push({ key: config.weather, name: this._name(config.weather), icon: KIND_ICONS.weather });
     const reg = this.hass.entities || {};
     const labelled = config.label ? Object.keys(reg).filter((id) => reg[id]?.labels?.includes(config.label)).map((entity) => ({ entity })) : [];
@@ -118,7 +119,7 @@ export class OrigamiNotificationsEditor extends LitElement {
       { name: "label", selector: { label: {} } },
       { name: "weather", selector: { entity: { filter: { domain: "weather" } } } },
       { name: "infos", selector: { entity: { multiple: true, reorder: true } } },
-      { name: "", type: "grid", schema: [{ name: "updates", selector: { boolean: {} } }, { name: "repairs", selector: { boolean: {} } }] },
+      { name: "", type: "grid", schema: ["updates", "repairs", "batteries"].map((name) => ({ name, selector: { boolean: {} } })) },
       { name: "hide_when_empty", selector: { boolean: {} } },
       {
         name: "content_layout",
@@ -212,9 +213,9 @@ export class OrigamiNotificationsEditor extends LitElement {
     for (const [from, to] of [this._swapped || [], [this._config.weather, value.weather]]) {
       if (from && to && audience[from] && !audience[to]) audience[to] = audience[from];
     }
-    // Rules for updates stay, since the card finds updates on its own.
+    // Rules for updates and batteries stay, since they also cover the ones under entities.
     const after = new Set(this._sources({ ...this._config, ...value }).map((s) => s.key));
-    for (const key of before) if (!after.has(key) && key !== "updates" && !key.startsWith("update.")) delete audience[key];
+    for (const key of before) if (!after.has(key) && key !== "updates" && key !== "batteries" && !key.startsWith("update.")) delete audience[key];
     value.audience = audience;
     this._write(value);
   }

@@ -66,7 +66,7 @@ The card shows one entry at a time and turns on its own or with a swipe.
 | Something new | While the card turns on its own, a new entry from the last 2 minutes, such as a door that just opened or a new notification, takes over the card right away, unless critical entries hold it. |
 | Long text | A line that doesn't fit scrolls sideways after a short pause, and the card waits for it, up to 10 seconds. |
 | Many changes at once | When entries change, the card waits until the entry on show has had 2 seconds and then shows the latest change, so a burst of changes, as when the dashboard opens, shows as one. |
-| Groups | When two or more windows are open, they share one row that names their rooms. Doors, motion sensors and other binary sensors of one type work the same way. |
+| Groups | When two or more windows are open, they share one row that names their rooms. Doors, motion sensors, low batteries and other binary sensors of one type work the same way. |
 | Pauses | The card doesn't turn while a finger rests on it, while the list is open, or while the card or the browser tab is out of sight. |
 | Reduced motion | With reduced motion turned on in the system, the card changes without sliding, long lines don't scroll, and a critical card stays red without pulsing. |
 
@@ -105,6 +105,7 @@ A tap on the card shows every entry with its buttons.
 | A Home Assistant notification | It's removed for everyone. |
 | A repair | It's ignored in Home Assistant. |
 | An update | For an admin, it's skipped in Home Assistant. For everyone else, and for updates that install themselves, it's hidden in this browser. |
+| A battery | It's hidden in this browser until the card has seen it charged and it runs low again. |
 | Anything else | It's hidden in this browser until it changes or happens again. A bin, for example, comes back for the next pickup. |
 | An alarm panel or an entity under `infos` | It can't be dismissed. |
 | All entries at once | With two or more entries, **Dismiss all** appears at the foot of the list. In the dialog, it's the icon at the top. It dismisses every entry that can be dismissed. |
@@ -150,6 +151,7 @@ Almost any entity works, and each one appears only while it matters.
 | To-do list with `type: todo` | Each item on its due day or when it's overdue, with a button to mark it as done. Items without a due date never appear. |
 | Lock, cover, valve, vacuum, lawn mower or siren | While Home Assistant counts it as active, such as an unlocked lock or an open cover. Where the device supports it, a button locks, closes, docks or turns it off. |
 | Entity with an attribute that holds a `name` or `title` and a `description`, `summary` or picture | The attribute appears as an entry, whatever the entity's state. The recipe in the list above works like this. |
+| Battery, as a sensor or a binary sensor | At 20 % or less, or while the binary sensor says it's low, as in Home Assistant's maintenance view. Not while its device is charging. |
 | Binary sensor for smoke, gas, carbon monoxide, moisture, heat or safety | While it's on, and the card pulses red. |
 | Anything else | While it's on or active, or while its value is above 0. |
 
@@ -162,7 +164,7 @@ Almost any entity works, and each one appears only while it matters.
 
 | Option | Description |
 | --- | --- |
-| `type` | The kind of entity. Without it, the card finds the kind itself. It's one of `alarm`, `alert`, `attribute`, `calendar`, `countdown`, `device`, `event`, `generic`, `next_alarm`, `picture`, `timer`, `todo`, `update`, `warning` or `waste`. With `generic`, the entity appears in any state except off, idle, none, 0, unknown and unavailable. With `picture`, the state becomes the title. |
+| `type` | The kind of entity. Without it, the card finds the kind itself. It's one of `alarm`, `alert`, `attribute`, `battery`, `calendar`, `countdown`, `device`, `event`, `generic`, `next_alarm`, `picture`, `timer`, `todo`, `update`, `warning` or `waste`. With `generic`, the entity appears in any state except off, idle, none, 0, unknown and unavailable. With `picture`, the state becomes the title. |
 | `attribute` | The attribute to show, such as `next_due` or `book.title`. A plain value becomes the title. |
 | `name` | A name in place of the entity's name |
 | `icon` | An icon in place of the entity's icon |
@@ -235,6 +237,7 @@ While an info shows, the card doesn't hide.
 | `infos` | | Entities that show after the entries, see [Infos](#infos) |
 | `updates` | `true` | Shows every available update. `false` shows only the updates under `entities` or with the `label`. |
 | `repairs` | `true` | Shows repairs to admins. `false` hides them. |
+| `batteries` | `false` | `true` shows every low battery of the house, as Home Assistant's maintenance view does. Otherwise only the batteries under `entities` or with the `label` show. |
 | `hide_when_empty` | `true` | Hides the card when there is nothing to show. With `false`, the card stays and also shows the weather and the next calendar events after the entries. |
 | `vertical` | `false` | `true` puts the icon above the text, as on a tile card with vertical content. In a sections view, the card can then be as narrow as 3 columns instead of 6. |
 | `rotate` | `8` | How many seconds the card shows each entry before it turns to the next. At `0`, the card only turns by hand, with a swipe or the arrow keys. |
@@ -264,6 +267,7 @@ audience:
 | `system` | Home Assistant's notifications |
 | `updates` | All updates |
 | `repairs` | Repairs, which only admins see |
+| `batteries` | All batteries |
 | An entity ID | That entity. The weather entity's ID covers its rain and frost entries. |
 
 The card knows people by the user account linked to them under [People](https://my.home-assistant.io/redirect/people/). The rules only change this card, not what people see elsewhere in Home Assistant.
@@ -313,6 +317,7 @@ Styles in `css` come after the card's own, so they win.
 type: custom:origami-notifications
 weather: weather.home
 label: notify
+batteries: true
 hide_when_empty: false
 rotate: 6
 slide: side

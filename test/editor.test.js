@@ -27,12 +27,13 @@ async function editor(w, config, hass = makeHass({})) {
 
 test("the editor offers every option, with entity options and a rule for each source", async () => {
   const w = makeWindow();
-  const { form, entityForms } = await editor(w, { entities: ["calendar.family"] }, makeHass(statesOf(st("calendar.family", "off", { friendly_name: "Family" }))));
+  const { form, entityForms } = await editor(w, { entities: ["calendar.family"], batteries: true }, makeHass(statesOf(st("calendar.family", "off", { friendly_name: "Family" }))));
   const schema = form().schema;
   same(schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "content_layout", "grid", "audience", "styling"]);
+  same(schema[4].schema.map((s) => s.name), ["updates", "repairs", "batteries"]);
   same(entityForms()[0].schema.map((s) => s.name || s.type), ["type", "attribute", "grid", "color", "image", "background", "before", "tap_action"]);
   assert.match(entityForms()[0].computeHelper(entityForms()[0].schema.at(-1)), /closed card opens the list/, "the tap behavior says it is about the row");
-  same(schema.find((s) => s.name === "audience").schema.map((s) => s.name), ["system", "updates", "repairs", "calendar.family"]);
+  same(schema.find((s) => s.name === "audience").schema.map((s) => s.name), ["system", "updates", "repairs", "batteries", "calendar.family"]);
   same(schema.find((s) => s.name === "content_layout").selector.select.options.map((o) => o.image.src.split("/").pop()), ["tile_content_layout_horizontal.svg", "tile_content_layout_vertical.svg"]);
 });
 

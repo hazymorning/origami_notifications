@@ -1,9 +1,9 @@
 import { conditionsMet } from "./conditions.js";
 import { dayNumber, dayStart, DAY } from "./format.js";
 import { groupAlike, nameList } from "./group.js";
-import { stateActive } from "./ha.js";
+import { isBattery, stateActive } from "./ha.js";
 import { infoSlides, quietInfos } from "./infos.js";
-import { entityEntries } from "./kinds.js";
+import { entityEntries, kindOf } from "./kinds.js";
 import { alikeTitle } from "./strings.js";
 import { notificationEntries, repairEntries } from "./system.js";
 import { forecastType, isOpenWindow, weatherEntries } from "./weather.js";
@@ -54,14 +54,16 @@ export function buildModel(input) {
   if (config.repairs && input.admin && allowed("repairs")) entries.push(...repairEntries(data.repairs, ctx));
 
   const sources = [...input.sources];
-  for (const id of input.updates) if (!sources.some((src) => src.entity === id)) sources.push({ entity: id });
+  for (const id of [...input.updates, ...input.batteries]) if (!sources.some((src) => src.entity === id)) sources.push({ entity: id });
   for (const src of sources) {
     const id = src.entity;
     watched.add(id);
-    if (!allowed(id) || (id.startsWith("update.") && !allowed("updates"))) continue;
     const st = hass.states[id];
+    if (!allowed(id) || (id.startsWith("update.") && !allowed("updates")) || (isBattery(st) && !allowed("batteries"))) continue;
     if (!src.visibility || ctx.conditionsMet(src.visibility, id)) entries.push(...entityEntries(src, st, ctx));
-    if (st && st.state !== "unavailable" && st.state !== "unknown") available.add(id);
+    if (!st || st.state === "unavailable" || st.state === "unknown") continue;
+    available.add(id);
+    if (kindOf(src, st, hass) === "battery") known.add("battery:" + id);
   }
 
   const weather = config.weather && hass.states[config.weather];

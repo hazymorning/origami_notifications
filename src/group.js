@@ -1,6 +1,6 @@
 export const nameList = (names) => (names.length > 4 ? `${names.slice(0, 4).join(", ")} +${names.length - 4}` : names.join(", "));
 
-const groupable = (entry) => entry.kind === "generic" && entry.deviceClass && !entry.image && !entry.tap && !entry.actions.length;
+const groupable = (entry) => (entry.kind === "generic" || entry.kind === "battery") && entry.deviceClass && !entry.image && !entry.tap && !entry.actions.length;
 
 export function areaOf(hass, id) {
   const entry = hass.entities?.[id];

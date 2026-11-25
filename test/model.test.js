@@ -41,6 +41,7 @@ function model(config, states = {}, opts = {}) {
     preview: false,
     sources: parsed.entities,
     updates: opts.updates || [],
+    batteries: opts.batteries || [],
     windows: windowIds(states),
     devicePictures: () => [],
     details: opts.details || (() => null),
@@ -309,6 +310,37 @@ test("other entities show while on, active or above 0, and urgent device classes
   ]);
   assert.deepEqual(model({ entities: [{ entity: "sensor.mode", type: "generic", name: "Mode" }] }, states).entries.map((e) => e.title), ["Mode"], "a forced type shows any state but off");
   assert.ok(m.watched.has("light.b"), "a group's members are watched");
+});
+
+test("a battery shows at 20 % or less unless its device is charging, as in Home Assistant's maintenance view, and low ones share a row", () => {
+  const battery = (id, level, name) => st(id, level, { friendly_name: name, device_class: "battery", unit_of_measurement: "%" });
+  const charging = (state) => st("binary_sensor.phone_charging", state, { device_class: "battery_charging" });
+  const states = statesOf(
+    battery("sensor.phone_battery", "15", "Phone"),
+    charging("on"),
+    battery("sensor.remote_battery", "12", "Remote"),
+    battery("sensor.lock_battery", "54", "Lock"),
+    on("binary_sensor.smoke_battery", "Smoke detector", { device_class: "battery" }),
+    battery("sensor.tag_battery", "25", "Tag")
+  );
+  const hass = {
+    entities: { "sensor.phone_battery": { device_id: "phone" }, "binary_sensor.phone_charging": { device_id: "phone" }, "sensor.remote_battery": { area_id: "living" }, "binary_sensor.smoke_battery": { area_id: "hall" } },
+    areas: { living: { name: "Living room" }, hall: { name: "Hall" } },
+  };
+  const entities = ["sensor.phone_battery", "sensor.remote_battery", "sensor.lock_battery", "binary_sensor.smoke_battery", { entity: "sensor.tag_battery", visibility: [{ condition: "numeric_state", below: 30 }] }];
+  const m = model({ entities }, states, { hass });
+  assert.deepEqual(show(m, "title", "message", "sev"), [["3 batteries low", "Living room, Hall, Tag", "warn"]], "a battery with conditions of its own shows while they hold");
+  assert.ok(m.watched.has("binary_sensor.phone_charging"), "the card follows the charging");
+  const unplugged = model({ entities: ["sensor.phone_battery"] }, { ...states, ...statesOf(charging("off")) }, { hass });
+  assert.deepEqual(show(unplugged, "title", "message", "sev", "kind"), [["Phone", "15", "warn", "battery"]]);
+});
+
+test("with batteries, every low battery of the house shows, and a rule for batteries covers them all", () => {
+  const states = statesOf(st("sensor.remote_battery", "12", { friendly_name: "Remote", device_class: "battery" }), st("sensor.lamp_battery", "80", { device_class: "battery" }), on("binary_sensor.door", "Door"));
+  const shown = (audience, viewer) =>
+    model({ entities: ["binary_sensor.door"], batteries: true, audience }, states, { batteries: ["sensor.remote_battery", "sensor.lamp_battery"], viewer }).entries.map((e) => e.title);
+  assert.deepEqual(shown(), ["Remote", "Door"]);
+  assert.deepEqual(shown({ batteries: { only: ["person.anna"] } }, "person.bob"), ["Door"]);
 });
 
 test("an entity with conditions shows while they hold, so a sensor can show above or below a mark", () => {

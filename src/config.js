@@ -6,7 +6,7 @@ export const CARD = "origami-notifications";
 
 export const FORECAST_TYPES = ["daily", "hourly", "twice_daily"];
 
-export const DEFAULTS = { updates: true, repairs: true, hide_when_empty: true, vertical: false, rotate: 8, slide: "up" };
+export const DEFAULTS = { updates: true, repairs: true, batteries: false, hide_when_empty: true, vertical: false, rotate: 8, slide: "up" };
 
 export const isEntityId = (v) => typeof v === "string" && /^\w+\.\w+$/.test(v);
 
@@ -81,7 +81,7 @@ export function parseConfig(config) {
   check(optional(config.css, (c) => typeof c === "string"), "css must be a string");
   check(optional(config.rotate, (r) => typeof r === "number" && r >= 0), "rotate must be the seconds between turns, or 0 to turn them off");
   check(optional(config.slide, (s) => s === "up" || s === "side"), "slide must be up or side");
-  for (const key of ["updates", "repairs", "hide_when_empty", "vertical"]) {
+  for (const key of ["updates", "repairs", "batteries", "hide_when_empty", "vertical"]) {
     check(optional(config[key], (v) => typeof v === "boolean"), key + " must be true or false");
   }
   const entities = [];
