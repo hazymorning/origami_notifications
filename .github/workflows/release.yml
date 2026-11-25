@@ -18,7 +18,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
 
-      - name: Publish a new version
+      - name: Draft a new version
         env:
           GH_TOKEN: ${{ github.token }}
           NOTES: ${{ github.event.pull_request.body }}
@@ -29,4 +29,4 @@ jobs:
             echo "$tag exists already."
             exit 0
           fi
-          gh release create "$tag" --target "$SHA" --title "$tag" --notes "$NOTES"
+          gh release create "$tag" --draft --target "$SHA" --title "$tag" --notes "$NOTES"
