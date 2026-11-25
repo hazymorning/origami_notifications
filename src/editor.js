@@ -1,7 +1,7 @@
 import { css, html, LitElement, nothing } from "lit";
 import { DEFAULTS, FORECAST_TYPES, parseBefore, parseConfig } from "./config.js";
 import { DAY, fill, HOUR, MINUTE } from "./format.js";
-import { isTimestampDomain } from "./ha.js";
+import { batteryOf, isTimestampDomain } from "./ha.js";
 import { AHEAD_KINDS, KIND_ICONS, KIND_NAMES, kindOf } from "./kinds.js";
 import { entityName } from "./model.js";
 import { editorTexts, languageOf } from "./strings.js";
@@ -11,7 +11,7 @@ import { forecastSupported } from "./weather.js";
 const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "vertical", "rotate", "slide", "audience", "css"];
 const ENTITY_KEYS = ["type", "attribute", "name", "icon", "color", "image", "background", "before", "tap_action", "visibility"];
 const ENTITY_ORDER = ["entity", ...ENTITY_KEYS, "actions"];
-const INFO_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
+const INFO_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "show_battery", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
 const READS_ATTRIBUTE = ["attribute", "picture"];
 
 const isEmpty = (v) => v == null || v === "" || v === false || (Array.isArray(v) && !v.length) || (isObject(v) && !Object.keys(v).length);
@@ -236,7 +236,9 @@ export class OrigamiNotificationsEditor extends LitElement {
     const used = new Set();
     const take = (i) => (i >= 0 && !used.has(i) ? (used.add(i), before[i]) : null);
     return ids.map((id, i) => {
-      const base = take(before.findIndex((info, j) => info.entity === id && !used.has(j))) || (before.length === ids.length && !ids.includes(before[i].entity) && take(i)) || {};
+      // Home Assistant shows a person's picture on the tiles of the dashboards it makes itself.
+      const fresh = id.startsWith("person.") ? { show_entity_picture: true } : {};
+      const base = take(before.findIndex((info, j) => info.entity === id && !used.has(j))) || (before.length === ids.length && !ids.includes(before[i].entity) && take(i)) || fresh;
       return this._infoEntry({ ...base, entity: id });
     });
   }
@@ -282,6 +284,7 @@ export class OrigamiNotificationsEditor extends LitElement {
       { name: "", type: "grid", schema: [{ name: "icon", selector: { icon: {} }, context: { icon_entity: "entity" } }, { name: "color", selector: { ui_color: { default_color: "state", include_state: true } } }] },
       ...(forecasts.length ? forecast : state),
       { name: "show_entity_picture", selector: { boolean: {} } },
+      ...(info.show_battery || (st && batteryOf(this.hass, st)) ? [{ name: "show_battery", selector: { boolean: {} } }] : []),
       { name: "tap_action", selector: { ui_action: { default_action: "more-info" } }, context },
       { name: "", type: "optional_actions", flatten: true, schema: ["hold_action", "double_tap_action"].map((name) => ({ name, selector: { ui_action: { default_action: "none" } }, context })) },
     ];
@@ -370,6 +373,7 @@ export class OrigamiNotificationsEditor extends LitElement {
           .data=${this._memo("info-data-" + index, data)}
           .schema=${this._memo("info-schema-" + index, this._infoSchema(info))}
           .computeLabel=${(s) => t.label(s.name)}
+          .computeHelper=${(s) => t.helper(s.name)}
           @value-changed=${(e) => this._onInfo(e, index, e.detail.value)}
         ></ha-form>
         <ha-expansion-panel outlined .header=${t.label("visibility")}>

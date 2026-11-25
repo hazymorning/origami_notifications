@@ -54,7 +54,7 @@ function parseInfo(entry) {
   check(info && isEntityId(info.entity), "infos must contain entity ids, got " + JSON.stringify(entry));
   check(optional(info.visibility, Array.isArray), `visibility of ${info.entity} must be a list of conditions`);
   check(optional(info.forecast_type, (t) => FORECAST_TYPES.includes(t)), "forecast_type must be daily, hourly or twice_daily");
-  for (const key of ["show_current", "show_forecast", "show_entity_picture"]) {
+  for (const key of ["show_current", "show_forecast", "show_entity_picture", "show_battery"]) {
     check(optional(info[key], (v) => typeof v === "boolean"), key + " must be true or false");
   }
   check(optional(info.forecast_slots, (n) => Number.isInteger(n) && n > 0), "forecast_slots must be a whole number above 0");

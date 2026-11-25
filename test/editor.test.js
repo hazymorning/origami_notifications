@@ -80,6 +80,18 @@ test("each info is edited with the fields of a tile and Home Assistant's visibil
   same((await send(form(), (v) => ({ ...v, infos: ["sensor.energy", "sun.sun"] }))).infos, [{ ...weather, entity: "sensor.energy", visibility: [{ condition: "user", users: ["u1"] }] }, { entity: "sun.sun", state_content: "next_rising" }], "a swapped or moved info keeps its options");
 });
 
+test("an info offers its battery where its device has one, and a person comes with their picture", async () => {
+  const w = makeWindow();
+  const states = statesOf(st("person.anna", "home", { device_trackers: ["device_tracker.pixel"] }), st("device_tracker.pixel", "home"), st("sensor.pixel_battery", "54", { device_class: "battery" }), st("sun.sun", "above_horizon"));
+  const hass = makeHass(states, { entities: { "device_tracker.pixel": { device_id: "phone" }, "sensor.pixel_battery": { device_id: "phone" } } });
+  const { form, infoForms, send } = await editor(w, { infos: ["sun.sun"] }, hass);
+  const offered = (i) => infoForms()[i].schema.some((s) => s.name === "show_battery");
+  assert.equal(offered(0), false, "the sun has no battery");
+  same((await send(form(), (v) => ({ ...v, infos: ["sun.sun", "person.anna"] }))).infos, ["sun.sun", { entity: "person.anna", show_entity_picture: true }], "as on the dashboards Home Assistant makes");
+  assert.deepEqual([offered(1), infoForms()[1].computeHelper({ name: "show_battery" })], [true, "The battery of its device. A person shows the battery of the phone that tracks them."]);
+  same((await send(infoForms()[1], (v) => ({ ...v, show_battery: true }))).infos[1], { entity: "person.anna", show_entity_picture: true, show_battery: true });
+});
+
 test("a weather info shows the current weather, its forecast or both, as on Home Assistant's forecast card", async () => {
   const w = makeWindow();
   const hass = makeHass(statesOf(st("weather.home", "rainy", { friendly_name: "Home", supported_features: 3 })));

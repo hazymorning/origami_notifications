@@ -3,8 +3,9 @@ import { classMap } from "lit/directives/class-map.js";
 import { repeat } from "lit/directives/repeat.js";
 import { canDismiss } from "./dismissals.js";
 import { dayNumber, isoDate } from "./format.js";
-import { stateColor } from "./ha.js";
+import { stateColor, tileBadge } from "./ha.js";
 import { KIND_ICONS } from "./kinds.js";
+import { formatters } from "./model.js";
 
 const KIND_COLORS = { system: "var(--info-color)", repair: "var(--warning-color)" };
 
@@ -31,6 +32,16 @@ export function imageUrl(hass, path) {
 const fallbackIcon = (entry, hass) =>
   entry.icon || hass.entities?.[entry.stateObj?.entity_id]?.icon || entry.stateObj?.attributes.icon || KIND_ICONS[entry.kind] || KIND_ICONS.generic;
 
+function badgeTemplate(stateObj, hass) {
+  const badge = tileBadge(stateObj, hass.states);
+  if (!badge) return nothing;
+  const icon =
+    badge.attribute && customElements.get("ha-attribute-icon")
+      ? html`<ha-attribute-icon .stateObj=${stateObj} .attribute=${badge.attribute}></ha-attribute-icon>`
+      : html`<ha-icon .icon=${badge.icon}></ha-icon>`;
+  return html`<span class="tile-badge" style="--badge-color: ${badge.color}" aria-hidden="true">${icon}</span>`;
+}
+
 export function iconTemplate(entry, hass) {
   const url = imageUrl(hass, entry.image);
   return html`${url
@@ -45,7 +56,13 @@ export function iconTemplate(entry, hass) {
       />`
     : nothing}${entry.stateObj && customElements.get("ha-state-icon")
     ? html`<ha-state-icon .hass=${hass} .stateObj=${entry.stateObj} .icon=${entry.icon}></ha-state-icon>`
-    : html`<ha-icon .icon=${fallbackIcon(entry, hass)}></ha-icon>`}`;
+    : html`<ha-icon .icon=${fallbackIcon(entry, hass)}></ha-icon>`}${entry.stateObj ? badgeTemplate(entry.stateObj, hass) : nothing}`;
+}
+
+export function batteryTemplate(stateObj, hass) {
+  return html`<span class="battery" style="--battery-color: ${stateColor(stateObj)}"
+    >${customElements.get("ha-state-icon") ? html`<ha-state-icon .hass=${hass} .stateObj=${stateObj}></ha-state-icon>` : nothing}${formatters(hass).state(stateObj)}</span
+  >`;
 }
 
 function timeTemplate(entry, view) {

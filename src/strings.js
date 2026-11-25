@@ -244,6 +244,7 @@ const EDITOR_OWN = {
     state_content: "State content",
     time_format: "Time format",
     show_entity_picture: "Show entity picture",
+    show_battery: "Show battery",
     visibility: "Visibility",
     content_layout: "Content layout",
     horizontal: "Horizontal",
@@ -303,6 +304,7 @@ const EDITOR_OWN = {
     type_attribute: "Details aus einem Attribut",
     type_picture: "Zustand als Titel",
     type_generic: "Einfache Entität",
+    show_battery: "Batterie zeigen",
   },
 };
 
@@ -350,6 +352,7 @@ const EDITOR_HELPERS = {
     css: "Goes into the card after its own styles, so you can change any part of it.",
     visibility_intro: "It shows while all of these conditions hold.",
     row_tap_action: "What a tap on its row in the list does. A tap on the closed card opens the list, or does this when it is the only entry.",
+    show_battery: "The battery of its device. A person shows the battery of the phone that tracks them.",
   },
   de: {
     label: "Jede Entität mit diesem Label kommt dazu und wird automatisch erkannt.",
@@ -366,6 +369,7 @@ const EDITOR_HELPERS = {
     css: "Kommt nach den Styles der Karte, so lässt sich jeder Teil ändern.",
     visibility_intro: "Es erscheint, solange alle diese Bedingungen erfüllt sind.",
     row_tap_action: "Was ein Tippen auf seine Zeile in der Liste tut. Ein Tippen auf die geschlossene Karte öffnet die Liste, oder tut dies, wenn es der einzige Eintrag ist.",
+    show_battery: "Die Batterie ihres Geräts. Eine Person zeigt die Batterie des Handys, das sie ortet.",
   },
 };
 

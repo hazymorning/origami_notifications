@@ -502,6 +502,31 @@ test("an info uses Home Assistant's state text once it is there", async () => {
   assert.deepEqual([sd.stateObj.entity_id, sd.content, sd.name], ["weather.home", ["temperature", "state"], "Weather"]);
 });
 
+test("a person's info shows the zone on a badge and the phone's battery, on the card and in the list", async () => {
+  const w = makeWindow({ define: ["ha-state-icon"] });
+  const states = statesOf(
+    st("person.anna", "Gym", { friendly_name: "Anna", device_trackers: ["device_tracker.pixel"], entity_picture: "/api/anna.jpg" }),
+    st("zone.gym", "1", { friendly_name: "Gym", icon: "mdi:dumbbell" }),
+    st("device_tracker.pixel", "Gym"),
+    st("sensor.pixel_battery", "54", { device_class: "battery" }),
+    on("binary_sensor.door", "Door")
+  );
+  const entities = { "device_tracker.pixel": { device_id: "phone" }, "sensor.pixel_battery": { device_id: "phone" } };
+  const hass = makeHass(states, { entities, formatEntityState: (s) => (s.entity_id.startsWith("sensor.") ? s.state + " %" : s.state) });
+  const anna = { entity: "person.anna", show_entity_picture: true, show_battery: true };
+  const el = await mount(w, card([], { infos: [anna] }), hass);
+  const badge = q(el, ".head .tile-badge");
+  same(
+    [head(el).secondary, q(el, ".head .icon img").getAttribute("src"), badge.querySelector("ha-icon").icon, badge.style.getPropertyValue("--badge-color")],
+    ["Gym · 54 %", "http://ha.local/api/anna.jpg", "mdi:dumbbell", "var(--state-person-gym-color, var(--state-person-active-color, var(--state-active-color)))"]
+  );
+  assert.equal(q(el, ".head .battery").style.getPropertyValue("--battery-color"), "var(--state-sensor-battery-medium-color)", "the battery takes Home Assistant's color for its level");
+  const list = await mount(w, card(["binary_sensor.door"], { infos: [anna] }), hass);
+  q(list, ".head").click();
+  await settle(list);
+  same([rows(list), list.shadowRoot.querySelectorAll(".row .tile-badge").length], [[{ title: "Door", message: "on" }, { title: "Anna", message: "Gym · 54 %" }], 1]);
+});
+
 test("the language follows the profile, and Home Assistant's words come first", async () => {
   const w = makeWindow();
   const de = await mount(w, card([], { hide_when_empty: false }), makeHass({}, { locale: { language: "de" } }));

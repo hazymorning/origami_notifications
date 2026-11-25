@@ -9,7 +9,7 @@ import { HeadGestures } from "./gestures.js";
 import { infoText } from "./infos.js";
 import { buildModel, finishEntries, formatters, isAhead, nextWake } from "./model.js";
 import { duration, EASE, ListMotion, SPRING } from "./motion.js";
-import { entryColor, focusRow, iconTemplate, imageUrl, opener, rowsTemplate } from "./rows.js";
+import { batteryTemplate, entryColor, focusRow, iconTemplate, imageUrl, opener, rowsTemplate } from "./rows.js";
 import { cardTexts, languageOf } from "./strings.js";
 import { adoptCss, cardStyles, iconStyles, rowStyles, variables } from "./styles.js";
 import { Subscriptions } from "./subs.js";
@@ -33,7 +33,7 @@ export const fire = (node, type, detail) => node.dispatchEvent(new CustomEvent(t
 
 // Home Assistant loads some of its elements only when a card of its own needs them.
 const onPage = new Set();
-for (const tag of ["ha-state-icon", "state-display", "ha-ripple"]) {
+for (const tag of ["ha-state-icon", "state-display", "ha-ripple", "ha-attribute-icon"]) {
   if (!customElements.get(tag)) customElements.whenDefined(tag).then(() => onPage.forEach((card) => card.requestUpdate()));
 }
 
@@ -319,6 +319,10 @@ export class OrigamiNotificationsCard extends LitElement {
     return { ...formatters(this._hass), clock: this._derive().clock, now: this._now };
   }
 
+  _withBattery(text, slide) {
+    return slide.battery ? html`${text} · ${batteryTemplate(slide.battery, this._hass)}` : text;
+  }
+
   _infoRow(slide) {
     const st = this._hass.states[slide.entity];
     const tap = this._infoAction(slide, "tap");
@@ -326,7 +330,7 @@ export class OrigamiNotificationsCard extends LitElement {
       key: slide.row,
       kind: "info",
       title: slide.title,
-      message: slide.text ?? infoText(st, slide.content ?? slide.info.state_content, slide.name, this._formatters()),
+      message: this._withBattery(slide.text ?? infoText(st, slide.content ?? slide.info.state_content, slide.name, this._formatters()), slide),
       icon: slide.icon,
       image: slide.image,
       stateObj: st,
@@ -772,10 +776,13 @@ export class OrigamiNotificationsCard extends LitElement {
   _secondary(slide, t) {
     if (!slide) return t.idle_msg;
     if (slide.kind !== "info") return this._headTime(slide) ? this._derive().clock.entryTime(slide, this._now) : slide.message;
-    if (slide.text != null) return slide.text;
+    if (slide.text != null) return this._withBattery(slide.text, slide);
     const content = slide.content ?? slide.info.state_content;
-    if (!customElements.get("state-display")) return infoText(slide.stateObj, content, slide.name, this._formatters());
-    return html`<state-display .hass=${this._hass} .stateObj=${slide.stateObj} .content=${content} .timeFormat=${slide.info.time_format} .name=${slide.name}></state-display>`;
+    if (!customElements.get("state-display")) return this._withBattery(infoText(slide.stateObj, content, slide.name, this._formatters()), slide);
+    return this._withBattery(
+      html`<state-display .hass=${this._hass} .stateObj=${slide.stateObj} .content=${content} .timeFormat=${slide.info.time_format} .name=${slide.name}></state-display>`,
+      slide
+    );
   }
 
   _slideTemplate(slide, t, leaving) {

@@ -1,5 +1,5 @@
 import { isoTime, parseTime } from "./format.js";
-import { domainOf, stateActive, stateColor, themeColor } from "./ha.js";
+import { batteryOf, domainOf, stateActive, stateColor, themeColor } from "./ha.js";
 import { findPicture } from "./kinds.js";
 import { isEmpty, isObject } from "./values.js";
 import { forecastSupported, forecastType, outlook, SPAN } from "./weather.js";
@@ -84,7 +84,19 @@ export function infoSlides(infos, ctx) {
     const custom = info.color && info.color !== "state";
     const colorOf = (s) => (custom ? (stateActive(s) ? themeColor(info.color) : "var(--state-inactive-color)") : stateColor(s));
     const name = ctx.name(st, info.name);
-    const base = { kind: "info", info, entity: info.entity, row: key, name, icon: info.icon, image: info.show_entity_picture ? findPicture(st.attributes) : null };
+    const batteryId = info.show_battery ? batteryOf(ctx.hass, st) : undefined;
+    if (batteryId) ctx.watch(batteryId);
+    const battery = batteryId && ctx.hass.states[batteryId];
+    const base = {
+      kind: "info",
+      info,
+      entity: info.entity,
+      row: key,
+      name,
+      icon: info.icon,
+      image: info.show_entity_picture ? findPicture(st.attributes) : null,
+      battery: battery && !["unavailable", "unknown"].includes(battery.state) ? battery : undefined,
+    };
     const ahead = forecastAhead(info, st, ctx);
     const domain = domainOf(info.entity);
     const event = domain === "calendar" && !isEmpty(st.attributes.message);

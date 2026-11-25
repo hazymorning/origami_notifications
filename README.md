@@ -209,7 +209,8 @@ While an info shows, the card doesn't hide.
 | Option | Description |
 | --- | --- |
 | `entity` | The entity to show |
-| `name`, `icon`, `color`, `show_entity_picture` | These work as on a tile card. Without a name, a calendar shows its event as the title, and a weather entity shows the time, such as Now or Tomorrow. |
+| `name`, `icon`, `color`, `show_entity_picture` | These work as on a tile card. Without a name, a calendar shows its event as the title, and a weather entity shows the time, such as Now or Tomorrow. As on a tile, a badge on the icon shows the zone of a person or a device tracker, and what a thermostat or a humidifier is doing. |
+| `show_battery` | `true` adds the battery of the entity's device to the second line, in the color of its level. A person shows the battery of the phone that tracks them. |
 | `state_content`, `time_format` | What the second line shows, such as `[temperature, state]` or `next_rising` |
 | `forecast_type` | `daily`, `hourly` or `twice_daily` adds a weather entity's forecast. |
 | `forecast_slots` | How many days or hours of the forecast the card shows. The default is 1. |
@@ -287,15 +288,16 @@ Styles in `css` come after the card's own, so they win.
 | `--origami-pulse-opacity` | `0.3` | How strongly the card pulses while an entry is critical. This also works in a theme. |
 | `--origami-max-height` | none | The maximum height of the card and its dialog. A longer list scrolls inside. The default is `25dvh` in the footer and `70vh` in the dialog. This also works in a theme. |
 | `--origami-bg-opacity`, `--origami-bg-blur` | `0.22` (`0.32` dark), `24px` | The opacity and blur of the background picture. These also work in a theme. |
+| `--state-person-*-color` | theme | The color of a zone on the badge of a person, such as `--state-person-gym-color`. Without it, home is green, another zone is blue and away is grey, as on a tile. |
 | `--ha-tile-*` | theme | The card follows the theme's tile variables. The icon and the ring around it take their shape from `--ha-tile-icon-border-radius`. |
 | `--ha-button-*` | theme | The buttons in the list follow the theme's button variables, such as `--ha-button-border-radius`. |
 | `--ha-dialog-surface-background` | theme | The background of the dialog. In a theme, it colors every dialog of Home Assistant. |
 
 | Part | Classes |
 | --- | --- |
-| Card | `.head` with `.icon`, `.cycle` for the ring, `.badge`, `.title` and `.secondary` |
+| Card | `.head` with `.icon`, `.cycle` for the ring, `.badge` for the count, `.tile-badge`, `.title` and `.secondary` |
 | List | `.bar` with `.count`, the `.list` of `.row` elements and the `.foot` with `.clear` |
-| Row | `.icon`, `.title`, `.time`, `.dismiss`, `.message` and the `.actions` with `.action` buttons. The dialog uses the same classes. |
+| Row | `.icon` with its `.tile-badge`, `.title`, `.time`, `.dismiss`, `.message` with the `.battery`, and the `.actions` with `.action` buttons. The dialog uses the same classes. |
 | Dialog | `.heading` for the title at the top |
 | Row state | `.warn` or `.crit`, and the kind in `data-kind`, such as `update`, `weather` or `group` |
 | Background picture | `.backdrop` |
@@ -365,6 +367,9 @@ infos:
       - condition: state
         entity: sun.sun
         state: below_horizon
+  - entity: person.anna
+    show_entity_picture: true
+    show_battery: true
 audience:
   updates:
     only: [person.anna]

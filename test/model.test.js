@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseConfig } from "../src/config.js";
 import { Clock } from "../src/format.js";
+import { tileBadge } from "../src/ha.js";
 import { infoText } from "../src/infos.js";
 import { buildModel, finishEntries } from "../src/model.js";
 import { cardTexts } from "../src/strings.js";
@@ -400,6 +401,40 @@ test("infos turn in their order, without the ones that are unavailable", () => {
     ["info:sensor.energy", "Energy", "var(--state-icon-color)", undefined],
     ["info:light.desk", "Lamp", "var(--red-color)", "mdi:lamp"],
   ]);
+});
+
+test("a person or a tracker shows its zone on a badge, and a thermostat or a humidifier what it does, as on a tile", () => {
+  const zone = (id, name, icon) => st(id, "1", { friendly_name: name, icon });
+  const states = statesOf(zone("zone.home", "Home", "mdi:home"), zone("zone.office", "Büro", "mdi:briefcase"), zone("zone.office_2", "Büro", "mdi:domain"), zone("zone.gym", "Gym"));
+  const badge = (id, state, attributes) => tileBadge(st(id, state, attributes), states);
+  const color = (domain, state, level) => `var(--state-${domain}-${state}-color, var(--state-${domain}-${level}-color, var(--state-${level}-color)))`;
+  assert.deepEqual(badge("person.anna", "home"), { icon: "mdi:home", color: color("person", "home", "active") });
+  assert.deepEqual(badge("person.anna", "not_home"), { icon: "mdi:home-export-outline", color: color("person", "not_home", "inactive") });
+  assert.deepEqual(badge("person.anna", "Büro"), { icon: "mdi:briefcase", color: color("person", "buro", "active") }, "a theme colors a zone by the name Home Assistant gives it");
+  assert.equal(badge("person.anna", "Büro", { in_zones: ["zone.office_2"] }).icon, "mdi:domain", "the zone a tracker reports comes first, since names can repeat");
+  assert.deepEqual([badge("person.anna", "Gym").icon, badge("device_tracker.car", "not_home").icon, badge("person.anna", "unknown")], ["mdi:home", "mdi:home-export-outline", null]);
+  assert.deepEqual(badge("climate.bath", "heat", { hvac_action: "heating" }), { attribute: "hvac_action", icon: "mdi:fire", color: color("climate", "heat", "active") });
+  assert.deepEqual(badge("climate.bath", "heat", { hvac_action: "idle" }), { attribute: "hvac_action", icon: "mdi:clock-outline", color: color("climate", "off", "inactive") });
+  assert.deepEqual(badge("humidifier.bed", "on", { action: "drying" }), { attribute: "action", icon: "mdi:arrow-down-bold", color: color("humidifier", "on", "active") });
+  assert.deepEqual([badge("climate.bath", "off", { hvac_action: "off" }), badge("climate.bath", "heat"), badge("light.desk", "on")], [null, null, null]);
+});
+
+test("an info with show_battery shows the battery of its device, and a person the battery of the phone that tracks them", () => {
+  const states = statesOf(
+    st("person.anna", "Work", { friendly_name: "Anna", device_trackers: ["device_tracker.router_anna", "device_tracker.pixel"] }),
+    st("device_tracker.router_anna", "not_home"),
+    st("device_tracker.pixel", "Work"),
+    st("binary_sensor.pixel_low", "off", { device_class: "battery" }),
+    st("sensor.pixel_battery", "54", { device_class: "battery", unit_of_measurement: "%" }),
+    st("lock.front", "locked", { friendly_name: "Front" }),
+    st("sensor.front_battery", "unavailable", { device_class: "battery" }),
+    st("sun.sun", "above_horizon")
+  );
+  const entities = { "device_tracker.router_anna": { device_id: "router" }, "device_tracker.pixel": { device_id: "phone" }, "binary_sensor.pixel_low": { device_id: "phone" }, "sensor.pixel_battery": { device_id: "phone" }, "lock.front": { device_id: "lock" }, "sensor.front_battery": { device_id: "lock" } };
+  const infos = [{ entity: "person.anna", show_battery: true }, { entity: "lock.front", show_battery: true }, { entity: "sun.sun", show_battery: true }, "person.anna"];
+  const m = model({ infos }, states, { hass: { entities } });
+  assert.deepEqual(m.slides.map((s) => s.battery?.entity_id ?? null), ["sensor.pixel_battery", null, null, null], "the router that tracks Anna at home has no battery, so the phone's counts");
+  assert.ok(m.watched.has("sensor.pixel_battery"), "the card follows the battery");
 });
 
 test("a weather info leads with the time it shows, now or ahead, and turns through its forecast, in the number format of the profile", () => {
