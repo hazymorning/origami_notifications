@@ -1,5 +1,6 @@
 import { isoTime, parseTime } from "./format.js";
-import { domainOf, stateActive, stateColor, themeColor } from "./ha.js";
+import { batteryOf, domainOf, stateActive, stateColor, themeColor } from "./ha.js";
+import { nameList } from "./group.js";
 import { findPicture } from "./kinds.js";
 import { isEmpty, isObject } from "./values.js";
 import { forecastSupported, forecastType, outlook, SPAN } from "./weather.js";
@@ -70,6 +71,9 @@ function forecastAhead(info, st, ctx) {
   }));
 }
 
+const zoneNames = (zone, ctx) =>
+  nameList([].concat(zone.attributes.persons || []).flatMap((id) => (ctx.hass.states[id] ? [ctx.name(ctx.hass.states[id])] : [])));
+
 export function infoSlides(infos, ctx) {
   const slides = [];
   const keys = new Set();
@@ -84,7 +88,19 @@ export function infoSlides(infos, ctx) {
     const custom = info.color && info.color !== "state";
     const colorOf = (s) => (custom ? (stateActive(s) ? themeColor(info.color) : "var(--state-inactive-color)") : stateColor(s));
     const name = ctx.name(st, info.name);
-    const base = { kind: "info", info, entity: info.entity, row: key, name, icon: info.icon, image: info.show_entity_picture ? findPicture(st.attributes) : null };
+    const batteryId = info.show_battery ? batteryOf(ctx.hass, st) : undefined;
+    if (batteryId) ctx.watch(batteryId);
+    const battery = batteryId && ctx.hass.states[batteryId];
+    const base = {
+      kind: "info",
+      info,
+      entity: info.entity,
+      row: key,
+      name,
+      icon: info.icon,
+      image: info.show_entity_picture ? findPicture(st.attributes) : null,
+      battery: battery && !["unavailable", "unknown"].includes(battery.state) ? battery : undefined,
+    };
     const ahead = forecastAhead(info, st, ctx);
     const domain = domainOf(info.entity);
     const event = domain === "calendar" && !isEmpty(st.attributes.message);
@@ -94,6 +110,8 @@ export function infoSlides(infos, ctx) {
     if (event) Object.assign(current, named ? { content: info.state_content ?? ["message", "start_time"] } : { title: st.attributes.message, content: info.state_content ?? ["start_time"] });
     // A weather entity is named after a place that never changes, so the time leads, as in its forecast.
     if (!named && domain === "weather") current.title = ctx.clock.nowLabel();
+    // A zone's state only counts the people in it, so their names say more.
+    if (domain === "zone" && info.state_content == null) current.text = zoneNames(st, ctx) || ctx.t.no_one;
     if (!ahead || info.show_current !== false) slides.push(current);
     (ahead || []).forEach((a, n) => {
       const shown = { ...st, state: a.condition || "unknown" };

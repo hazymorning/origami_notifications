@@ -267,6 +267,38 @@ export const iconStyles = css`
   .icon img.ready ~ :is(ha-icon, ha-state-icon) {
     visibility: hidden;
   }
+  /* Sized like ha-tile-badge.ts. It sits below, since the count takes the top of the card's icon. */
+  .tile-badge {
+    position: absolute;
+    bottom: -3px;
+    inset-inline-end: -3px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--badge-color);
+    color: var(--white-color, #fff);
+    border-radius: var(--ha-border-radius-md, 8px);
+    box-shadow: 0 0 0 2px var(--origami-card-bg);
+    --mdc-icon-size: 12px;
+    transition: background-color var(--ha-animation-duration-normal, 250ms) ease-in-out;
+  }
+  .tile-badge > * {
+    display: flex;
+  }
+  .battery {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    vertical-align: bottom;
+    white-space: nowrap;
+  }
+  .battery ha-state-icon {
+    display: flex;
+    color: var(--battery-color);
+    --mdc-icon-size: 1.2em;
+  }
 `;
 
 export const variables = css`

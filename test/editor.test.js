@@ -27,12 +27,13 @@ async function editor(w, config, hass = makeHass({})) {
 
 test("the editor offers every option, with entity options and a rule for each source", async () => {
   const w = makeWindow();
-  const { form, entityForms } = await editor(w, { entities: ["calendar.family"] }, makeHass(statesOf(st("calendar.family", "off", { friendly_name: "Family" }))));
+  const { form, entityForms } = await editor(w, { entities: ["calendar.family"], batteries: true }, makeHass(statesOf(st("calendar.family", "off", { friendly_name: "Family" }))));
   const schema = form().schema;
   same(schema.map((s) => s.name || s.type), ["entities", "label", "weather", "infos", "grid", "hide_when_empty", "content_layout", "grid", "audience", "styling"]);
+  same(schema[4].schema.map((s) => s.name), ["updates", "repairs", "batteries"]);
   same(entityForms()[0].schema.map((s) => s.name || s.type), ["type", "attribute", "grid", "color", "image", "background", "before", "tap_action"]);
   assert.match(entityForms()[0].computeHelper(entityForms()[0].schema.at(-1)), /closed card opens the list/, "the tap behavior says it is about the row");
-  same(schema.find((s) => s.name === "audience").schema.map((s) => s.name), ["system", "updates", "repairs", "calendar.family"]);
+  same(schema.find((s) => s.name === "audience").schema.map((s) => s.name), ["system", "updates", "repairs", "batteries", "calendar.family"]);
   same(schema.find((s) => s.name === "content_layout").selector.select.options.map((o) => o.image.src.split("/").pop()), ["tile_content_layout_horizontal.svg", "tile_content_layout_vertical.svg"]);
 });
 
@@ -78,6 +79,27 @@ test("each info is edited with the fields of a tile and Home Assistant's visibil
   same((await send(conditions, [{ condition: "user", users: ["u1"] }])).infos[1].visibility, [{ condition: "user", users: ["u1"] }]);
   await send(form(), (v) => ({ ...v, infos: ["sun.sun", "sensor.energy"] }));
   same((await send(form(), (v) => ({ ...v, infos: ["sensor.energy", "sun.sun"] }))).infos, [{ ...weather, entity: "sensor.energy", visibility: [{ condition: "user", users: ["u1"] }] }, { entity: "sun.sun", state_content: "next_rising" }], "a swapped or moved info keeps its options");
+});
+
+test("an event, a person or a zone offers how long it stays", async () => {
+  const w = makeWindow();
+  const hass = makeHass(statesOf(st("person.kim", "home"), st("event.doorbell", "2026-10-02T11:59:00+00:00"), st("calendar.family", "off")));
+  const { entityForms, send } = await editor(w, { entities: ["person.kim", "event.doorbell", "calendar.family"] }, hass);
+  same(entityForms().map((f) => f.schema.some((s) => s.name === "after")), [true, true, false]);
+  const fifteen = { hours: 0, minutes: 15, seconds: 0 };
+  same((await send(entityForms()[1], (v) => ({ ...v, after: fifteen }))).entities, ["person.kim", { entity: "event.doorbell", after: fifteen }, "calendar.family"]);
+});
+
+test("an info offers its battery where its device has one, and a person comes with their picture", async () => {
+  const w = makeWindow();
+  const states = statesOf(st("person.anna", "home", { device_trackers: ["device_tracker.pixel"] }), st("device_tracker.pixel", "home"), st("sensor.pixel_battery", "54", { device_class: "battery" }), st("sun.sun", "above_horizon"));
+  const hass = makeHass(states, { entities: { "device_tracker.pixel": { device_id: "phone" }, "sensor.pixel_battery": { device_id: "phone" } } });
+  const { form, infoForms, send } = await editor(w, { infos: ["sun.sun"] }, hass);
+  const offered = (i) => infoForms()[i].schema.some((s) => s.name === "show_battery");
+  assert.equal(offered(0), false, "the sun has no battery");
+  same((await send(form(), (v) => ({ ...v, infos: ["sun.sun", "person.anna"] }))).infos, ["sun.sun", { entity: "person.anna", show_entity_picture: true }], "as on the dashboards Home Assistant makes");
+  assert.deepEqual([offered(1), infoForms()[1].computeHelper({ name: "show_battery" })], [true, "The battery of its device. A person shows the battery of the phone that tracks them."]);
+  same((await send(infoForms()[1], (v) => ({ ...v, show_battery: true }))).infos[1], { entity: "person.anna", show_entity_picture: true, show_battery: true });
 });
 
 test("a weather info shows the current weather, its forecast or both, as on Home Assistant's forecast card", async () => {

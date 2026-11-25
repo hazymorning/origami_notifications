@@ -2,6 +2,7 @@ import { html, LitElement, nothing } from "lit";
 import { classMap } from "lit/directives/class-map.js";
 import { keyed } from "lit/directives/keyed.js";
 import { CARD, parseConfig } from "./config.js";
+import { isBattery } from "./ha.js";
 import { warningDetails } from "./details.js";
 import { canDismiss, Dismissals } from "./dismissals.js";
 import { Clock, fill, MINUTE } from "./format.js";
@@ -9,7 +10,8 @@ import { HeadGestures } from "./gestures.js";
 import { infoText } from "./infos.js";
 import { buildModel, finishEntries, formatters, isAhead, nextWake } from "./model.js";
 import { duration, EASE, ListMotion, SPRING } from "./motion.js";
-import { entryColor, focusRow, iconTemplate, imageUrl, opener, rowsTemplate } from "./rows.js";
+import { mergeHistory } from "./presence.js";
+import { batteryTemplate, entryColor, focusRow, iconTemplate, imageUrl, opener, rowsTemplate } from "./rows.js";
 import { cardTexts, languageOf } from "./strings.js";
 import { adoptCss, cardStyles, iconStyles, rowStyles, variables } from "./styles.js";
 import { Subscriptions } from "./subs.js";
@@ -33,7 +35,7 @@ export const fire = (node, type, detail) => node.dispatchEvent(new CustomEvent(t
 
 // Home Assistant loads some of its elements only when a card of its own needs them.
 const onPage = new Set();
-for (const tag of ["ha-state-icon", "state-display", "ha-ripple"]) {
+for (const tag of ["ha-state-icon", "state-display", "ha-ripple", "ha-attribute-icon"]) {
   if (!customElements.get(tag)) customElements.whenDefined(tag).then(() => onPage.forEach((card) => card.requestUpdate()));
 }
 
@@ -47,7 +49,7 @@ export class OrigamiNotificationsCard extends LitElement {
     // Without it, Home Assistant detaches a hidden card and ends the subscriptions that bring it back.
     this.connectedWhileHidden = true;
     this.preview = false;
-    this._data = { notifications: new Map(), repairs: [], todos: new Map(), forecasts: new Map(), conditions: new Map() };
+    this._data = { notifications: new Map(), repairs: [], todos: new Map(), forecasts: new Map(), conditions: new Map(), history: new Map() };
     this._seq = 0;
     this._subs = new Subscriptions();
     this._dismissals = new Dismissals(() => this._refresh());
@@ -171,6 +173,7 @@ export class OrigamiNotificationsCard extends LitElement {
       people,
       viewer: people.find((id) => hass.states[id]?.attributes.user_id === hass.user?.id) || "",
       updates: config.updates ? [...new Set([...Object.keys(hass.states), ...Object.keys(reg)])].filter((id) => id.startsWith("update.")) : [],
+      batteries: config.batteries ? Object.keys(hass.states).filter((id) => isBattery(hass.states[id])) : [],
       windows: config.weather ? windowIds(hass.states) : [],
       pictures: (id) => byDevice.get(reg[id]?.device_id) || [],
     };
@@ -183,7 +186,7 @@ export class OrigamiNotificationsCard extends LitElement {
     const d = this._derive();
     const data = this._data;
     const now = Date.now();
-    const need = { todos: new Set(), forecasts: new Map(), conditions: new Map() };
+    const need = { todos: new Set(), forecasts: new Map(), conditions: new Map(), history: new Map() };
     const model = buildModel({
       hass,
       config: this._config,
@@ -195,12 +198,17 @@ export class OrigamiNotificationsCard extends LitElement {
       preview: this.preview,
       sources: d.sources,
       updates: d.updates,
+      batteries: d.batteries,
       windows: d.windows,
       devicePictures: d.pictures,
       details: (st) => warningDetails(hass, st, this._onDetails),
       todos: (id) => {
         need.todos.add(id);
         return data.todos.get(id);
+      },
+      history: (id, ms) => {
+        need.history.set(id, Math.max(need.history.get(id) || 0, ms));
+        return data.history.get(id);
       },
       media: (query) => this._matches(query),
       serverCondition: (condition) => {
@@ -267,9 +275,25 @@ export class OrigamiNotificationsCard extends LitElement {
       for (const [key, condition] of need.conditions) {
         subscribe("condition|" + key, { type: "subscribe_condition", condition }, (msg) => this._store("conditions", key, { result: msg.result === true, failed: Boolean(msg.error) }));
       }
+      for (const [id, ms] of need.history) {
+        wanted.set(`history|${id}|${ms}`, { retryOn: hass.states[id], start: () => this._history(id, ms) });
+      }
     }
     this._subs.sync(wanted);
-    for (const kind of ["todos", "forecasts", "conditions"]) for (const key of this._data[kind].keys()) if (!need[kind].has(key)) this._data[kind].delete(key);
+    for (const kind of ["todos", "forecasts", "conditions", "history"]) for (const key of this._data[kind].keys()) if (!need[kind].has(key)) this._data[kind].delete(key);
+  }
+
+  // The stream starts with the history of the window and then sends each new state.
+  _history(id, ms) {
+    let first = true;
+    const message = { type: "history/stream", entity_ids: [id], start_time: new Date(Date.now() - ms).toISOString(), minimal_response: false, significant_changes_only: true, no_attributes: !id.startsWith("person.") };
+    return this._hass.connection.subscribeMessage((msg) => {
+      const states = msg.states?.[id] || [];
+      if (!first && !states.length) return;
+      this._data.history.set(id, mergeHistory(first ? [] : this._data.history.get(id) || [], states, Date.now() - ms));
+      first = false;
+      this._refresh();
+    }, message);
   }
 
   _store(kind, key, value) {
@@ -319,6 +343,10 @@ export class OrigamiNotificationsCard extends LitElement {
     return { ...formatters(this._hass), clock: this._derive().clock, now: this._now };
   }
 
+  _withBattery(text, slide) {
+    return slide.battery ? html`${text} · ${batteryTemplate(slide.battery, this._hass)}` : text;
+  }
+
   _infoRow(slide) {
     const st = this._hass.states[slide.entity];
     const tap = this._infoAction(slide, "tap");
@@ -326,7 +354,7 @@ export class OrigamiNotificationsCard extends LitElement {
       key: slide.row,
       kind: "info",
       title: slide.title,
-      message: slide.text ?? infoText(st, slide.content ?? slide.info.state_content, slide.name, this._formatters()),
+      message: this._withBattery(slide.text ?? infoText(st, slide.content ?? slide.info.state_content, slide.name, this._formatters()), slide),
       icon: slide.icon,
       image: slide.image,
       stateObj: st,
@@ -772,10 +800,13 @@ export class OrigamiNotificationsCard extends LitElement {
   _secondary(slide, t) {
     if (!slide) return t.idle_msg;
     if (slide.kind !== "info") return this._headTime(slide) ? this._derive().clock.entryTime(slide, this._now) : slide.message;
-    if (slide.text != null) return slide.text;
+    if (slide.text != null) return this._withBattery(slide.text, slide);
     const content = slide.content ?? slide.info.state_content;
-    if (!customElements.get("state-display")) return infoText(slide.stateObj, content, slide.name, this._formatters());
-    return html`<state-display .hass=${this._hass} .stateObj=${slide.stateObj} .content=${content} .timeFormat=${slide.info.time_format} .name=${slide.name}></state-display>`;
+    if (!customElements.get("state-display")) return this._withBattery(infoText(slide.stateObj, content, slide.name, this._formatters()), slide);
+    return this._withBattery(
+      html`<state-display .hass=${this._hass} .stateObj=${slide.stateObj} .content=${content} .timeFormat=${slide.info.time_format} .name=${slide.name}></state-display>`,
+      slide
+    );
   }
 
   _slideTemplate(slide, t, leaving) {

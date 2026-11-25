@@ -186,6 +186,20 @@ test("a dismissal hides an entry in every card of this browser until it changes"
   assert.equal(rows(once).length, 1, "until its attribute was empty");
 });
 
+test("a dismissed battery stays away while it drains, and comes back once it was charged and runs low again", async () => {
+  const w = makeWindow();
+  const level = (n) => makeHass(statesOf(st("sensor.remote_battery", String(n), { friendly_name: "Remote", device_class: "battery" })));
+  const el = await mount(w, card(["sensor.remote_battery"]), level(15));
+  const after = async (n) => {
+    el.hass = level(n);
+    await settle(el);
+    return rows(el).length;
+  };
+  q(el, ".dismiss").click();
+  await settle(el);
+  assert.deepEqual([rows(el).length, await after(14), await after(80), await after(18)], [0, 0, 0, 1]);
+});
+
 test("Home Assistant confirms a dismissal later, clear all dismisses everything, and blocked storage still dismisses", async () => {
   const w = makeWindow();
   w.console.warn = () => {};
@@ -369,6 +383,25 @@ test("news comes forward and is read out, and what was there before is not news"
   assert.deepEqual([say(), head(el).title], ["Smoke. on", "Door"], "what it held back is not news when it ends");
 });
 
+test("an arrival comes from Home Assistant's history, comes forward as news and goes after an hour", async () => {
+  const w = makeWindow({ clock: true });
+  const subs = [];
+  const states = { ...doors(), ...statesOf(st("person.kim", "home", { friendly_name: "Kim" })) };
+  const el = await mount(w, card([...Object.keys(doors()), "person.kim"]), makeHass(states, { subs }));
+  const stream = subs.find((s) => s.msg?.type === "history/stream");
+  same([stream.msg.entity_ids, stream.msg.start_time, stream.msg.no_attributes], [["person.kim"], new Date(NOW - 3600000).toISOString(), false]);
+  await tick(el, 3000);
+  const lu = (minutes) => (Date.now() + minutes * 60000) / 1000;
+  stream.cb({ states: { "person.kim": [{ s: "not_home", lu: lu(-60) }] } });
+  await settle(el);
+  assert.equal(titles(el).includes("Kim"), false, "where the window starts is no arrival");
+  stream.cb({ states: { "person.kim": [{ s: "home", lu: lu(0) }] } });
+  await settle(el);
+  same([head(el).title, q(el, ".say").textContent], ["Kim", "Kim. home"]);
+  await tick(el, 61 * 60000);
+  assert.equal(titles(el).includes("Kim"), false);
+});
+
 test("the clock runs while a time on show can change, and stops out of sight", async () => {
   const w = makeWindow({ clock: true });
   const states = statesOf(st("timer.kitchen", "active", { friendly_name: "Kitchen", finishes_at: at(5) }), on("binary_sensor.door", "Door", {}, at(-5)));
@@ -500,6 +533,31 @@ test("an info uses Home Assistant's state text once it is there", async () => {
   await settle(el);
   const sd = q(el, ".head state-display");
   assert.deepEqual([sd.stateObj.entity_id, sd.content, sd.name], ["weather.home", ["temperature", "state"], "Weather"]);
+});
+
+test("a person's info shows the zone on a badge and the phone's battery, on the card and in the list", async () => {
+  const w = makeWindow({ define: ["ha-state-icon"] });
+  const states = statesOf(
+    st("person.anna", "Gym", { friendly_name: "Anna", device_trackers: ["device_tracker.pixel"], entity_picture: "/api/anna.jpg" }),
+    st("zone.gym", "1", { friendly_name: "Gym", icon: "mdi:dumbbell" }),
+    st("device_tracker.pixel", "Gym"),
+    st("sensor.pixel_battery", "54", { device_class: "battery" }),
+    on("binary_sensor.door", "Door")
+  );
+  const entities = { "device_tracker.pixel": { device_id: "phone" }, "sensor.pixel_battery": { device_id: "phone" } };
+  const hass = makeHass(states, { entities, formatEntityState: (s) => (s.entity_id.startsWith("sensor.") ? s.state + " %" : s.state) });
+  const anna = { entity: "person.anna", show_entity_picture: true, show_battery: true };
+  const el = await mount(w, card([], { infos: [anna] }), hass);
+  const badge = q(el, ".head .tile-badge");
+  same(
+    [head(el).secondary, q(el, ".head .icon img").getAttribute("src"), badge.querySelector("ha-icon").icon, badge.style.getPropertyValue("--badge-color")],
+    ["Gym · 54 %", "http://ha.local/api/anna.jpg", "mdi:dumbbell", "var(--state-person-gym-color, var(--state-person-active-color, var(--state-active-color)))"]
+  );
+  assert.equal(q(el, ".head .battery").style.getPropertyValue("--battery-color"), "var(--state-sensor-battery-medium-color)", "the battery takes Home Assistant's color for its level");
+  const list = await mount(w, card(["binary_sensor.door"], { infos: [anna] }), hass);
+  q(list, ".head").click();
+  await settle(list);
+  same([rows(list), list.shadowRoot.querySelectorAll(".row .tile-badge").length], [[{ title: "Door", message: "on" }, { title: "Anna", message: "Gym · 54 %" }], 1]);
 });
 
 test("the language follows the profile, and Home Assistant's words come first", async () => {

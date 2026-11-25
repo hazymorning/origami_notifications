@@ -6,7 +6,7 @@ export const CARD = "origami-notifications";
 
 export const FORECAST_TYPES = ["daily", "hourly", "twice_daily"];
 
-export const DEFAULTS = { updates: true, repairs: true, hide_when_empty: true, vertical: false, rotate: 8, slide: "up" };
+export const DEFAULTS = { updates: true, repairs: true, batteries: false, hide_when_empty: true, vertical: false, rotate: 8, slide: "up" };
 
 export const isEntityId = (v) => typeof v === "string" && /^\w+\.\w+$/.test(v);
 
@@ -44,9 +44,10 @@ function parseEntity(entry) {
   check(optional(src.color, (c) => typeof c === "string"), "color must be a theme color like green, or a CSS color");
   check(optional(src.visibility, Array.isArray), `visibility of ${src.entity} must be a list of conditions`);
   check(optional(src.before, (b) => parseBefore(b) >= 0), "before must be minutes or a duration like 1:30:00");
+  check(optional(src.after, (a) => parseBefore(a) >= 0), "after must be minutes or a duration like 1:30:00");
   check(isAction(src.tap_action), "tap_action must be an action");
   check(optional(src.actions, (a) => Array.isArray(a) && a.every((ac) => isObject(ac) && typeof ac.label === "string" && isObject(ac.tap_action))), "actions must be a list of buttons with a label and a tap_action");
-  return { ...src, lead: src.before == null ? undefined : parseBefore(src.before) };
+  return { ...src, lead: src.before == null ? undefined : parseBefore(src.before), trail: src.after == null ? undefined : parseBefore(src.after) };
 }
 
 function parseInfo(entry) {
@@ -54,7 +55,7 @@ function parseInfo(entry) {
   check(info && isEntityId(info.entity), "infos must contain entity ids, got " + JSON.stringify(entry));
   check(optional(info.visibility, Array.isArray), `visibility of ${info.entity} must be a list of conditions`);
   check(optional(info.forecast_type, (t) => FORECAST_TYPES.includes(t)), "forecast_type must be daily, hourly or twice_daily");
-  for (const key of ["show_current", "show_forecast", "show_entity_picture"]) {
+  for (const key of ["show_current", "show_forecast", "show_entity_picture", "show_battery"]) {
     check(optional(info[key], (v) => typeof v === "boolean"), key + " must be true or false");
   }
   check(optional(info.forecast_slots, (n) => Number.isInteger(n) && n > 0), "forecast_slots must be a whole number above 0");
@@ -81,7 +82,7 @@ export function parseConfig(config) {
   check(optional(config.css, (c) => typeof c === "string"), "css must be a string");
   check(optional(config.rotate, (r) => typeof r === "number" && r >= 0), "rotate must be the seconds between turns, or 0 to turn them off");
   check(optional(config.slide, (s) => s === "up" || s === "side"), "slide must be up or side");
-  for (const key of ["updates", "repairs", "hide_when_empty", "vertical"]) {
+  for (const key of ["updates", "repairs", "batteries", "hide_when_empty", "vertical"]) {
     check(optional(config[key], (v) => typeof v === "boolean"), key + " must be true or false");
   }
   const entities = [];

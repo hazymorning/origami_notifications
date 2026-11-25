@@ -1,17 +1,17 @@
 import { css, html, LitElement, nothing } from "lit";
 import { DEFAULTS, FORECAST_TYPES, parseBefore, parseConfig } from "./config.js";
 import { DAY, fill, HOUR, MINUTE } from "./format.js";
-import { isTimestampDomain } from "./ha.js";
-import { AHEAD_KINDS, KIND_ICONS, KIND_NAMES, kindOf } from "./kinds.js";
+import { batteryOf, isTimestampDomain } from "./ha.js";
+import { AHEAD_KINDS, BEHIND_KINDS, KIND_ICONS, KIND_NAMES, kindOf } from "./kinds.js";
 import { entityName } from "./model.js";
 import { editorTexts, languageOf } from "./strings.js";
 import { isObject } from "./values.js";
 import { forecastSupported } from "./weather.js";
 
-const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "hide_when_empty", "vertical", "rotate", "slide", "audience", "css"];
-const ENTITY_KEYS = ["type", "attribute", "name", "icon", "color", "image", "background", "before", "tap_action", "visibility"];
+const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "batteries", "hide_when_empty", "vertical", "rotate", "slide", "audience", "css"];
+const ENTITY_KEYS = ["type", "attribute", "name", "icon", "color", "image", "background", "before", "after", "tap_action", "visibility"];
 const ENTITY_ORDER = ["entity", ...ENTITY_KEYS, "actions"];
-const INFO_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
+const INFO_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "show_battery", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
 const READS_ATTRIBUTE = ["attribute", "picture"];
 
 const isEmpty = (v) => v == null || v === "" || v === false || (Array.isArray(v) && !v.length) || (isObject(v) && !Object.keys(v).length);
@@ -86,6 +86,7 @@ export class OrigamiNotificationsEditor extends LitElement {
     const sources = [{ key: "system", name: t.label("system"), icon: KIND_ICONS.system }];
     if (config.updates !== false) sources.push({ key: "updates", name: t.label("updates"), icon: KIND_ICONS.update });
     if (config.repairs !== false) sources.push({ key: "repairs", name: t.label("repairs"), icon: KIND_ICONS.repair });
+    if (config.batteries) sources.push({ key: "batteries", name: t.label("batteries"), icon: KIND_ICONS.battery });
     if (config.weather) sources.push({ key: config.weather, name: this._name(config.weather), icon: KIND_ICONS.weather });
     const reg = this.hass.entities || {};
     const labelled = config.label ? Object.keys(reg).filter((id) => reg[id]?.labels?.includes(config.label)).map((entity) => ({ entity })) : [];
@@ -118,7 +119,7 @@ export class OrigamiNotificationsEditor extends LitElement {
       { name: "label", selector: { label: {} } },
       { name: "weather", selector: { entity: { filter: { domain: "weather" } } } },
       { name: "infos", selector: { entity: { multiple: true, reorder: true } } },
-      { name: "", type: "grid", schema: [{ name: "updates", selector: { boolean: {} } }, { name: "repairs", selector: { boolean: {} } }] },
+      { name: "", type: "grid", schema: ["updates", "repairs", "batteries"].map((name) => ({ name, selector: { boolean: {} } })) },
       { name: "hide_when_empty", selector: { boolean: {} } },
       {
         name: "content_layout",
@@ -187,8 +188,9 @@ export class OrigamiNotificationsEditor extends LitElement {
       for (const key of ENTITY_KEYS) {
         if (!(key in option)) continue;
         const v = option[key];
-        if (key === "before" && parseBefore(v) === parseBefore(base.before)) continue;
-        if (isEmpty(v) || (key === "type" && v === "auto") || (key === "color" && v === "state") || (key === "before" && !parseBefore(v))) delete merged[key];
+        const duration = key === "before" || key === "after";
+        if (duration && parseBefore(v) === parseBefore(base[key])) continue;
+        if (isEmpty(v) || (key === "type" && v === "auto") || (key === "color" && v === "state") || (duration && !parseBefore(v))) delete merged[key];
         else merged[key] = v;
       }
       if (merged.type && !READS_ATTRIBUTE.includes(merged.type)) delete merged.attribute;
@@ -212,9 +214,9 @@ export class OrigamiNotificationsEditor extends LitElement {
     for (const [from, to] of [this._swapped || [], [this._config.weather, value.weather]]) {
       if (from && to && audience[from] && !audience[to]) audience[to] = audience[from];
     }
-    // Rules for updates stay, since the card finds updates on its own.
+    // Rules for updates and batteries stay, since they also cover the ones under entities.
     const after = new Set(this._sources({ ...this._config, ...value }).map((s) => s.key));
-    for (const key of before) if (!after.has(key) && key !== "updates" && !key.startsWith("update.")) delete audience[key];
+    for (const key of before) if (!after.has(key) && key !== "updates" && key !== "batteries" && !key.startsWith("update.")) delete audience[key];
     value.audience = audience;
     this._write(value);
   }
@@ -236,7 +238,9 @@ export class OrigamiNotificationsEditor extends LitElement {
     const used = new Set();
     const take = (i) => (i >= 0 && !used.has(i) ? (used.add(i), before[i]) : null);
     return ids.map((id, i) => {
-      const base = take(before.findIndex((info, j) => info.entity === id && !used.has(j))) || (before.length === ids.length && !ids.includes(before[i].entity) && take(i)) || {};
+      // Home Assistant shows a person's picture on the tiles of the dashboards it makes itself.
+      const fresh = id.startsWith("person.") ? { show_entity_picture: true } : {};
+      const base = take(before.findIndex((info, j) => info.entity === id && !used.has(j))) || (before.length === ids.length && !ids.includes(before[i].entity) && take(i)) || fresh;
       return this._infoEntry({ ...base, entity: id });
     });
   }
@@ -282,6 +286,7 @@ export class OrigamiNotificationsEditor extends LitElement {
       { name: "", type: "grid", schema: [{ name: "icon", selector: { icon: {} }, context: { icon_entity: "entity" } }, { name: "color", selector: { ui_color: { default_color: "state", include_state: true } } }] },
       ...(forecasts.length ? forecast : state),
       { name: "show_entity_picture", selector: { boolean: {} } },
+      ...(info.show_battery || (st && batteryOf(this.hass, st)) ? [{ name: "show_battery", selector: { boolean: {} } }] : []),
       { name: "tap_action", selector: { ui_action: { default_action: "more-info" } }, context },
       { name: "", type: "optional_actions", flatten: true, schema: ["hold_action", "double_tap_action"].map((name) => ({ name, selector: { ui_action: { default_action: "none" } }, context })) },
     ];
@@ -314,6 +319,7 @@ export class OrigamiNotificationsEditor extends LitElement {
       { name: "image", selector: { text: {} } },
       { name: "background", selector: { boolean: {} } },
       ...(AHEAD_KINDS.includes(kind) ? [{ name: "before", selector: { duration: { enable_day: true } } }] : []),
+      ...(BEHIND_KINDS.includes(kind) ? [{ name: "after", selector: { duration: { enable_day: true } } }] : []),
       { name: "tap_action", helper: "row_tap_action", selector: { ui_action: { default_action: "more-info" } } },
     ];
   }
@@ -326,7 +332,8 @@ export class OrigamiNotificationsEditor extends LitElement {
 
   _entityPanel(e, index) {
     const t = this._t;
-    const data = { ...e, type: e.type || "auto", color: e.color || "state", background: Boolean(e.background), before: e.before == null ? undefined : durationParts(parseBefore(e.before)) };
+    const parts = (v) => (v == null ? undefined : durationParts(parseBefore(v)));
+    const data = { ...e, type: e.type || "auto", color: e.color || "state", background: Boolean(e.background), before: parts(e.before), after: parts(e.after) };
     const conditions = Array.isArray(e.visibility) ? e.visibility : [];
     return html`<ha-expansion-panel outlined .header=${e.name || this._name(e.entity)} .secondary=${t.label("type_" + this._kind(e))}>
       <ha-icon slot="leading-icon" .icon=${e.icon || KIND_ICONS[this._kind(e)]}></ha-icon>
@@ -370,6 +377,7 @@ export class OrigamiNotificationsEditor extends LitElement {
           .data=${this._memo("info-data-" + index, data)}
           .schema=${this._memo("info-schema-" + index, this._infoSchema(info))}
           .computeLabel=${(s) => t.label(s.name)}
+          .computeHelper=${(s) => t.helper(s.name)}
           @value-changed=${(e) => this._onInfo(e, index, e.detail.value)}
         ></ha-form>
         <ha-expansion-panel outlined .header=${t.label("visibility")}>

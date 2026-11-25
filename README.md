@@ -1,7 +1,7 @@
 # ◪ Origami Notifications
 
 <div>
-<a href="https://github.com/hazymorning/origami_notifications/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/Release-V1.6.0-F6F4F1?labelColor=181715"></a>
+<a href="https://github.com/hazymorning/origami_notifications/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/Release-V1.7.0-F6F4F1?labelColor=181715"></a>
 <a href="https://github.com/hazymorning?tab=repositories&q=origami"><img alt="Origami suite" src="https://img.shields.io/badge/Origami-Suite-F6F4F1?labelColor=181715&logo=data:image/svg%2Bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiBmaWxsPSJub25lIiBzdHJva2U9IiNGNkY0RjEiIHN0cm9rZS13aWR0aD0iMiIvPjxwb2x5Z29uIHBvaW50cz0iMjEsMyAyMSwyMSAzLDIxIiBmaWxsPSIjRjZGNEYxIi8%2BPC9zdmc%2B"></a>
 </div>
 
@@ -63,10 +63,10 @@ The card shows one entry at a time and turns on its own or with a swipe.
 | Warnings | Rain with a window open and other warnings get an orange icon. |
 | Critical entries | Smoke, a leak or a triggered alarm makes the card pulse red. While one is on, the closed card turns only through critical entries. The list and the badge still include every entry. |
 | Order | Critical entries come first. The rest are sorted by time, and the one closest to now comes first. Infos come last. |
-| Something new | While the card turns on its own, a new entry from the last 2 minutes, such as a door that just opened or a new notification, takes over the card right away, unless critical entries hold it. |
+| Something new | While the card turns on its own, a new entry from the last 2 minutes, such as a door that just opened, someone who just came home or a new notification, takes over the card right away, unless critical entries hold it. |
 | Long text | A line that doesn't fit scrolls sideways after a short pause, and the card waits for it, up to 10 seconds. |
 | Many changes at once | When entries change, the card waits until the entry on show has had 2 seconds and then shows the latest change, so a burst of changes, as when the dashboard opens, shows as one. |
-| Groups | When two or more windows are open, they share one row that names their rooms. Doors, motion sensors and other binary sensors of one type work the same way. |
+| Groups | When two or more windows are open, they share one row that names their rooms. Doors, motion sensors, low batteries and other binary sensors of one type work the same way. People who arrive at one place share a row that names them. |
 | Pauses | The card doesn't turn while a finger rests on it, while the list is open, or while the card or the browser tab is out of sight. |
 | Reduced motion | With reduced motion turned on in the system, the card changes without sliding, long lines don't scroll, and a critical card stays red without pulsing. |
 
@@ -105,6 +105,7 @@ A tap on the card shows every entry with its buttons.
 | A Home Assistant notification | It's removed for everyone. |
 | A repair | It's ignored in Home Assistant. |
 | An update | For an admin, it's skipped in Home Assistant. For everyone else, and for updates that install themselves, it's hidden in this browser. |
+| A battery | It's hidden in this browser until the card has seen it charged and it runs low again. |
 | Anything else | It's hidden in this browser until it changes or happens again. A bin, for example, comes back for the next pickup. |
 | An alarm panel or an entity under `infos` | It can't be dismissed. |
 | All entries at once | With two or more entries, **Dismiss all** appears at the foot of the list. In the dialog, it's the icon at the top. It dismisses every entry that can be dismissed. |
@@ -146,10 +147,13 @@ Almost any entity works, and each one appears only while it matters.
 | Sensor with a time, or with a duration and `type: countdown` | Until the time is reached. With `before`, only that long before. |
 | Bins from Waste Collection Schedule, as a sensor or a calendar | From noon the day before until the end of the pickup day. |
 | The Android app's next alarm | In the 12 hours before the alarm rings. |
-| Event | For a day after it fires. If the same device has a camera, the entry shows its picture. |
+| Event | For a day after it fires, or as long as `after` says. If the same device has a camera, the entry shows its picture. |
+| Person or device tracker | For an hour after it arrives in a zone or leaves one, with its picture and the zone on a badge. The moves come from Home Assistant's history, so a restart is no move. |
+| Zone | For an hour after a person arrives in it or leaves it. |
 | To-do list with `type: todo` | Each item on its due day or when it's overdue, with a button to mark it as done. Items without a due date never appear. |
 | Lock, cover, valve, vacuum, lawn mower or siren | While Home Assistant counts it as active, such as an unlocked lock or an open cover. Where the device supports it, a button locks, closes, docks or turns it off. |
 | Entity with an attribute that holds a `name` or `title` and a `description`, `summary` or picture | The attribute appears as an entry, whatever the entity's state. The recipe in the list above works like this. |
+| Battery, as a sensor or a binary sensor | At 20 % or less, or while the binary sensor says it's low, as in Home Assistant's maintenance view. Not while its device is charging. |
 | Binary sensor for smoke, gas, carbon monoxide, moisture, heat or safety | While it's on, and the card pulses red. |
 | Anything else | While it's on or active, or while its value is above 0. |
 
@@ -162,7 +166,7 @@ Almost any entity works, and each one appears only while it matters.
 
 | Option | Description |
 | --- | --- |
-| `type` | The kind of entity. Without it, the card finds the kind itself. It's one of `alarm`, `alert`, `attribute`, `calendar`, `countdown`, `device`, `event`, `generic`, `next_alarm`, `picture`, `timer`, `todo`, `update`, `warning` or `waste`. With `generic`, the entity appears in any state except off, idle, none, 0, unknown and unavailable. With `picture`, the state becomes the title. |
+| `type` | The kind of entity. Without it, the card finds the kind itself. It's one of `alarm`, `alert`, `attribute`, `battery`, `calendar`, `countdown`, `device`, `event`, `generic`, `next_alarm`, `picture`, `presence`, `timer`, `todo`, `update`, `warning` or `waste`. With `generic`, the entity appears in any state except off, idle, none, 0, unknown and unavailable. With `picture`, the state becomes the title. |
 | `attribute` | The attribute to show, such as `next_due` or `book.title`. A plain value becomes the title. |
 | `name` | A name in place of the entity's name |
 | `icon` | An icon in place of the entity's icon |
@@ -170,6 +174,7 @@ Almost any entity works, and each one appears only while it matters.
 | `image` | A picture from an attribute, or a URL, in place of the entity's own picture |
 | `background` | `true` shows the entry's picture blurred behind the card while this entry shows. |
 | `before` | How long before its time the entry appears, in minutes or as a duration in quotes such as `"1:30:00"`. It works for calendars, bins, the next alarm, countdowns and to-do lists. |
+| `after` | How long the entry stays after it happened, in the same form as `before`. It works for events, people, device trackers and zones. |
 | `tap_action` | What a tap on the entry does. By default, a tap opens the entity. |
 | `visibility` | Conditions from Home Assistant's visibility tab, which must all be met. An entity that fits none of the kinds above, such as a temperature, then appears whenever they are met. |
 | `actions` | Buttons of one's own, each with a `label` and a `tap_action`. The **Open recipe** button in the list above is one of these. |
@@ -209,8 +214,9 @@ While an info shows, the card doesn't hide.
 | Option | Description |
 | --- | --- |
 | `entity` | The entity to show |
-| `name`, `icon`, `color`, `show_entity_picture` | These work as on a tile card. Without a name, a calendar shows its event as the title, and a weather entity shows the time, such as Now or Tomorrow. |
-| `state_content`, `time_format` | What the second line shows, such as `[temperature, state]` or `next_rising` |
+| `name`, `icon`, `color`, `show_entity_picture` | These work as on a tile card. Without a name, a calendar shows its event as the title, and a weather entity shows the time, such as Now or Tomorrow. As on a tile, a badge on the icon shows the zone of a person or a device tracker, and what a thermostat or a humidifier is doing. |
+| `show_battery` | `true` adds the battery of the entity's device to the second line, in the color of its level. A person shows the battery of the phone that tracks them. |
+| `state_content`, `time_format` | What the second line shows, such as `[temperature, state]` or `next_rising`. Without it, a zone names the people in it. |
 | `forecast_type` | `daily`, `hourly` or `twice_daily` adds a weather entity's forecast. |
 | `forecast_slots` | How many days or hours of the forecast the card shows. The default is 1. |
 | `show_current`, `show_forecast` | These work as on Home Assistant's weather forecast card. Both are on unless set to `false`. |
@@ -234,6 +240,7 @@ While an info shows, the card doesn't hide.
 | `infos` | | Entities that show after the entries, see [Infos](#infos) |
 | `updates` | `true` | Shows every available update. `false` shows only the updates under `entities` or with the `label`. |
 | `repairs` | `true` | Shows repairs to admins. `false` hides them. |
+| `batteries` | `false` | `true` shows every low battery of the house, as Home Assistant's maintenance view does. Otherwise only the batteries under `entities` or with the `label` show. |
 | `hide_when_empty` | `true` | Hides the card when there is nothing to show. With `false`, the card stays and also shows the weather and the next calendar events after the entries. |
 | `vertical` | `false` | `true` puts the icon above the text, as on a tile card with vertical content. In a sections view, the card can then be as narrow as 3 columns instead of 6. |
 | `rotate` | `8` | How many seconds the card shows each entry before it turns to the next. At `0`, the card only turns by hand, with a swipe or the arrow keys. |
@@ -263,6 +270,7 @@ audience:
 | `system` | Home Assistant's notifications |
 | `updates` | All updates |
 | `repairs` | Repairs, which only admins see |
+| `batteries` | All batteries |
 | An entity ID | That entity. The weather entity's ID covers its rain and frost entries. |
 
 The card knows people by the user account linked to them under [People](https://my.home-assistant.io/redirect/people/). The rules only change this card, not what people see elsewhere in Home Assistant.
@@ -287,15 +295,16 @@ Styles in `css` come after the card's own, so they win.
 | `--origami-pulse-opacity` | `0.3` | How strongly the card pulses while an entry is critical. This also works in a theme. |
 | `--origami-max-height` | none | The maximum height of the card and its dialog. A longer list scrolls inside. The default is `25dvh` in the footer and `70vh` in the dialog. This also works in a theme. |
 | `--origami-bg-opacity`, `--origami-bg-blur` | `0.22` (`0.32` dark), `24px` | The opacity and blur of the background picture. These also work in a theme. |
+| `--state-person-*-color` | theme | The color of a zone on the badge of a person, such as `--state-person-gym-color`. Without it, home is green, another zone is blue and away is grey, as on a tile. |
 | `--ha-tile-*` | theme | The card follows the theme's tile variables. The icon and the ring around it take their shape from `--ha-tile-icon-border-radius`. |
 | `--ha-button-*` | theme | The buttons in the list follow the theme's button variables, such as `--ha-button-border-radius`. |
 | `--ha-dialog-surface-background` | theme | The background of the dialog. In a theme, it colors every dialog of Home Assistant. |
 
 | Part | Classes |
 | --- | --- |
-| Card | `.head` with `.icon`, `.cycle` for the ring, `.badge`, `.title` and `.secondary` |
+| Card | `.head` with `.icon`, `.cycle` for the ring, `.badge` for the count, `.tile-badge`, `.title` and `.secondary` |
 | List | `.bar` with `.count`, the `.list` of `.row` elements and the `.foot` with `.clear` |
-| Row | `.icon`, `.title`, `.time`, `.dismiss`, `.message` and the `.actions` with `.action` buttons. The dialog uses the same classes. |
+| Row | `.icon` with its `.tile-badge`, `.title`, `.time`, `.dismiss`, `.message` with the `.battery`, and the `.actions` with `.action` buttons. The dialog uses the same classes. |
 | Dialog | `.heading` for the title at the top |
 | Row state | `.warn` or `.crit`, and the kind in `data-kind`, such as `update`, `weather` or `group` |
 | Background picture | `.backdrop` |
@@ -311,6 +320,7 @@ Styles in `css` come after the card's own, so they win.
 type: custom:origami-notifications
 weather: weather.home
 label: notify
+batteries: true
 hide_when_empty: false
 rotate: 6
 slide: side
@@ -339,6 +349,8 @@ entities:
   - entity: event.cat_flap
     name: Chelsea
     image: /local/chelsea.jpg
+    after: 30
+  - zone.home
   - entity: sensor.attic_temperature
     visibility:
       - condition: numeric_state
@@ -365,6 +377,9 @@ infos:
       - condition: state
         entity: sun.sun
         state: below_horizon
+  - entity: person.anna
+    show_entity_picture: true
+    show_battery: true
 audience:
   updates:
     only: [person.anna]
