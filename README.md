@@ -63,10 +63,10 @@ The card shows one entry at a time and turns on its own or with a swipe.
 | Warnings | Rain with a window open and other warnings get an orange icon. |
 | Critical entries | Smoke, a leak or a triggered alarm makes the card pulse red. While one is on, the closed card turns only through critical entries. The list and the badge still include every entry. |
 | Order | Critical entries come first. The rest are sorted by time, and the one closest to now comes first. Infos come last. |
-| Something new | While the card turns on its own, a new entry from the last 2 minutes, such as a door that just opened or a new notification, takes over the card right away, unless critical entries hold it. |
+| Something new | While the card turns on its own, a new entry from the last 2 minutes, such as a door that just opened, someone who just came home or a new notification, takes over the card right away, unless critical entries hold it. |
 | Long text | A line that doesn't fit scrolls sideways after a short pause, and the card waits for it, up to 10 seconds. |
 | Many changes at once | When entries change, the card waits until the entry on show has had 2 seconds and then shows the latest change, so a burst of changes, as when the dashboard opens, shows as one. |
-| Groups | When two or more windows are open, they share one row that names their rooms. Doors, motion sensors, low batteries and other binary sensors of one type work the same way. |
+| Groups | When two or more windows are open, they share one row that names their rooms. Doors, motion sensors, low batteries and other binary sensors of one type work the same way. People who arrive at one place share a row that names them. |
 | Pauses | The card doesn't turn while a finger rests on it, while the list is open, or while the card or the browser tab is out of sight. |
 | Reduced motion | With reduced motion turned on in the system, the card changes without sliding, long lines don't scroll, and a critical card stays red without pulsing. |
 
@@ -147,7 +147,9 @@ Almost any entity works, and each one appears only while it matters.
 | Sensor with a time, or with a duration and `type: countdown` | Until the time is reached. With `before`, only that long before. |
 | Bins from Waste Collection Schedule, as a sensor or a calendar | From noon the day before until the end of the pickup day. |
 | The Android app's next alarm | In the 12 hours before the alarm rings. |
-| Event | For a day after it fires. If the same device has a camera, the entry shows its picture. |
+| Event | For a day after it fires, or as long as `after` says. If the same device has a camera, the entry shows its picture. |
+| Person or device tracker | For an hour after it arrives in a zone or leaves one, with its picture and the zone on a badge. The moves come from Home Assistant's history, so a restart is no move. |
+| Zone | For an hour after a person arrives in it or leaves it. |
 | To-do list with `type: todo` | Each item on its due day or when it's overdue, with a button to mark it as done. Items without a due date never appear. |
 | Lock, cover, valve, vacuum, lawn mower or siren | While Home Assistant counts it as active, such as an unlocked lock or an open cover. Where the device supports it, a button locks, closes, docks or turns it off. |
 | Entity with an attribute that holds a `name` or `title` and a `description`, `summary` or picture | The attribute appears as an entry, whatever the entity's state. The recipe in the list above works like this. |
@@ -164,7 +166,7 @@ Almost any entity works, and each one appears only while it matters.
 
 | Option | Description |
 | --- | --- |
-| `type` | The kind of entity. Without it, the card finds the kind itself. It's one of `alarm`, `alert`, `attribute`, `battery`, `calendar`, `countdown`, `device`, `event`, `generic`, `next_alarm`, `picture`, `timer`, `todo`, `update`, `warning` or `waste`. With `generic`, the entity appears in any state except off, idle, none, 0, unknown and unavailable. With `picture`, the state becomes the title. |
+| `type` | The kind of entity. Without it, the card finds the kind itself. It's one of `alarm`, `alert`, `attribute`, `battery`, `calendar`, `countdown`, `device`, `event`, `generic`, `next_alarm`, `picture`, `presence`, `timer`, `todo`, `update`, `warning` or `waste`. With `generic`, the entity appears in any state except off, idle, none, 0, unknown and unavailable. With `picture`, the state becomes the title. |
 | `attribute` | The attribute to show, such as `next_due` or `book.title`. A plain value becomes the title. |
 | `name` | A name in place of the entity's name |
 | `icon` | An icon in place of the entity's icon |
@@ -172,6 +174,7 @@ Almost any entity works, and each one appears only while it matters.
 | `image` | A picture from an attribute, or a URL, in place of the entity's own picture |
 | `background` | `true` shows the entry's picture blurred behind the card while this entry shows. |
 | `before` | How long before its time the entry appears, in minutes or as a duration in quotes such as `"1:30:00"`. It works for calendars, bins, the next alarm, countdowns and to-do lists. |
+| `after` | How long the entry stays after it happened, in the same form as `before`. It works for events, people, device trackers and zones. |
 | `tap_action` | What a tap on the entry does. By default, a tap opens the entity. |
 | `visibility` | Conditions from Home Assistant's visibility tab, which must all be met. An entity that fits none of the kinds above, such as a temperature, then appears whenever they are met. |
 | `actions` | Buttons of one's own, each with a `label` and a `tap_action`. The **Open recipe** button in the list above is one of these. |
@@ -213,7 +216,7 @@ While an info shows, the card doesn't hide.
 | `entity` | The entity to show |
 | `name`, `icon`, `color`, `show_entity_picture` | These work as on a tile card. Without a name, a calendar shows its event as the title, and a weather entity shows the time, such as Now or Tomorrow. As on a tile, a badge on the icon shows the zone of a person or a device tracker, and what a thermostat or a humidifier is doing. |
 | `show_battery` | `true` adds the battery of the entity's device to the second line, in the color of its level. A person shows the battery of the phone that tracks them. |
-| `state_content`, `time_format` | What the second line shows, such as `[temperature, state]` or `next_rising` |
+| `state_content`, `time_format` | What the second line shows, such as `[temperature, state]` or `next_rising`. Without it, a zone names the people in it. |
 | `forecast_type` | `daily`, `hourly` or `twice_daily` adds a weather entity's forecast. |
 | `forecast_slots` | How many days or hours of the forecast the card shows. The default is 1. |
 | `show_current`, `show_forecast` | These work as on Home Assistant's weather forecast card. Both are on unless set to `false`. |
@@ -346,6 +349,8 @@ entities:
   - entity: event.cat_flap
     name: Chelsea
     image: /local/chelsea.jpg
+    after: 30
+  - zone.home
   - entity: sensor.attic_temperature
     visibility:
       - condition: numeric_state

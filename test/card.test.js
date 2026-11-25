@@ -383,6 +383,25 @@ test("news comes forward and is read out, and what was there before is not news"
   assert.deepEqual([say(), head(el).title], ["Smoke. on", "Door"], "what it held back is not news when it ends");
 });
 
+test("an arrival comes from Home Assistant's history, comes forward as news and goes after an hour", async () => {
+  const w = makeWindow({ clock: true });
+  const subs = [];
+  const states = { ...doors(), ...statesOf(st("person.kim", "home", { friendly_name: "Kim" })) };
+  const el = await mount(w, card([...Object.keys(doors()), "person.kim"]), makeHass(states, { subs }));
+  const stream = subs.find((s) => s.msg?.type === "history/stream");
+  same([stream.msg.entity_ids, stream.msg.start_time, stream.msg.no_attributes], [["person.kim"], new Date(NOW - 3600000).toISOString(), false]);
+  await tick(el, 3000);
+  const lu = (minutes) => (Date.now() + minutes * 60000) / 1000;
+  stream.cb({ states: { "person.kim": [{ s: "not_home", lu: lu(-60) }] } });
+  await settle(el);
+  assert.equal(titles(el).includes("Kim"), false, "where the window starts is no arrival");
+  stream.cb({ states: { "person.kim": [{ s: "home", lu: lu(0) }] } });
+  await settle(el);
+  same([head(el).title, q(el, ".say").textContent], ["Kim", "Kim. home"]);
+  await tick(el, 61 * 60000);
+  assert.equal(titles(el).includes("Kim"), false);
+});
+
 test("the clock runs while a time on show can change, and stops out of sight", async () => {
   const w = makeWindow({ clock: true });
   const states = statesOf(st("timer.kitchen", "active", { friendly_name: "Kitchen", finishes_at: at(5) }), on("binary_sensor.door", "Door", {}, at(-5)));

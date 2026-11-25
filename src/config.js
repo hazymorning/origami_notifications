@@ -44,9 +44,10 @@ function parseEntity(entry) {
   check(optional(src.color, (c) => typeof c === "string"), "color must be a theme color like green, or a CSS color");
   check(optional(src.visibility, Array.isArray), `visibility of ${src.entity} must be a list of conditions`);
   check(optional(src.before, (b) => parseBefore(b) >= 0), "before must be minutes or a duration like 1:30:00");
+  check(optional(src.after, (a) => parseBefore(a) >= 0), "after must be minutes or a duration like 1:30:00");
   check(isAction(src.tap_action), "tap_action must be an action");
   check(optional(src.actions, (a) => Array.isArray(a) && a.every((ac) => isObject(ac) && typeof ac.label === "string" && isObject(ac.tap_action))), "actions must be a list of buttons with a label and a tap_action");
-  return { ...src, lead: src.before == null ? undefined : parseBefore(src.before) };
+  return { ...src, lead: src.before == null ? undefined : parseBefore(src.before), trail: src.after == null ? undefined : parseBefore(src.after) };
 }
 
 function parseInfo(entry) {

@@ -1,6 +1,7 @@
 import { clockText, DAY, dayNumber, dayStart, fill, HOUR, isoTime, parseDuration, parseTime } from "./format.js";
 import { chargingOf, domainColor, domainOf, FEATURE, isBattery, stateActive, supports, themeColor } from "./ha.js";
 import { linkAction, plainText } from "./markdown.js";
+import { presence, PRESENCE_DOMAINS } from "./presence.js";
 import { isEmpty, isObject } from "./values.js";
 
 export const sig = (...parts) => parts.join("\u0000");
@@ -213,7 +214,7 @@ function event(st, src, ctx) {
       message: type == null || type === "" ? "" : ctx.attr(st, "event_type", type),
       ts,
       past: true,
-      expires: ts + DAY,
+      expires: ts + (src.trail >= 0 ? src.trail : DAY),
       image: findPicture(st.attributes) || devicePicture(ctx.hass, pictures),
       ack: String(st.state),
     },
@@ -415,7 +416,8 @@ const KINDS = [
   { name: "alert", icon: "mdi:alert", fits: (st) => domainOf(st.entity_id) === "alert", show: alert },
   { name: "timer", icon: "mdi:timer-outline", fits: (st) => domainOf(st.entity_id) === "timer", show: timer },
   { name: "attribute", icon: "mdi:card-text-outline", fits: (st) => Boolean(findThing(st.attributes)), show: (st, src, ctx) => thing(st, src, ctx, "attribute") },
-  { name: "event", icon: "mdi:eye-check", fits: (st) => domainOf(st.entity_id) === "event", show: event },
+  { name: "event", icon: "mdi:eye-check", behind: true, fits: (st) => domainOf(st.entity_id) === "event", show: event },
+  { name: "presence", icon: "mdi:map-marker-account", behind: true, fits: (st) => PRESENCE_DOMAINS.includes(domainOf(st.entity_id)), show: presence },
   { name: "device", icon: "mdi:devices", fits: (st) => Boolean(DEVICES[domainOf(st.entity_id)]), show: device },
   // The Android app's next alarm sensor also gives its time in milliseconds.
   { name: "next_alarm", icon: "mdi:alarm", ahead: true, fits: (st) => st.attributes["Time in Milliseconds"] != null && st.attributes.device_class === "timestamp", show: nextAlarm },
@@ -431,6 +433,8 @@ const BY_NAME = Object.fromEntries(KINDS.map((k) => [k.name, k]));
 export const KIND_NAMES = KINDS.map((k) => k.name);
 
 export const AHEAD_KINDS = KINDS.filter((k) => k.ahead).map((k) => k.name);
+
+export const BEHIND_KINDS = KINDS.filter((k) => k.behind).map((k) => k.name);
 
 export const KIND_ICONS = {
   ...Object.fromEntries(KINDS.map((k) => [k.name, k.icon])),
@@ -477,7 +481,7 @@ export function entityEntries(src, st, ctx) {
       tap: src.tap_action ? tap : entry.tap,
       inert: src.tap_action?.action === "none",
       actions: [...(entry.actions || []), ...extra],
-      stateObj: entry.kind === "todo" ? undefined : st,
+      stateObj: entry.kind === "todo" ? undefined : entry.stateObj || st,
     };
   });
 }

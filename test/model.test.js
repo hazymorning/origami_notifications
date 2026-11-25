@@ -46,6 +46,7 @@ function model(config, states = {}, opts = {}) {
     devicePictures: () => [],
     details: opts.details || (() => null),
     todos: (id) => opts.todos?.[id],
+    history: (id) => opts.history?.[id],
     media: () => false,
     serverCondition: opts.server || (() => ({ result: false, failed: false })),
     data: { notifications: new Map(Object.entries(opts.notifications || {})), repairs: opts.repairs || [], forecast: (id) => opts.forecast?.[id] },
@@ -343,6 +344,37 @@ test("with batteries, every low battery of the house shows, and a rule for batte
   assert.deepEqual(shown({ batteries: { only: ["person.anna"] } }, "person.bob"), ["Door"]);
 });
 
+test("a person, a tracker or a zone shows who arrived or left for an hour, from Home Assistant's history, so a restart is no move", () => {
+  const h = (s, minutes, a) => ({ s, lu: (NOW + minutes * 60000) / 1000, ...(a ? { a } : {}) });
+  const states = statesOf(
+    st("person.anna", "Work", { friendly_name: "Anna", entity_picture: "/api/anna.jpg" }),
+    st("person.kim", "home", { friendly_name: "Kim" }),
+    st("person.lea", "home", { friendly_name: "Lea" }),
+    st("device_tracker.car", "home", { friendly_name: "Car" }),
+    st("zone.home", "2", { friendly_name: "Home", persons: ["person.kim", "person.lea"] })
+  );
+  const history = {
+    "person.anna": [h("home", -60), h("unavailable", -40), h("home", -39), h("Work", -10, { in_zones: ["zone.work"] })],
+    "person.kim": [h("not_home", -60), h("home", -3, { in_zones: ["zone.home"] })],
+    "person.lea": [h("Work", -60), h("home", -5)],
+    "device_tracker.car": [h("Work", -100), h("home", -80)],
+  };
+  const shown = (entities, opts) => model({ entities }, states, { history, ...opts });
+  const anna = shown(["person.anna"]);
+  assert.deepEqual(show(anna, "title", "message", "ts", "expires", "image"), [["Anna", "Work", NOW - 600000, NOW + 3000000, "/api/anna.jpg"]], "the restart at -40 is no move");
+  assert.ok(anna.wakes.includes(NOW + 3000000), "the card wakes when it ends");
+  assert.deepEqual(show(shown(["zone.home"])), [["home", "Kim, Lea"], ["Anna", "Work"]], "a zone shows who came and who left, and people at one place share a row");
+  assert.equal(shown(["person.anna", "zone.home"]).entries.length, 2, "a move shows once, from a person and a zone alike");
+  assert.deepEqual([show(shown(["device_tracker.car"])), show(shown([{ entity: "device_tracker.car", after: 90 }]))], [[], [["Car", "home"]]]);
+  assert.deepEqual(show(shown(["person.anna"], { history: {} })), [], "nothing until the history is there");
+});
+
+test("an event stays for a day, or as long as after says", () => {
+  const states = statesOf(st("event.doorbell", at(-20), { friendly_name: "Doorbell", event_type: "ring" }));
+  const shown = (extra) => model({ entities: [{ entity: "event.doorbell", ...extra }] }, states).entries.map((e) => e.title);
+  assert.deepEqual([shown({}), shown({ after: 15 }), shown({ after: "0:30:00" })], [["Doorbell"], [], ["Doorbell"]]);
+});
+
 test("an entity with conditions shows while they hold, so a sensor can show above or below a mark", () => {
   const config = { entities: [{ entity: "sensor.attic", visibility: [{ condition: "numeric_state", above: 28 }] }, { entity: "sensor.cellar", visibility: [{ condition: "numeric_state", below: 0 }] }] };
   const temps = (attic, cellar) => model(config, statesOf(st("sensor.attic", attic, { friendly_name: "Attic" }), st("sensor.cellar", cellar, { friendly_name: "Cellar" }))).entries.map((e) => [e.title, e.message]);
@@ -449,6 +481,12 @@ test("a person or a tracker shows its zone on a badge, and a thermostat or a hum
   assert.deepEqual(badge("climate.bath", "heat", { hvac_action: "idle" }), { attribute: "hvac_action", icon: "mdi:clock-outline", color: color("climate", "off", "inactive") });
   assert.deepEqual(badge("humidifier.bed", "on", { action: "drying" }), { attribute: "action", icon: "mdi:arrow-down-bold", color: color("humidifier", "on", "active") });
   assert.deepEqual([badge("climate.bath", "off", { hvac_action: "off" }), badge("climate.bath", "heat"), badge("light.desk", "on")], [null, null, null]);
+});
+
+test("a zone as an info names the people in it", () => {
+  const states = statesOf(st("zone.home", "2", { friendly_name: "Home", persons: ["person.kim", "person.lea"] }), st("zone.work", "0", { friendly_name: "Work", persons: [] }), st("person.kim", "home", { friendly_name: "Kim" }), st("person.lea", "home", { friendly_name: "Lea" }));
+  const m = model({ infos: ["zone.home", "zone.work", { entity: "zone.home", state_content: "state" }] }, states);
+  assert.deepEqual(m.slides.map((s) => [s.title, s.text ?? null]), [["Home", "Kim, Lea"], ["Work", "No one here"], ["Home", null]], "state_content still shows the count");
 });
 
 test("an info with show_battery shows the battery of its device, and a person the battery of the phone that tracks them", () => {

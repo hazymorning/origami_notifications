@@ -81,6 +81,15 @@ test("each info is edited with the fields of a tile and Home Assistant's visibil
   same((await send(form(), (v) => ({ ...v, infos: ["sensor.energy", "sun.sun"] }))).infos, [{ ...weather, entity: "sensor.energy", visibility: [{ condition: "user", users: ["u1"] }] }, { entity: "sun.sun", state_content: "next_rising" }], "a swapped or moved info keeps its options");
 });
 
+test("an event, a person or a zone offers how long it stays", async () => {
+  const w = makeWindow();
+  const hass = makeHass(statesOf(st("person.kim", "home"), st("event.doorbell", "2026-10-02T11:59:00+00:00"), st("calendar.family", "off")));
+  const { entityForms, send } = await editor(w, { entities: ["person.kim", "event.doorbell", "calendar.family"] }, hass);
+  same(entityForms().map((f) => f.schema.some((s) => s.name === "after")), [true, true, false]);
+  const fifteen = { hours: 0, minutes: 15, seconds: 0 };
+  same((await send(entityForms()[1], (v) => ({ ...v, after: fifteen }))).entities, ["person.kim", { entity: "event.doorbell", after: fifteen }, "calendar.family"]);
+});
+
 test("an info offers its battery where its device has one, and a person comes with their picture", async () => {
   const w = makeWindow();
   const states = statesOf(st("person.anna", "home", { device_trackers: ["device_tracker.pixel"] }), st("device_tracker.pixel", "home"), st("sensor.pixel_battery", "54", { device_class: "battery" }), st("sun.sun", "above_horizon"));

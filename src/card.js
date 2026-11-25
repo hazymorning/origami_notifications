@@ -10,6 +10,7 @@ import { HeadGestures } from "./gestures.js";
 import { infoText } from "./infos.js";
 import { buildModel, finishEntries, formatters, isAhead, nextWake } from "./model.js";
 import { duration, EASE, ListMotion, SPRING } from "./motion.js";
+import { mergeHistory } from "./presence.js";
 import { batteryTemplate, entryColor, focusRow, iconTemplate, imageUrl, opener, rowsTemplate } from "./rows.js";
 import { cardTexts, languageOf } from "./strings.js";
 import { adoptCss, cardStyles, iconStyles, rowStyles, variables } from "./styles.js";
@@ -48,7 +49,7 @@ export class OrigamiNotificationsCard extends LitElement {
     // Without it, Home Assistant detaches a hidden card and ends the subscriptions that bring it back.
     this.connectedWhileHidden = true;
     this.preview = false;
-    this._data = { notifications: new Map(), repairs: [], todos: new Map(), forecasts: new Map(), conditions: new Map() };
+    this._data = { notifications: new Map(), repairs: [], todos: new Map(), forecasts: new Map(), conditions: new Map(), history: new Map() };
     this._seq = 0;
     this._subs = new Subscriptions();
     this._dismissals = new Dismissals(() => this._refresh());
@@ -185,7 +186,7 @@ export class OrigamiNotificationsCard extends LitElement {
     const d = this._derive();
     const data = this._data;
     const now = Date.now();
-    const need = { todos: new Set(), forecasts: new Map(), conditions: new Map() };
+    const need = { todos: new Set(), forecasts: new Map(), conditions: new Map(), history: new Map() };
     const model = buildModel({
       hass,
       config: this._config,
@@ -204,6 +205,10 @@ export class OrigamiNotificationsCard extends LitElement {
       todos: (id) => {
         need.todos.add(id);
         return data.todos.get(id);
+      },
+      history: (id, ms) => {
+        need.history.set(id, Math.max(need.history.get(id) || 0, ms));
+        return data.history.get(id);
       },
       media: (query) => this._matches(query),
       serverCondition: (condition) => {
@@ -270,9 +275,25 @@ export class OrigamiNotificationsCard extends LitElement {
       for (const [key, condition] of need.conditions) {
         subscribe("condition|" + key, { type: "subscribe_condition", condition }, (msg) => this._store("conditions", key, { result: msg.result === true, failed: Boolean(msg.error) }));
       }
+      for (const [id, ms] of need.history) {
+        wanted.set(`history|${id}|${ms}`, { retryOn: hass.states[id], start: () => this._history(id, ms) });
+      }
     }
     this._subs.sync(wanted);
-    for (const kind of ["todos", "forecasts", "conditions"]) for (const key of this._data[kind].keys()) if (!need[kind].has(key)) this._data[kind].delete(key);
+    for (const kind of ["todos", "forecasts", "conditions", "history"]) for (const key of this._data[kind].keys()) if (!need[kind].has(key)) this._data[kind].delete(key);
+  }
+
+  // The stream starts with the history of the window and then sends each new state.
+  _history(id, ms) {
+    let first = true;
+    const message = { type: "history/stream", entity_ids: [id], start_time: new Date(Date.now() - ms).toISOString(), minimal_response: false, significant_changes_only: true, no_attributes: !id.startsWith("person.") };
+    return this._hass.connection.subscribeMessage((msg) => {
+      const states = msg.states?.[id] || [];
+      if (!first && !states.length) return;
+      this._data.history.set(id, mergeHistory(first ? [] : this._data.history.get(id) || [], states, Date.now() - ms));
+      first = false;
+      this._refresh();
+    }, message);
   }
 
   _store(kind, key, value) {

@@ -2,14 +2,14 @@ import { css, html, LitElement, nothing } from "lit";
 import { DEFAULTS, FORECAST_TYPES, parseBefore, parseConfig } from "./config.js";
 import { DAY, fill, HOUR, MINUTE } from "./format.js";
 import { batteryOf, isTimestampDomain } from "./ha.js";
-import { AHEAD_KINDS, KIND_ICONS, KIND_NAMES, kindOf } from "./kinds.js";
+import { AHEAD_KINDS, BEHIND_KINDS, KIND_ICONS, KIND_NAMES, kindOf } from "./kinds.js";
 import { entityName } from "./model.js";
 import { editorTexts, languageOf } from "./strings.js";
 import { isObject } from "./values.js";
 import { forecastSupported } from "./weather.js";
 
 const KEY_ORDER = ["entities", "label", "weather", "infos", "updates", "repairs", "batteries", "hide_when_empty", "vertical", "rotate", "slide", "audience", "css"];
-const ENTITY_KEYS = ["type", "attribute", "name", "icon", "color", "image", "background", "before", "tap_action", "visibility"];
+const ENTITY_KEYS = ["type", "attribute", "name", "icon", "color", "image", "background", "before", "after", "tap_action", "visibility"];
 const ENTITY_ORDER = ["entity", ...ENTITY_KEYS, "actions"];
 const INFO_ORDER = ["entity", "name", "icon", "color", "show_entity_picture", "show_battery", "state_content", "time_format", "show_current", "show_forecast", "forecast_type", "forecast_slots", "tap_action", "hold_action", "double_tap_action", "visibility"];
 const READS_ATTRIBUTE = ["attribute", "picture"];
@@ -188,8 +188,9 @@ export class OrigamiNotificationsEditor extends LitElement {
       for (const key of ENTITY_KEYS) {
         if (!(key in option)) continue;
         const v = option[key];
-        if (key === "before" && parseBefore(v) === parseBefore(base.before)) continue;
-        if (isEmpty(v) || (key === "type" && v === "auto") || (key === "color" && v === "state") || (key === "before" && !parseBefore(v))) delete merged[key];
+        const duration = key === "before" || key === "after";
+        if (duration && parseBefore(v) === parseBefore(base[key])) continue;
+        if (isEmpty(v) || (key === "type" && v === "auto") || (key === "color" && v === "state") || (duration && !parseBefore(v))) delete merged[key];
         else merged[key] = v;
       }
       if (merged.type && !READS_ATTRIBUTE.includes(merged.type)) delete merged.attribute;
@@ -318,6 +319,7 @@ export class OrigamiNotificationsEditor extends LitElement {
       { name: "image", selector: { text: {} } },
       { name: "background", selector: { boolean: {} } },
       ...(AHEAD_KINDS.includes(kind) ? [{ name: "before", selector: { duration: { enable_day: true } } }] : []),
+      ...(BEHIND_KINDS.includes(kind) ? [{ name: "after", selector: { duration: { enable_day: true } } }] : []),
       { name: "tap_action", helper: "row_tap_action", selector: { ui_action: { default_action: "more-info" } } },
     ];
   }
@@ -330,7 +332,8 @@ export class OrigamiNotificationsEditor extends LitElement {
 
   _entityPanel(e, index) {
     const t = this._t;
-    const data = { ...e, type: e.type || "auto", color: e.color || "state", background: Boolean(e.background), before: e.before == null ? undefined : durationParts(parseBefore(e.before)) };
+    const parts = (v) => (v == null ? undefined : durationParts(parseBefore(v)));
+    const data = { ...e, type: e.type || "auto", color: e.color || "state", background: Boolean(e.background), before: parts(e.before), after: parts(e.after) };
     const conditions = Array.isArray(e.visibility) ? e.visibility : [];
     return html`<ha-expansion-panel outlined .header=${e.name || this._name(e.entity)} .secondary=${t.label("type_" + this._kind(e))}>
       <ha-icon slot="leading-icon" .icon=${e.icon || KIND_ICONS[this._kind(e)]}></ha-icon>

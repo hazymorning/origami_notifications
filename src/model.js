@@ -81,8 +81,11 @@ export function buildModel(input) {
     }
   }
 
+  // A move can come from a person and from a zone at once.
+  const keys = new Set();
   const current = entries.filter((entry) => {
-    if (entry.expires <= now) return false;
+    if (entry.expires <= now || keys.has(entry.key)) return false;
+    keys.add(entry.key);
     ctx.wake(entry.expires);
     if (entry.live) ctx.wake(entry.ts);
     return true;
