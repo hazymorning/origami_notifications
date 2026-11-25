@@ -2,7 +2,7 @@ name: Pull request
 
 on:
   pull_request:
-    types: [opened, edited, reopened, synchronize]
+    types: [opened, edited, reopened, synchronize, ready_for_review]
 
 concurrency:
   group: pr-${{ github.event.pull_request.number }}
@@ -14,6 +14,8 @@ permissions:
 
 jobs:
   text:
+    # A draft is checked once it is ready, so its text can be put right first.
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
